@@ -1,0 +1,28 @@
+# ------------------------------------------------------------
+
+## CODEOWNERS for OUS Senior Project
+
+## Format: path-pattern  @github-username-or-team
+
+> Comments (#) are ignored
+
+## General rules
+
+- `*` @OUS-Senior-Project/Maintainers — fallback owners for any file not matched below
+
+## Backend code (FastAPI)
+
+- `backend/**` @OUS-Senior-Project/Backend
+
+### Frontend code (React/Node)
+
+frontend/**   @OUS-Senior-Project/Frontend
+
+### CI/CD and workflows
+
+.github/**    @OUS-Senior-Project/Devops
+
+### Documentation
+
+docs/**       @OUS-Senior-Project/Documentation
+README.md     @OUS-Senior-Project/Documentation
