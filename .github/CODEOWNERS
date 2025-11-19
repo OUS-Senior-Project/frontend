@@ -1,25 +1,39 @@
-# ------------------------------------------------------------
+# CODEOWNERS for OUS Senior Project - Frontend Repository
 
-## CODEOWNERS for OUS Senior Project - Frontend Repository
-
-------------------------------------------------------------
-
-### Frontend code (JS/TS/React)
+## === Frontend code (owned by the frontend team) ===
 
 *.js                    @OUS-Senior-Project/frontend-c-e
 *.jsx                   @OUS-Senior-Project/frontend-c-e
 *.ts                    @OUS-Senior-Project/frontend-c-e
 *.tsx                   @OUS-Senior-Project/frontend-c-e
 
-### CI/CD and GitHub workflows
-
-.github/**              @OUS-Senior-Project/Devops
-
-### Documentation
+## === Documentation ===
 
 docs/**                 @OUS-Senior-Project/Documentation
 README.md               @OUS-Senior-Project/Documentation
 
-### Fallback owners for any unmatched files
+## === CI/CD and GitHub workflows ===
 
-*                       @OUS-Senior-Project/Maintainers
+.github/**              @OUS-Senior-Project/Devops
+
+## === Root-level project files ===
+
+package.json            @OUS-Senior-Project/Maintainers
+package-lock.json       @OUS-Senior-Project/Maintainers
+pnpm-lock.yaml          @OUS-Senior-Project/Maintainers
+yarn.lock               @OUS-Senior-Project/Maintainers
+
+.eslintrc*              @OUS-Senior-Project/Maintainers
+.prettierrc*            @OUS-Senior-Project/Maintainers
+.browserslist           @OUS-Senior-Project/Maintainers
+.editorconfig           @OUS-Senior-Project/Maintainers
+
+Dockerfile              @OUS-Senior-Project/Maintainers
+.dockerignore           @OUS-Senior-Project/Maintainers
+
+.env                    @OUS-Senior-Project/Maintainers
+*.env*                  @OUS-Senior-Project/Maintainers
+
+*.json                  @OUS-Senior-Project/Maintainers
+*.yml                   @OUS-Senior-Project/Maintainers
+*.yaml                  @OUS-Senior-Project/Maintainers
