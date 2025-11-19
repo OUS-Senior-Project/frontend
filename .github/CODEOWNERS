@@ -15,6 +15,7 @@ README.md               @OUS-Senior-Project/Documentation
 ## === CI/CD and GitHub workflows ===
 
 .github/**              @OUS-Senior-Project/Devops
+.github/workflows/*.yml @OUS-Senior-Project/Devops
 
 ## === Root-level project files ===
 
