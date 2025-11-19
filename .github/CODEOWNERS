@@ -4,9 +4,12 @@
 
 ------------------------------------------------------------
 
-### Frontend code (entire repository)
+### Frontend code (JS/TS/React)
 
-/                       @OUS-Senior-Project/Frontend
+*.js                    @OUS-Senior-Project/frontend-c-e
+*.jsx                   @OUS-Senior-Project/frontend-c-e
+*.ts                    @OUS-Senior-Project/frontend-c-e
+*.tsx                   @OUS-Senior-Project/frontend-c-e
 
 ### CI/CD and GitHub workflows
 
