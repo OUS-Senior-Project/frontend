@@ -4,13 +4,9 @@
 
 ------------------------------------------------------------
 
-### Fallback owners for any unmatched files
-
-*                       @OUS-Senior-Project/Maintainers
-
 ### Frontend code (entire repository)
 
-*                       @OUS-Senior-Project/Frontend
+/                       @OUS-Senior-Project/Frontend
 
 ### CI/CD and GitHub workflows
 
@@ -20,3 +16,7 @@
 
 docs/**                 @OUS-Senior-Project/Documentation
 README.md               @OUS-Senior-Project/Documentation
+
+### Fallback owners for any unmatched files
+
+*                       @OUS-Senior-Project/Maintainers
