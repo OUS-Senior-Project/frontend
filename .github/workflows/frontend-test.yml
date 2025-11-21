@@ -3,7 +3,7 @@ name: Frontend Tests
 on:
   pull_request:
     paths:
-      - "frontend/app/**"
+      - "app/**"
   push:
     branches: ["main"]
 
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend/app
+        working-directory: app
 
     steps:
       - name: Checkout repo
@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: 18
           cache: 'npm'
-          cache-dependency-path: frontend/app/package-lock.json
+          cache-dependency-path: app/package-lock.json
 
       - name: Install dependencies
         run: npm install
