@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'http://127.0.0.1:8000/api/v1';
+const API_BASE = process.env.REACT_APP_API_BASE;
+
+if (!API_BASE) {
+  throw new Error('REACT_APP_API_BASE is not defined. Set it in your .env file.');
+}
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
