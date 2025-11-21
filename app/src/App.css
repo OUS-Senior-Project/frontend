@@ -19,7 +19,10 @@ button {
   cursor: pointer;
   font-weight: 700;
   box-shadow: 0 8px 18px rgba(37, 99, 235, 0.4);
-  transition: transform 100ms ease, box-shadow 100ms ease, opacity 100ms ease;
+  transition:
+    transform 100ms ease,
+    box-shadow 100ms ease,
+    opacity 100ms ease;
 }
 
 button:hover:not(:disabled) {

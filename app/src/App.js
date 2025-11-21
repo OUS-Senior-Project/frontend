@@ -11,7 +11,9 @@ function App() {
     setMessage('Contacting API…');
     try {
       const data = await fetchItems();
-      setMessage(`Success. Retrieved ${Array.isArray(data) ? data.length : 0} items.`);
+      setMessage(
+        `Success. Retrieved ${Array.isArray(data) ? data.length : 0} items.`
+      );
     } catch (err) {
       setMessage(`Error: ${err.message || 'Unable to reach API'}`);
     } finally {
@@ -22,7 +24,9 @@ function App() {
   return (
     <div className="App">
       <h1>API Check</h1>
-      <p className="hint">FastAPI route: GET http://127.0.0.1:8000/api/v1/items</p>
+      <p className="hint">
+        FastAPI route: GET http://127.0.0.1:8000/api/v1/items
+      </p>
       <button onClick={hitApi} disabled={loading}>
         {loading ? 'Calling…' : 'Hit API'}
       </button>
