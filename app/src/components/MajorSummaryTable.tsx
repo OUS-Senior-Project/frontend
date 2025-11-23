@@ -1,6 +1,13 @@
 import React from 'react';
+import type { MajorData } from '../types';
 
-export const MajorSummaryTable = ({ data }) => {
+interface MajorSummaryTableProps {
+  data: MajorData[];
+}
+
+export const MajorSummaryTable: React.FC<MajorSummaryTableProps> = ({
+  data,
+}) => {
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
       <table className="min-w-full divide-y divide-slate-200">

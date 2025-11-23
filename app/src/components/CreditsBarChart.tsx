@@ -9,8 +9,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import type { MajorData } from '../types';
 
-export const GPABarChart = ({ data }) => {
+interface CreditsBarChartProps {
+  data: MajorData[];
+}
+
+export const CreditsBarChart: React.FC<CreditsBarChartProps> = ({ data }) => {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
@@ -19,7 +24,7 @@ export const GPABarChart = ({ data }) => {
       >
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="major" tick={{ fontSize: 12 }} />
-        <YAxis domain={[0, 4]} tick={{ fontSize: 12 }} />
+        <YAxis tick={{ fontSize: 12 }} />
         <Tooltip
           contentStyle={{
             backgroundColor: 'rgba(255, 255, 255, 0.8)',
@@ -29,9 +34,9 @@ export const GPABarChart = ({ data }) => {
         />
         <Legend wrapperStyle={{ fontSize: '14px' }} />
         <Bar
-          dataKey="avgGpa"
-          name="Avg. GPA"
-          fill="#3b82f6"
+          dataKey="avgCredits"
+          name="Avg. Credits"
+          fill="#22c55e"
           radius={[4, 4, 0, 0]}
         />
       </BarChart>

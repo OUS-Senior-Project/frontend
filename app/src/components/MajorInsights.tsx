@@ -2,8 +2,13 @@ import React from 'react';
 import { GPABarChart } from './GPABarChart';
 import { CreditsBarChart } from './CreditsBarChart';
 import { MajorSummaryTable } from './MajorSummaryTable';
+import type { MajorData } from '../types';
 
-export const MajorInsights = ({ data }) => {
+interface MajorInsightsProps {
+  data: MajorData[];
+}
+
+export const MajorInsights: React.FC<MajorInsightsProps> = ({ data }) => {
   return (
     <section className="bg-white p-6 rounded-xl shadow-md border border-slate-200">
       <h2 className="text-xl font-semibold text-slate-700 mb-6">

@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const Header = () => {
+export const Header: React.FC = () => {
   return (
     <header className="pb-4 border-b border-slate-300">
       <h1 className="text-3xl font-bold text-slate-900">

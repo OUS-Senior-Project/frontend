@@ -1,7 +1,7 @@
 import React from 'react';
 import { Download } from 'lucide-react';
 
-export const ExportButton = () => {
+export const ExportButton: React.FC = () => {
   return (
     <button
       type="button"

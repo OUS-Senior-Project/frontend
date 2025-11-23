@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
 
-export const FileUploadPanel = () => {
-  const [fileName, setFileName] = useState(null);
-  const [status, setStatus] = useState('idle');
+type UploadStatus = 'idle' | 'success' | 'error';
 
-  const handleFileChange = (event) => {
+export const FileUploadPanel: React.FC = () => {
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [status, setStatus] = useState<UploadStatus>('idle');
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
       const file = event.target.files[0];
       setFileName(file.name);

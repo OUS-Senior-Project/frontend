@@ -1,4 +1,6 @@
-export const summaryMetrics = [
+import type { MajorData, SummaryMetric } from './types';
+
+export const summaryMetrics: SummaryMetric[] = [
   { title: 'Total Enrollment', value: '10,542' },
   { title: 'Undergraduate Students', value: '9,876' },
   { title: 'FTIC Students', value: '2,134' },
@@ -6,7 +8,7 @@ export const summaryMetrics = [
   { title: 'International Students', value: '312' },
 ];
 
-export const majorSummaryData = [
+export const majorSummaryData: MajorData[] = [
   { major: 'Computer Sci.', avgGpa: 3.21, avgCredits: 45.2, studentCount: 412 },
   { major: 'Nursing', avgGpa: 3.34, avgCredits: 48.1, studentCount: 388 },
   { major: 'Biology', avgGpa: 3.12, avgCredits: 42.5, studentCount: 301 },
