@@ -12,18 +12,12 @@ jobs:
         working-directory: app
 
     steps:
-      # -----------------------------
-      # Checkout Code
-      # -----------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      # -----------------------------
-      # Setup Node
-      # -----------------------------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -31,27 +25,18 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
 
-      # -----------------------------
-      # Install Dependencies
-      # -----------------------------
       - name: Install dependencies
         run: npm ci
 
-      # -----------------------------
-      # Run Coverage
-      # -----------------------------
       - name: Run tests with coverage
         run: npm test -- --coverage --watchAll=false
 
-      # -----------------------------
-      # Extract Coverage %
-      # -----------------------------
       - name: Read coverage percentage
         id: coverage
         run: |
           LINES=$(node - <<'EOF'
           const fs = require('fs');
-          const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+          const summary = JSON.parse(fs.readFileSync('coverage/coverage-final.json', 'utf8'));
           console.log(summary.total.lines.pct);
           EOF
           )
@@ -59,18 +44,12 @@ jobs:
           echo "lines=$LINES" >> $GITHUB_OUTPUT
           echo "Coverage: $LINES%"
 
-      # -----------------------------
-      # Upload Coverage Artifact
-      # -----------------------------
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage-main
-          path: app/coverage
+          path: coverage
 
-      # -----------------------------
-      # Enforce 80% minimum coverage
-      # -----------------------------
       - name: Enforce 80% coverage threshold
         run: |
           LINES=${{ steps.coverage.outputs.lines }}
@@ -85,9 +64,6 @@ jobs:
             exit 1
           fi
 
-      # -----------------------------
-      # Generate Coverage Badge
-      # -----------------------------
       - name: Generate coverage badge
         run: |
           LINES=${{ steps.coverage.outputs.lines }}
@@ -105,9 +81,6 @@ jobs:
           </svg>
           EOF
 
-      # -----------------------------
-      # Commit Badge to Repo
-      # -----------------------------
       - name: Commit coverage badge
         run: |
           mv coverage-badge.svg ../coverage-badge.svg
