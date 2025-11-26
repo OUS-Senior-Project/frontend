@@ -2,34 +2,58 @@ name: Frontend Tests
 
 on:
   pull_request:
-    paths:
-      - "app/**"
+    branches: ["main"]
   push:
     branches: ["main"]
 
 jobs:
+  detect_changes:
+    name: Detect frontend changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Filter frontend paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'app/**'
+
+      - name: Report unchanged frontend
+        if: steps.filter.outputs.frontend != 'true'
+        run: echo "No frontend changes detected — skipping tests."
+
   test_build:
+    name: Test and build frontend
+    needs: detect_changes
+    if: needs.detect_changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: app
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "18.x"
-          cache: "npm"
+          node-version: 18
+          cache: npm
           cache-dependency-path: app/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Tests (no coverage enforcement)
+      - name: Run tests
         run: npm test -- --watchAll=false
 
-      - name: Build App
+      - name: Build app
         run: npm run build
