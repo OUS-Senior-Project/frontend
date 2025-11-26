@@ -1,0 +1,121 @@
+name: Frontend Coverage (main)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "app/**"
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      # -----------------------------
+      # Checkout Code
+      # -----------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      # -----------------------------
+      # Setup Node
+      # -----------------------------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # -----------------------------
+      # Install Dependencies
+      # -----------------------------
+      - name: Install dependencies
+        run: npm ci
+
+      # -----------------------------
+      # Run Coverage
+      # -----------------------------
+      - name: Run tests with coverage
+        run: npm test -- --coverage --watchAll=false
+
+      # -----------------------------
+      # Extract Coverage %
+      # -----------------------------
+      - name: Read coverage percentage
+        id: coverage
+        run: |
+          LINES=$(node - <<'EOF'
+          const fs = require('fs');
+          const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+          console.log(summary.total.lines.pct);
+          EOF
+          )
+
+          echo "lines=$LINES" >> $GITHUB_OUTPUT
+          echo "Coverage: $LINES%"
+
+      # -----------------------------
+      # Upload Coverage Artifact
+      # -----------------------------
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-main
+          path: app/coverage
+
+      # -----------------------------
+      # Enforce 80% minimum coverage
+      # -----------------------------
+      - name: Enforce 80% coverage threshold
+        run: |
+          LINES=${{ steps.coverage.outputs.lines }}
+          THRESHOLD=80
+
+          echo "Coverage: $LINES% (Threshold: $THRESHOLD%)"
+
+          RESULT=$(echo "$LINES < $THRESHOLD" | bc -l)
+
+          if [ "$RESULT" -eq 1 ]; then
+            echo "::error::Coverage dropped below ${THRESHOLD}% (current: ${LINES}%)"
+            exit 1
+          fi
+
+      # -----------------------------
+      # Generate Coverage Badge
+      # -----------------------------
+      - name: Generate coverage badge
+        run: |
+          LINES=${{ steps.coverage.outputs.lines }}
+          COLOR="red"
+
+          if (( $(echo "$LINES > 90" | bc -l) )); then COLOR="brightgreen"; fi
+          if (( $(echo "$LINES > 80" | bc -l) && $(echo "$LINES <= 90" | bc -l) )); then COLOR="yellow"; fi
+
+          cat > coverage-badge.svg <<EOF
+          <svg xmlns="http://www.w3.org/2000/svg" width="140" height="20">
+            <rect width="85" height="20" fill="#555"/>
+            <rect x="85" width="55" height="20" fill="${COLOR}"/>
+            <text x="42" y="14" fill="#fff" font-family="Verdana" font-size="11">coverage</text>
+            <text x="112" y="14" fill="#fff" font-family="Verdana" font-size="11">${LINES}%</text>
+          </svg>
+          EOF
+
+      # -----------------------------
+      # Commit Badge to Repo
+      # -----------------------------
+      - name: Commit coverage badge
+        run: |
+          mv coverage-badge.svg ../coverage-badge.svg
+          cd ..
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add coverage-badge.svg
+          git commit -m "Update frontend coverage badge: ${{ steps.coverage.outputs.lines }}%" || echo "No badge changes"
+          git push
