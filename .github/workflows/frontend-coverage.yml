@@ -3,8 +3,6 @@ name: Frontend Coverage (main)
 on:
   push:
     branches: ["main"]
-    paths:
-      - "app/**"
 
 jobs:
   coverage:
