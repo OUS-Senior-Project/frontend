@@ -1,0 +1,62 @@
+name: Frontend Coverage Guard (main)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "app/**"
+
+jobs:
+  coverage_guard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests with coverage
+        run: npm test -- --coverage --watchAll=false
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-main
+          path: coverage
+
+      - name: Enforce 80% coverage on main
+        run: |
+          node << 'EOF'
+          const fs = require('fs');
+          const summaryPath = 'coverage/coverage-summary.json';
+          if (!fs.existsSync(summaryPath)) {
+            console.error('::error::coverage-summary.json not found, cannot enforce coverage.');
+            process.exit(1);
+          }
+
+          const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+          const total = summary.total || {};
+          const linesPct = total.lines?.pct ?? 0;
+
+          const threshold = 80;
+          console.log(`Frontend line coverage on main: ${linesPct}% (threshold: ${threshold}%)`);
+
+          if (linesPct < threshold) {
+            console.error(`::error::Coverage dropped below ${threshold}% (current: ${linesPct}%). CODEOWNERS please investigate.`);
+            process.exit(1);
+          }
+
+          console.log('Coverage is above threshold ✅');
+          EOF
