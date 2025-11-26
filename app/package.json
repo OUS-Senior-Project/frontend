@@ -8,9 +8,11 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.13.2",
+    "lucide-react": "^0.554.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-scripts": "5.0.1",
+    "recharts": "^3.5.0",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
@@ -18,8 +20,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "lint": "eslint ./src --ext .js,.jsx",
-    "lint:fix": "eslint ./src --ext .js,.jsx --fix",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint src --ext .js,.jsx --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
@@ -43,11 +45,21 @@
     ]
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-react-app": "^7.0.1",
     "eslint-plugin-prettier": "^5.5.4",
     "husky": "^9.1.7",
-    "prettier": "^3.6.2"
+    "postcss": "^8.4.49",
+    "prettier": "^3.6.2",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^4.9.5"
   }
 }

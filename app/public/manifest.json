@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "OUS Enrollment Dashboard",
+  "name": "Dashboard for OUS Enrollment Data at Howard University",
   "icons": [
     {
       "src": "favicon.ico",
