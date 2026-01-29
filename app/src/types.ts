@@ -32,3 +32,43 @@ export interface EnrollmentResponse {
   majorSummaryData: MajorData[];
   program_metrics?: ProgramMetrics;
 }
+
+/** Enrollment counts from upload API (snake_case). */
+export interface EnrollmentCounts {
+  total: number;
+  full_time: number;
+  part_time: number;
+}
+
+/** Enrollment metrics from upload API (snake_case). */
+export interface EnrollmentMetrics {
+  total_enrollment: number;
+  undergraduate_enrollment: EnrollmentCounts;
+  ftic_enrollment: EnrollmentCounts;
+  transfer_enrollment: EnrollmentCounts;
+}
+
+/** Program summary from upload API (snake_case). */
+export interface ProgramSummary {
+  total_students: number;
+  class_totals: Record<string, number>;
+  overall_average_gpa: number;
+  overall_average_credits: number;
+  unique_programs: number;
+  most_popular_programs: Record<string, number>;
+}
+
+/** Full program metrics from upload API (snake_case). */
+export interface UploadProgramMetrics {
+  by_class_and_program: ByClassAndProgram;
+  summary: ProgramSummary;
+}
+
+/** Response from POST /api/v1/upload (snake_case). */
+export interface UploadResponse {
+  file_id: string;
+  filename: string;
+  status: string;
+  enrollment_metrics: EnrollmentMetrics;
+  program_metrics: UploadProgramMetrics;
+}

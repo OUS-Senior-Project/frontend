@@ -40,7 +40,7 @@ export const MajorInsights: React.FC<MajorInsightsProps> = ({
 
       <div>
         <h3 className="text-lg font-medium text-slate-600 mb-4">
-          Major-Level Summary
+          Major-Level Summary by Classification
         </h3>
         {byClassAndProgram ? (
           <MajorSummaryByClassification byClassAndProgram={byClassAndProgram} />
