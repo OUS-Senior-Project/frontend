@@ -31,6 +31,9 @@ export const CreditsBarChart: React.FC<CreditsBarChartProps> = ({ data }) => {
             border: '1px solid #ccc',
             borderRadius: '0.5rem',
           }}
+          formatter={(value: number) =>
+            typeof value === 'number' ? value.toFixed(1) : value
+          }
         />
         <Legend wrapperStyle={{ fontSize: '14px' }} />
         <Bar

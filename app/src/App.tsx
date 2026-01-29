@@ -1,21 +1,66 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Header } from './components/Header';
 import { FileUploadPanel } from './components/FileUploadPanel';
 import { MetricTile } from './components/MetricTile';
 import { MajorInsights } from './components/MajorInsights';
 import { ExportButton } from './components/ExportButton';
 import { Users, User, ChevronsRight, Globe, TrendingUp } from 'lucide-react';
-import { majorSummaryData, summaryMetrics } from './constants';
-import { fetchItems } from './api/items';
-import type { MajorData, SummaryMetric } from './types';
+import type {
+  MajorData,
+  ProgramMetrics,
+  SummaryMetric,
+  UploadResponse,
+  ByClassAndProgram,
+} from './types';
 
-type FetchStatus = 'idle' | 'loading' | 'success' | 'error';
+function enrollmentMetricsToSummaryMetrics(
+  em: UploadResponse['enrollment_metrics']
+): SummaryMetric[] {
+  return [
+    { title: 'Total Enrollment', value: em.total_enrollment },
+    {
+      title: 'Undergraduate Students',
+      value: em.undergraduate_enrollment.total,
+    },
+    { title: 'FTIC Students', value: em.ftic_enrollment.total },
+    { title: 'Transfer Students', value: em.transfer_enrollment.total },
+    { title: 'International Students', value: '—' },
+  ];
+}
+
+function byClassAndProgramToMajorData(
+  byClassAndProgram: ByClassAndProgram
+): MajorData[] {
+  const byProgram: Record<
+    string,
+    { totalStudents: number; weightedGpa: number; weightedCredits: number }
+  > = {};
+  for (const programs of Object.values(byClassAndProgram)) {
+    for (const [programName, m] of Object.entries(programs)) {
+      if (!byProgram[programName]) {
+        byProgram[programName] = {
+          totalStudents: 0,
+          weightedGpa: 0,
+          weightedCredits: 0,
+        };
+      }
+      byProgram[programName].totalStudents += m.student_count;
+      byProgram[programName].weightedGpa += m.average_gpa * m.student_count;
+      byProgram[programName].weightedCredits +=
+        m.average_credits * m.student_count;
+    }
+  }
+  return Object.entries(byProgram).map(([major, agg]) => ({
+    major,
+    studentCount: agg.totalStudents,
+    avgGpa: agg.totalStudents > 0 ? agg.weightedGpa / agg.totalStudents : 0,
+    avgCredits:
+      agg.totalStudents > 0 ? agg.weightedCredits / agg.totalStudents : 0,
+  }));
+}
 
 const App: React.FC = () => {
-  const [metrics, setMetrics] = useState<SummaryMetric[]>(summaryMetrics);
-  const [majors, setMajors] = useState<MajorData[]>(majorSummaryData);
-  const [status, setStatus] = useState<FetchStatus>('idle');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
 
   const icons = useMemo(
     () => [
@@ -28,67 +73,48 @@ const App: React.FC = () => {
     []
   );
 
-  useEffect(() => {
-    let isMounted = true;
+  const displayMetrics = useMemo(
+    () =>
+      uploadResult
+        ? enrollmentMetricsToSummaryMetrics(uploadResult.enrollment_metrics)
+        : [],
+    [uploadResult]
+  );
 
-    const load = async () => {
-      setStatus('loading');
-      setErrorMessage(null);
+  const displayMajors = useMemo(
+    () =>
+      uploadResult
+        ? byClassAndProgramToMajorData(
+            uploadResult.program_metrics.by_class_and_program
+          )
+        : [],
+    [uploadResult]
+  );
 
-      try {
-        const data = await fetchItems();
-
-        if (!isMounted) return;
-
-        setMetrics(data.summaryMetrics ?? summaryMetrics);
-        setMajors(data.majorSummaryData ?? majorSummaryData);
-        setStatus('success');
-      } catch (err) {
-        if (!isMounted) return;
-
-        setStatus('error');
-        setErrorMessage(
-          err instanceof Error ? err.message : 'Unable to load live data.'
-        );
-
-        // Fall back to the baked-in demo data so the dashboard stays usable.
-        setMetrics(summaryMetrics);
-        setMajors(majorSummaryData);
-      }
-    };
-
-    load();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const displayProgramMetrics = useMemo(
+    (): ProgramMetrics | null =>
+      uploadResult
+        ? {
+            by_class_and_program:
+              uploadResult.program_metrics.by_class_and_program,
+          }
+        : null,
+    [uploadResult]
+  );
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <Header />
         <main className="space-y-6">
-          {status === 'loading' && (
-            <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              Loading live enrollment data...
-            </div>
-          )}
-
-          {status === 'error' && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Using sample data. {errorMessage ?? 'Unable to load live data.'}
-            </div>
-          )}
-
-          <FileUploadPanel />
+          <FileUploadPanel onUploadSuccess={setUploadResult} />
 
           <section>
             <h2 className="text-xl font-semibold text-slate-700 mb-4">
               Enrollment Overview
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {metrics.map((metric, index) => (
+              {displayMetrics.map((metric, index) => (
                 <MetricTile
                   key={metric.title}
                   title={metric.title}
@@ -99,7 +125,10 @@ const App: React.FC = () => {
             </div>
           </section>
 
-          <MajorInsights data={majors} />
+          <MajorInsights
+            data={displayMajors}
+            programMetrics={displayProgramMetrics}
+          />
 
           <div className="flex justify-end pt-4">
             <ExportButton />

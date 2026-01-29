@@ -1,6 +1,6 @@
 # OUS Enrollment Dashboard (frontend)
 
-React + TypeScript dashboard for undergraduate enrollment insights. Uses Tailwind for styling, Recharts for charts, and Axios for live data (with demo fallbacks).
+React + TypeScript dashboard for undergraduate enrollment insights. Users upload a Workday enrollment spreadsheet (.xlsx or .xls); the app sends it to the backend and displays enrollment metrics, GPA/credits charts, and a major-level summary by classification. Uses Tailwind for styling, Recharts for charts, and Axios for the upload API.
 
 ## Stack
 
@@ -11,18 +11,19 @@ React + TypeScript dashboard for undergraduate enrollment insights. Uses Tailwin
 
 ## Project structure
 
-- `app/` – CRA project root  
-  - `src/` – TypeScript components, charts, API client, constants  
-  - `src/api/` – axios client + `fetchItems` data loader  
-  - `src/components/` – UI pieces (metrics, tables, charts, upload, etc.)  
-  - `src/constants.ts` – demo fallback data  
-  - `tailwind.config.js`, `postcss.config.js` – Tailwind setup  
-- `.github/workflows/` – lint/test CI for pushes/PRs
+- `app/` – CRA project root
+  - `src/` – TypeScript components, charts, API, types
+  - `src/api/` – axios client (`client.ts`) and file upload (`upload.ts`)
+  - `src/components/` – UI (Header, FileUploadPanel, MetricTile, GPABarChart, CreditsBarChart, MajorInsights, MajorSummaryByClassification, MajorSummaryTable, ExportButton)
+  - `src/types.ts` – shared types and upload response shape
+  - `tailwind.config.js`, `postcss.config.js` – Tailwind setup
+- `.github/workflows/` – lint, test, and coverage CI for pushes/PRs
 - `runLocally.sh` / `precommit.sh` – helper scripts at repo root
 
 ## Prerequisites
 
 - Node 18.x (matches GitHub Actions); npm
+- Backend API running and reachable at the URL you set in `REACT_APP_API_BASE`
 
 ## Setup
 
@@ -36,22 +37,28 @@ npm install
 - From repo root: `./runLocally.sh` (installs if needed, runs `npm start`)
 - Or manually: `cd app && npm start`
 
+Open [http://localhost:3000](http://localhost:3000). The dashboard is empty until you upload a file.
+
 ## Environment
 
-- Create `app/.env` (or `.env.local`) with:
-  - `REACT_APP_API_BASE=https://your-api.example.com`
-- App calls `GET /items` expecting:
+Create `app/.env.local` (or `.env`) with:
 
-  ```json
-  {
-    "summaryMetrics": [{ "title": "Total Enrollment", "value": "10,542" }],
-    "majorSummaryData": [
-      { "major": "Computer Sci.", "avgGpa": 3.2, "avgCredits": 45, "studentCount": 400 }
-    ]
-  }
-  ```
+```bash
+REACT_APP_API_BASE=http://localhost:8000
+```
 
-- If the call fails or the env var is missing, the UI shows a warning and falls back to the demo data in `src/constants.ts`.
+- Use **http** (not https) for a typical local backend.
+- The app calls **POST** `{REACT_APP_API_BASE}/api/v1/upload` with a multipart file. The backend must accept `.xlsx`/`.xls` and return a JSON body with `file_id`, `filename`, `status`, `enrollment_metrics`, and `program_metrics` (including `by_class_and_program` and `summary`). If the env var is missing, upload will fail with a clear error.
+
+## How the dashboard works
+
+1. **Upload** – User selects a Workday enrollment file (.xlsx or .xls) in the “Upload Workday Enrollment File” panel. The file is sent to `POST /api/v1/upload`.
+2. **Response** – The backend returns enrollment counts (total, undergrad, FTIC, transfer) and program metrics by classification (e.g. Freshman, Sophomore) with per-program GPA, credits, and student count.
+3. **UI** – On success, the app shows:
+   - **Enrollment Overview** – Tiles for total enrollment, undergraduate, FTIC, transfer (international shown as “—” if not in the API).
+   - **Major Insights** – Average GPA by major and average credits by major (bar charts), plus a **Major-Level Summary** table by classification.
+
+Until an upload succeeds, the overview and insights sections are empty.
 
 ## Scripts (from `app/`)
 
@@ -64,19 +71,20 @@ npm install
 
 ## Pre-commit helper
 
-- `./precommit.sh` (from repo root) runs Prettier, ESLint, then tests (`CI=true npm test -- --watch=false`).
+From repo root, `./precommit.sh` runs Prettier, ESLint, then tests (`CI=true npm test -- --watch=false`).
 
 ## Testing notes
 
 - `src/__mocks__/axios.ts` and `src/__mocks__/recharts.js` mock network and chart libs for predictable tests.
-- `src/App.test.tsx` verifies API data rendering and fallback behavior.
+- `src/App.test.tsx` checks that the dashboard and upload panel render (header, “Upload Workday Enrollment File”, “Enrollment Overview”).
 
 ## Styling
 
-- Tailwind layers imported in `src/index.css`; utilities used across components.
+- Tailwind layers are imported in `src/index.css`; utilities are used across components.
 - Adjust design tokens in `tailwind.config.js` as needed.
 
 ## CI
 
-- `frontend-lint.yml`: Prettier check + ESLint on PRs/pushes (Node 18, `npm ci`).
-- `frontend-test.yml`: Tests (`CI=true npm test -- --watchAll=false`) and build on PRs/pushes.
+- **frontend-lint.yml** – Prettier check + ESLint on PRs/pushes (Node 18, `npm ci`).
+- **frontend-test.yml** – Tests (`CI=true npm test -- --watchAll=false`) and build on PRs/pushes.
+- **frontend-coverage.yml** – Test coverage on PRs/pushes.

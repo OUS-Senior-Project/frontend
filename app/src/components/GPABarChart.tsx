@@ -31,6 +31,9 @@ export const GPABarChart: React.FC<GPABarChartProps> = ({ data }) => {
             border: '1px solid #ccc',
             borderRadius: '0.5rem',
           }}
+          formatter={(value: number) =>
+            typeof value === 'number' ? value.toFixed(2) : value
+          }
         />
         <Legend wrapperStyle={{ fontSize: '14px' }} />
         <Bar

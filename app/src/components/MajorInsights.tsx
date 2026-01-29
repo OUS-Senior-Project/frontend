@@ -2,13 +2,20 @@ import React from 'react';
 import { GPABarChart } from './GPABarChart';
 import { CreditsBarChart } from './CreditsBarChart';
 import { MajorSummaryTable } from './MajorSummaryTable';
-import type { MajorData } from '../types';
+import { MajorSummaryByClassification } from './MajorSummaryByClassification';
+import type { MajorData, ProgramMetrics } from '../types';
 
 interface MajorInsightsProps {
   data: MajorData[];
+  programMetrics?: ProgramMetrics | null;
 }
 
-export const MajorInsights: React.FC<MajorInsightsProps> = ({ data }) => {
+export const MajorInsights: React.FC<MajorInsightsProps> = ({
+  data,
+  programMetrics,
+}) => {
+  const byClassAndProgram = programMetrics?.by_class_and_program;
+
   return (
     <section className="bg-white p-6 rounded-xl shadow-md border border-slate-200">
       <h2 className="text-xl font-semibold text-slate-700 mb-6">
@@ -33,9 +40,13 @@ export const MajorInsights: React.FC<MajorInsightsProps> = ({ data }) => {
 
       <div>
         <h3 className="text-lg font-medium text-slate-600 mb-4">
-          Major-Level Summary
+          Major-Level Summary by Classification
         </h3>
-        <MajorSummaryTable data={data} />
+        {byClassAndProgram ? (
+          <MajorSummaryByClassification byClassAndProgram={byClassAndProgram} />
+        ) : (
+          <MajorSummaryTable data={data} />
+        )}
       </div>
     </section>
   );
