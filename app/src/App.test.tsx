@@ -16,6 +16,17 @@ const mockResponse: EnrollmentResponse = {
   majorSummaryData: [
     { major: 'Mock Major', avgGpa: 3.5, avgCredits: 50, studentCount: 99 },
   ],
+  program_metrics: {
+    by_class_and_program: {
+      Freshman: {
+        'Mock Major': {
+          average_gpa: 3.5,
+          average_credits: 50,
+          student_count: 99,
+        },
+      },
+    },
+  },
 };
 
 describe('App', () => {

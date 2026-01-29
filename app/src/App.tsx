@@ -5,15 +5,22 @@ import { MetricTile } from './components/MetricTile';
 import { MajorInsights } from './components/MajorInsights';
 import { ExportButton } from './components/ExportButton';
 import { Users, User, ChevronsRight, Globe, TrendingUp } from 'lucide-react';
-import { majorSummaryData, summaryMetrics } from './constants';
+import {
+  majorSummaryData,
+  programMetricsFallback,
+  summaryMetrics,
+} from './constants';
 import { fetchItems } from './api/items';
-import type { MajorData, SummaryMetric } from './types';
+import type { MajorData, ProgramMetrics, SummaryMetric } from './types';
 
 type FetchStatus = 'idle' | 'loading' | 'success' | 'error';
 
 const App: React.FC = () => {
   const [metrics, setMetrics] = useState<SummaryMetric[]>(summaryMetrics);
   const [majors, setMajors] = useState<MajorData[]>(majorSummaryData);
+  const [programMetrics, setProgramMetrics] = useState<ProgramMetrics | null>(
+    programMetricsFallback
+  );
   const [status, setStatus] = useState<FetchStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -42,6 +49,7 @@ const App: React.FC = () => {
 
         setMetrics(data.summaryMetrics ?? summaryMetrics);
         setMajors(data.majorSummaryData ?? majorSummaryData);
+        setProgramMetrics(data.program_metrics ?? programMetricsFallback);
         setStatus('success');
       } catch (err) {
         if (!isMounted) return;
@@ -54,6 +62,7 @@ const App: React.FC = () => {
         // Fall back to the baked-in demo data so the dashboard stays usable.
         setMetrics(summaryMetrics);
         setMajors(majorSummaryData);
+        setProgramMetrics(programMetricsFallback);
       }
     };
 
@@ -99,7 +108,7 @@ const App: React.FC = () => {
             </div>
           </section>
 
-          <MajorInsights data={majors} />
+          <MajorInsights data={majors} programMetrics={programMetrics} />
 
           <div className="flex justify-end pt-4">
             <ExportButton />
