@@ -1,0 +1,36 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { ForecastData } from './types';
+
+interface ForecastNumbersCardProps {
+  forecastData: ForecastData[];
+}
+
+export function ForecastNumbersCard({
+  forecastData,
+}: ForecastNumbersCardProps) {
+  return (
+    <Card className="border-border bg-card">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-medium text-foreground">
+          Forecasted Numbers
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-4">
+          {forecastData.map((forecast) => (
+            <div
+              key={forecast.period}
+              className="rounded-lg bg-secondary/50 p-4 text-center"
+            >
+              <p className="text-xs text-muted-foreground">{forecast.period}</p>
+              <p className="mt-1 text-xl font-bold text-foreground">
+                {forecast.total.toLocaleString()}
+              </p>
+              <p className="text-xs text-chart-2">Projected</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

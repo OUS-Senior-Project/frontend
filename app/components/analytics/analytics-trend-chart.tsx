@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -13,17 +12,13 @@ import {
   Area,
   ComposedChart,
 } from 'recharts';
-
-interface TrendData {
-  period: string;
-  total: number;
-  isForecasted?: boolean;
-}
-
-interface AnalyticsTrendChartProps {
-  data: TrendData[];
-  forecastData?: TrendData[];
-}
+import { TrendChartLegend } from './trend-chart-legend';
+import {
+  trendGradientStops,
+  trendTooltipLabelStyle,
+  trendTooltipStyle,
+} from './trend-chart-theme';
+import type { AnalyticsTrendChartProps } from './analytics-trend-chart.types';
 
 export function AnalyticsTrendChart({
   data,
@@ -51,16 +46,9 @@ export function AnalyticsTrendChart({
             >
               <defs>
                 <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="5%"
-                    stopColor="oklch(0.65 0.20 250)"
-                    stopOpacity={0.3}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="oklch(0.65 0.20 250)"
-                    stopOpacity={0}
-                  />
+                  {trendGradientStops.map((stop) => (
+                    <stop key={stop.offset} {...stop} />
+                  ))}
                 </linearGradient>
               </defs>
               <CartesianGrid
@@ -82,13 +70,8 @@ export function AnalyticsTrendChart({
                 tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: 'oklch(0.18 0.01 260)',
-                  border: '1px solid oklch(0.28 0.01 260)',
-                  borderRadius: '8px',
-                  color: 'oklch(0.95 0 0)',
-                }}
-                labelStyle={{ color: 'oklch(0.95 0 0)' }}
+                contentStyle={trendTooltipStyle}
+                labelStyle={trendTooltipLabelStyle}
                 formatter={(value: number, name: string) => [
                   value.toLocaleString(),
                   name === 'total' ? 'Students' : name,
@@ -124,18 +107,7 @@ export function AnalyticsTrendChart({
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        {forecastData && (
-          <div className="mt-3 flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-4 rounded bg-primary" />
-              <span className="text-muted-foreground">Historical</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-4 rounded border-2 border-dashed border-primary bg-transparent" />
-              <span className="text-muted-foreground">Forecasted</span>
-            </div>
-          </div>
-        )}
+        <TrendChartLegend showForecast={Boolean(forecastData)} />
       </CardContent>
     </Card>
   );

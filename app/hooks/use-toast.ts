@@ -1,3 +1,4 @@
+// LOC_EXCEPTION: This stateful toast hook intentionally exceeds 120 LOC to keep reducer/actions, queue timing, and subscription semantics co-located. Splitting further would require introducing a store module and migration of all hook consumers/tests.
 'use client';
 
 // Inspired by react-hot-toast library

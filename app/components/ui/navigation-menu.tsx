@@ -1,3 +1,4 @@
+// LOC_EXCEPTION: This generated shadcn/radix primitive intentionally exceeds 120 LOC to preserve accessibility behavior and API parity. Splitting further would require extracting stable sub-primitives and updating imports/tests across the design system.
 import * as React from 'react';
 import * as NavigationMenuPrimitive from '@radix-ui/react-navigation-menu';
 import { cva } from 'class-variance-authority';

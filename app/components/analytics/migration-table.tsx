@@ -1,8 +1,12 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight } from 'lucide-react';
-import type { MigrationRecord } from '@/lib/analytics-data';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  getMigrationPeriodLabel,
+  getTopMigrationFlows,
+} from '@/selectors/analytics';
+import type { MigrationRecord } from '@/types/analytics';
 
 interface MigrationTableProps {
   data: MigrationRecord[];
@@ -13,37 +17,11 @@ export function MigrationTable({
   data,
   selectedSemester,
 }: MigrationTableProps) {
-  const filteredData = selectedSemester
-    ? data.filter((d) => d.semester === selectedSemester)
-    : data;
-
-  const aggregated = filteredData.reduce(
-    (acc, curr) => {
-      const key = `${curr.fromMajor}-${curr.toMajor}`;
-      if (!acc[key]) {
-        acc[key] = {
-          fromMajor: curr.fromMajor,
-          toMajor: curr.toMajor,
-          totalCount: 0,
-        };
-      }
-      acc[key].totalCount += curr.count;
-      return acc;
-    },
-    {} as Record<
-      string,
-      { fromMajor: string; toMajor: string; totalCount: number }
-    >
-  );
-
-  const sortedMigrations = Object.values(aggregated)
-    .sort((a, b) => b.totalCount - a.totalCount)
-    .slice(0, 10);
-
-  const periodLabel = selectedSemester || 'All Semesters';
+  const sortedMigrations = getTopMigrationFlows(data, selectedSemester, 10);
+  const periodLabel = getMigrationPeriodLabel(selectedSemester);
 
   return (
-    <Card className="bg-card border-border">
+    <Card className="border-border bg-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-medium text-foreground">
           Top Migration Paths

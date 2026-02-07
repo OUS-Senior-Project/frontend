@@ -1,3 +1,4 @@
+// LOC_EXCEPTION: This generated shadcn/radix primitive intentionally exceeds 120 LOC to preserve accessibility behavior and API parity. Splitting further would require extracting stable sub-primitives and updating imports/tests across the design system.
 'use client';
 
 import { cva, type VariantProps } from 'class-variance-authority';

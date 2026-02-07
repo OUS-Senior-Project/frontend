@@ -62,4 +62,18 @@ describe('migration components', () => {
       screen.getByText(/Most common major changes \(All Semesters\)/)
     ).toBeInTheDocument();
   });
+
+  test('handles zero-count migrations without NaN widths', () => {
+    const zeroData: MigrationRecord[] = [
+      {
+        fromMajor: 'Biology',
+        toMajor: 'Chemistry',
+        semester: 'Fall 2024',
+        count: 0,
+      },
+    ];
+
+    render(<MigrationSankey data={zeroData} selectedSemester="Fall 2024" />);
+    expect(screen.getByText(/0 students/)).toBeInTheDocument();
+  });
 });
