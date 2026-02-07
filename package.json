@@ -1,0 +1,13 @@
+{
+  "name": "ous-frontend-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "./runFrontend.sh",
+    "build": "cd app && npm run build",
+    "start": "cd app && npm run start",
+    "lint": "cd app && npm run lint",
+    "test": "cd app && npm run test",
+    "typecheck": "cd app && npm run typecheck",
+    "precommit": "./precommit.sh"
+  }
+}
