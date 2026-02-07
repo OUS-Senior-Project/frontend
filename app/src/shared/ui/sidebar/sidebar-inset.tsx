@@ -4,7 +4,10 @@ import * as React from 'react';
 
 import { cn } from '@/shared/utils/cn';
 
-export function SidebarInset({ className, ...props }: React.ComponentProps<'main'>) {
+export function SidebarInset({
+  className,
+  ...props
+}: React.ComponentProps<'main'>) {
   return (
     <main
       data-slot="sidebar-inset"

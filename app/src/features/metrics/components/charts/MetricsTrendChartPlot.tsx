@@ -16,13 +16,19 @@ import {
   trendTooltipStyle,
 } from './metrics-trend-chart.theme';
 
-export function MetricsTrendChartPlot({ data, forecastData }: MetricsTrendChartProps) {
+export function MetricsTrendChartPlot({
+  data,
+  forecastData,
+}: MetricsTrendChartProps) {
   const combinedData = [...data, ...(forecastData || [])];
   const lastHistoricalIndex = data.length - 1;
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <ComposedChart data={combinedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+      <ComposedChart
+        data={combinedData}
+        margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+      >
         <defs>
           <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
             {trendGradientStops.map((stop) => (
@@ -30,7 +36,11 @@ export function MetricsTrendChartPlot({ data, forecastData }: MetricsTrendChartP
             ))}
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.28 0.01 260)" vertical={false} />
+        <CartesianGrid
+          strokeDasharray="3 3"
+          stroke="oklch(0.28 0.01 260)"
+          vertical={false}
+        />
         <XAxis
           dataKey="period"
           tick={{ fill: 'oklch(0.65 0 0)', fontSize: 11 }}
@@ -52,13 +62,23 @@ export function MetricsTrendChartPlot({ data, forecastData }: MetricsTrendChartP
             name === 'total' ? 'Students' : name,
           ]}
         />
-        <Area type="monotone" dataKey="total" stroke="transparent" fill="url(#colorTotal)" />
+        <Area
+          type="monotone"
+          dataKey="total"
+          stroke="transparent"
+          fill="url(#colorTotal)"
+        />
         {forecastData && lastHistoricalIndex >= 0 && (
           <ReferenceLine
             x={data[lastHistoricalIndex]?.period}
             stroke="oklch(0.65 0 0)"
             strokeDasharray="5 5"
-            label={{ value: 'Forecast', position: 'top', fill: 'oklch(0.65 0 0)', fontSize: 10 }}
+            label={{
+              value: 'Forecast',
+              position: 'top',
+              fill: 'oklch(0.65 0 0)',
+              fontSize: 10,
+            }}
           />
         )}
         <Line

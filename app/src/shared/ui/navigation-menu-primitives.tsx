@@ -16,7 +16,10 @@ export function NavigationMenuPrimitiveRoot({
   return (
     <NavigationMenuPrimitive.Root
       data-slot="navigation-menu"
-      className={cn('group/navigation-menu relative flex max-w-max flex-1 items-center justify-center', className)}
+      className={cn(
+        'group/navigation-menu relative flex max-w-max flex-1 items-center justify-center',
+        className
+      )}
       {...props}
     >
       {children}
@@ -24,12 +27,33 @@ export function NavigationMenuPrimitiveRoot({
   );
 }
 
-export function NavigationMenuList({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.List>) {
-  return <NavigationMenuPrimitive.List data-slot="navigation-menu-list" className={cn('group flex flex-1 list-none items-center justify-center gap-1', className)} {...props} />;
+export function NavigationMenuList({
+  className,
+  ...props
+}: React.ComponentProps<typeof NavigationMenuPrimitive.List>) {
+  return (
+    <NavigationMenuPrimitive.List
+      data-slot="navigation-menu-list"
+      className={cn(
+        'group flex flex-1 list-none items-center justify-center gap-1',
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
-export function NavigationMenuItem({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.Item>) {
-  return <NavigationMenuPrimitive.Item data-slot="navigation-menu-item" className={cn('relative', className)} {...props} />;
+export function NavigationMenuItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof NavigationMenuPrimitive.Item>) {
+  return (
+    <NavigationMenuPrimitive.Item
+      data-slot="navigation-menu-item"
+      className={cn('relative', className)}
+      {...props}
+    />
+  );
 }
 
 export function NavigationMenuTrigger({
@@ -38,9 +62,16 @@ export function NavigationMenuTrigger({
   ...props
 }: React.ComponentProps<typeof NavigationMenuPrimitive.Trigger>) {
   return (
-    <NavigationMenuPrimitive.Trigger data-slot="navigation-menu-trigger" className={cn(navigationMenuTriggerStyle(), 'group', className)} {...props}>
+    <NavigationMenuPrimitive.Trigger
+      data-slot="navigation-menu-trigger"
+      className={cn(navigationMenuTriggerStyle(), 'group', className)}
+      {...props}
+    >
       {children}
-      <ChevronDownIcon className="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180" aria-hidden="true" />
+      <ChevronDownIcon
+        className="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
+        aria-hidden="true"
+      />
     </NavigationMenuPrimitive.Trigger>
   );
 }

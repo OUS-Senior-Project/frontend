@@ -5,11 +5,14 @@ const noisyPatterns = [
 ];
 
 const shouldFilter = (args) =>
-  args.some((arg) =>
-    typeof arg === 'string' && noisyPatterns.some((pattern) => pattern.test(arg))
+  args.some(
+    (arg) =>
+      typeof arg === 'string' &&
+      noisyPatterns.some((pattern) => pattern.test(arg))
   );
 
-const wrap = (fn) =>
+const wrap =
+  (fn) =>
   (...args) => {
     if (shouldFilter(args)) return;
     fn(...args);

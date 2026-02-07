@@ -3,14 +3,20 @@
 import * as React from 'react';
 import { XIcon } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
-import { DialogOverlay, DialogPortal, DialogPrimitive } from './dialog-primitives';
+import {
+  DialogOverlay,
+  DialogPortal,
+  DialogPrimitive,
+} from './dialog-primitives';
 
 export function DialogContent({
   className,
   children,
   showCloseButton = true,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & { showCloseButton?: boolean }) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  showCloseButton?: boolean;
+}) {
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />

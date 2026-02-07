@@ -7,7 +7,9 @@ export function MigrationFlowEmptyState() {
         <CardTitle className="text-base font-medium text-foreground">
           Major Migration Flow
         </CardTitle>
-        <p className="text-xs text-muted-foreground">Student movement between majors</p>
+        <p className="text-xs text-muted-foreground">
+          Student movement between majors
+        </p>
       </CardHeader>
       <CardContent>
         <div className="flex h-[400px] items-center justify-center text-muted-foreground">

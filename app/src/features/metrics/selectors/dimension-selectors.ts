@@ -51,7 +51,10 @@ export function selectSchoolCounts(data: AnalyticsRecord[], year?: number) {
     .sort((a, b) => b.count - a.count);
 }
 
-export function selectStudentTypeCounts(data: AnalyticsRecord[], year?: number) {
+export function selectStudentTypeCounts(
+  data: AnalyticsRecord[],
+  year?: number
+) {
   const counts = aggregateCounts(
     filterByYear(data, year),
     (record) => record.studentType,

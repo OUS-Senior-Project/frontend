@@ -13,7 +13,9 @@ export default function DashboardPage() {
       <DashboardHeader />
 
       {dashboard.uploadedDatasetName && (
-        <UploadStatusPanel uploadedDatasetName={dashboard.uploadedDatasetName} />
+        <UploadStatusPanel
+          uploadedDatasetName={dashboard.uploadedDatasetName}
+        />
       )}
 
       <main className="p-6">

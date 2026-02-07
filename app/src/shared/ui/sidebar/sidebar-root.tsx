@@ -26,7 +26,14 @@ export function Sidebar({
 
   if (collapsible === 'none') {
     return (
-      <div data-slot="sidebar" className={cn('bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col', className)} {...props}>
+      <div
+        data-slot="sidebar"
+        className={cn(
+          'bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col',
+          className
+        )}
+        {...props}
+      >
         {children}
       </div>
     );
@@ -34,14 +41,26 @@ export function Sidebar({
 
   if (isMobile) {
     return (
-      <MobileSidebar side={side} openMobile={openMobile} setOpenMobile={setOpenMobile} {...props}>
+      <MobileSidebar
+        side={side}
+        openMobile={openMobile}
+        setOpenMobile={setOpenMobile}
+        {...props}
+      >
         {children}
       </MobileSidebar>
     );
   }
 
   return (
-    <DesktopSidebar side={side} variant={variant} state={state} collapsible={collapsible} className={className} {...props}>
+    <DesktopSidebar
+      side={side}
+      variant={variant}
+      state={state}
+      collapsible={collapsible}
+      className={className}
+      {...props}
+    >
       {children}
     </DesktopSidebar>
   );

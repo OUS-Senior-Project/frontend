@@ -1,4 +1,9 @@
-export { Select, SelectGroup, SelectTrigger, SelectValue } from './select-primitives';
+export {
+  Select,
+  SelectGroup,
+  SelectTrigger,
+  SelectValue,
+} from './select-primitives';
 export {
   SelectContent,
   SelectItem,

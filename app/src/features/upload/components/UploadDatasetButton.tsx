@@ -16,7 +16,11 @@ export function UploadDatasetButton({
   return (
     <>
       <label htmlFor={inputId}>
-        <Button variant="outline" className="cursor-pointer bg-transparent" asChild>
+        <Button
+          variant="outline"
+          className="cursor-pointer bg-transparent"
+          asChild
+        >
           <span>
             <Upload className="mr-2 h-4 w-4" />
             Upload CSV

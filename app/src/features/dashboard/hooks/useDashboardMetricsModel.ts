@@ -44,7 +44,10 @@ export function useDashboardMetricsModel() {
     [analyticsData, selectedDate]
   );
 
-  const trendData = useMemo(() => selectTrendSeries(analyticsData), [analyticsData]);
+  const trendData = useMemo(
+    () => selectTrendSeries(analyticsData),
+    [analyticsData]
+  );
   const forecastData = useMemo(
     () => selectForecastSeries(trendData),
     [trendData]

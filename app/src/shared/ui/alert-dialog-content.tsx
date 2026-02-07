@@ -2,7 +2,11 @@
 
 import * as React from 'react';
 import { cn } from '@/shared/utils/cn';
-import { AlertDialogOverlay, AlertDialogPortal, AlertDialogPrimitive } from './alert-dialog-primitives';
+import {
+  AlertDialogOverlay,
+  AlertDialogPortal,
+  AlertDialogPrimitive,
+} from './alert-dialog-primitives';
 
 export function AlertDialogContent({
   className,

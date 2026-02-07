@@ -20,7 +20,9 @@ export function NavigationMenu({
   children,
   viewport = true,
   ...props
-}: React.ComponentProps<typeof NavigationMenuPrimitiveRoot> & { viewport?: boolean }) {
+}: React.ComponentProps<typeof NavigationMenuPrimitiveRoot> & {
+  viewport?: boolean;
+}) {
   return (
     <NavigationMenuPrimitiveRoot data-viewport={viewport} {...props}>
       {children}

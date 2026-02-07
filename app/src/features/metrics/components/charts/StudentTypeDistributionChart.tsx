@@ -24,7 +24,9 @@ interface StudentTypeDistributionChartProps {
   data: TypeData[];
 }
 
-export function StudentTypeDistributionChart({ data }: StudentTypeDistributionChartProps) {
+export function StudentTypeDistributionChart({
+  data,
+}: StudentTypeDistributionChartProps) {
   const formattedData = data.map((item) => ({
     ...item,
     name: studentTypeLabels[item.type] || item.type,

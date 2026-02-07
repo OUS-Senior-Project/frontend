@@ -1,4 +1,8 @@
-export { Pagination, PaginationContent, PaginationItem } from './pagination-core';
+export {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+} from './pagination-core';
 export {
   PaginationEllipsis,
   PaginationLink,

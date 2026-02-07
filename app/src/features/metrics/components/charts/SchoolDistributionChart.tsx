@@ -26,7 +26,9 @@ interface SchoolDistributionChartProps {
   data: SchoolData[];
 }
 
-export function SchoolDistributionChart({ data }: SchoolDistributionChartProps) {
+export function SchoolDistributionChart({
+  data,
+}: SchoolDistributionChartProps) {
   const shortNames = formatSchoolDistributionData(data);
 
   return (

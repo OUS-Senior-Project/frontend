@@ -8,7 +8,11 @@ import { Button } from '@/shared/ui/button';
 
 import { useSidebar } from './context';
 
-export function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
+export function SidebarTrigger({
+  className,
+  onClick,
+  ...props
+}: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar();
 
   return (
@@ -30,7 +34,10 @@ export function SidebarTrigger({ className, onClick, ...props }: React.Component
   );
 }
 
-export function SidebarRail({ className, ...props }: React.ComponentProps<'button'>) {
+export function SidebarRail({
+  className,
+  ...props
+}: React.ComponentProps<'button'>) {
   const { toggleSidebar } = useSidebar();
 
   return (

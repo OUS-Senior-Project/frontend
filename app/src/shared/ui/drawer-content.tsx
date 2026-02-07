@@ -2,9 +2,17 @@
 
 import * as React from 'react';
 import { cn } from '@/shared/utils/cn';
-import { DrawerOverlay, DrawerPortal, DrawerPrimitive } from './drawer-primitives';
+import {
+  DrawerOverlay,
+  DrawerPortal,
+  DrawerPrimitive,
+} from './drawer-primitives';
 
-export function DrawerContent({ className, children, ...props }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+export function DrawerContent({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Content>) {
   return (
     <DrawerPortal data-slot="drawer-portal">
       <DrawerOverlay />

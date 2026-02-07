@@ -43,12 +43,18 @@ export function SidebarMenuButton({
 
   if (!tooltip) return button;
 
-  const tooltipProps = typeof tooltip === 'string' ? { children: tooltip } : tooltip;
+  const tooltipProps =
+    typeof tooltip === 'string' ? { children: tooltip } : tooltip;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side="right" align="center" hidden={state !== 'collapsed' || isMobile} {...tooltipProps} />
+      <TooltipContent
+        side="right"
+        align="center"
+        hidden={state !== 'collapsed' || isMobile}
+        {...tooltipProps}
+      />
     </Tooltip>
   );
 }

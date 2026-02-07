@@ -47,7 +47,9 @@ if (fs.existsSync(summaryPath)) {
   linesPct = totalLines === 0 ? 100 : (coveredLines / totalLines) * 100;
   source = 'coverage-final.json';
 } else {
-  console.error('Coverage data not found. Expected coverage-summary.json or coverage-final.json.');
+  console.error(
+    'Coverage data not found. Expected coverage-summary.json or coverage-final.json.'
+  );
   process.exit(1);
 }
 
