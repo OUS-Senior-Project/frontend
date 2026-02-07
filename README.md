@@ -1,76 +1,262 @@
-# OUS Analytics (frontend)
+# OUS Analytics Frontend
 
-OUS Analytics is a Next.js + TypeScript dashboard for undergraduate student insights. The UI currently uses synthetic fixture data from `app/src/features/metrics/mocks/fixtures/` and a local CSV upload control that only updates client state (no backend API wiring yet).
+Internal administrative analytics dashboard UI for the Howard University OUS office.
 
-## Stack
+## Documentation Index
 
-- Next.js 16 (App Router) + React 19 + TypeScript
-- Tailwind CSS + PostCSS/Autoprefixer
-- Radix UI primitives, lucide-react icons
-- Recharts for charts
-- Jest + React Testing Library
+- Monolithic reference: this `README.md`
+- Split references:
+  - `docs/README.md`
+  - `docs/01-routing-and-structure.md`
+  - `docs/02-user-flows-current-vs-planned.md`
+  - `docs/03-frontend-data-and-state-model.md`
+  - `docs/04-backend-integration-surface-planned.md`
+  - `docs/05-configuration-and-environment.md`
+  - `docs/06-local-development-guide.md`
+  - `docs/07-known-gaps-and-next-steps.md`
 
-## Project structure
+## Product Status
 
-- `app/` – Next.js project root
-  - `src/app/` – App Router (`layout.tsx`, route groups, global styles)
-  - `src/features/` – feature modules (`dashboard`, `metrics`, `filters`, `upload`)
-  - `src/shared/` – shared UI primitives, hooks, utilities
-  - `src/lib/` – application-level helpers (config/errors/format/storage/files)
-  - `styles/` – global styles
-  - `test/` – Jest/RTL tests + mocks
-  - `scripts/` – coverage helpers
-  - `docs/` – coverage ledger
-- `.github/workflows/` – lint/test/coverage CI
+### Current state (implemented)
+- Frontend-only Next.js app (`app/src/app`), no backend integration.
+- No real API calls are implemented.
+- All dashboard data is generated from local mock fixtures in memory.
+- Upload control is UI-only: selecting a file shows its name in the interface; file contents are not parsed or persisted.
+
+### Target state (planned, not implemented yet)
+- Upload institutional enrollment data (`.xlsx`).
+- Send data to backend ingestion/cleaning pipelines.
+- Persist cleaned/computed datasets.
+- Drive dashboard metrics from persisted backend data.
+
+## 1) Routing And Structure Map
+
+## App entry points
+- `app/src/app/layout.tsx`: root layout, global metadata, global CSS, Vercel Analytics component.
+- `app/src/app/(dashboard)/page.tsx`: main dashboard page rendered at `/`.
+- `app/src/app/(dashboard)/layout.tsx`: passthrough layout for dashboard route group.
+
+`main.tsx` and `App.tsx` do not exist in this repo. This project uses Next.js App Router, not a standalone React Router SPA entrypoint.
+
+## Routing approach
+- Framework routing: Next.js App Router (filesystem routing).
+- Route groups: `(dashboard)`, `(data)`, `(exports)`.
+- `(data)` and `(exports)` currently contain README placeholders only and do not create active routes.
+
+## Route index (current)
+- `/` -> Dashboard view from `app/src/app/(dashboard)/page.tsx`
+  - Includes tabs: Overview, Majors, Migration, Forecasts.
+  - Includes upload control inside Overview tab.
+- No standalone upload route is wired.
+- No standalone exports route is wired.
+
+## Folder structure (current)
+- `app/src/app/`: routes, layouts, global styles.
+- `app/src/features/dashboard/`: dashboard container components and the main view model hook.
+- `app/src/features/metrics/`: metric types, mock fixture generation, selectors, charts/tables.
+- `app/src/features/upload/`: upload button and upload status banner components.
+- `app/src/features/filters/`: date and semester filter UI components.
+- `app/src/features/exports/`: currently empty placeholders.
+- `app/src/shared/ui/`: reusable UI primitives (Radix/Tailwind wrappers).
+- `app/src/shared/hooks/`: shared hooks (toast, mobile helpers).
+- `app/src/lib/`: placeholder directories with README notes; no active runtime code yet.
+
+## Data mocking, state ownership, and logic boundaries
+- Mock data source:
+  - `app/src/features/metrics/mocks/analytics-repository.ts`
+  - `app/src/features/metrics/mocks/fixtures/*`
+- Stateful UI model:
+  - `app/src/features/dashboard/hooks/useDashboardMetricsModel.ts`
+  - Local React state for selected date, modal open state, selected migration semester, uploaded file name.
+- UI-only behavior:
+  - `app/src/features/upload/components/UploadDatasetButton.tsx`
+  - `app/src/features/upload/components/UploadStatusPanel.tsx`
+- Domain/derivation logic (still frontend-local today):
+  - `app/src/features/metrics/selectors/*`
+  - `app/src/features/metrics/utils/metrics-summary-utils.ts`
+
+## 2) User Flow Documentation
+
+### A. Current implemented user flow
+
+1. App load
+- UI state: Dashboard page renders at `/` with default tab `Overview`.
+- Components: `DashboardPage`, `DashboardHeader`, `DashboardTabs`.
+- Data source: generated fixture data via `getMockAnalyticsRepository()`.
+
+2. Data hydration for dashboard widgets
+- UI state: cards/charts/tables populate immediately.
+- Components: panels under `app/src/features/dashboard/components/panels/*`, metric chart/table components.
+- Data source: in-memory fixtures + selector transforms in `app/src/features/metrics/selectors/*`.
+
+3. Date filter interaction (Overview)
+- UI state: changing date updates displayed snapshot metrics.
+- Components: `DateFilterButton`, `useDashboardMetricsModel`.
+- Data source: local state (`selectedDate`) + `selectSnapshotForDate` fallback logic.
+
+4. Upload interaction (Overview)
+- UI state: selecting a `.csv` file shows `Successfully loaded: <filename>`.
+- Components: `UploadDatasetButton`, `UploadStatusPanel`, `useDashboardMetricsModel.handleDatasetUpload`.
+- Data source: local file input event only; no parsing, no API call, no persistence.
+
+5. Migration semester filter
+- UI state: migration chart and top flows table update for selected semester.
+- Components: `SemesterFilterSelect`, `MigrationFlowChart`, `MigrationTopFlowsTable`.
+- Data source: mock migration fixture data filtered in-memory.
+
+6. Forecasts view
+- UI state: forecast cards/charts shown from derived trend data.
+- Components: `ForecastsPanel`, `ForecastSection`.
+- Data source: selector-derived projections (`selectForecastSeries`), not ML service/back-end forecasts.
+
+7. Empty/placeholder states
+- Implemented: migration chart empty state component exists (`MigrationFlowEmptyState`) and renders only if filtered data is empty.
+- Route placeholders: `(data)/upload` and `(exports)` route groups are documented placeholders only.
+
+### B. PLANNED user flow (not implemented)
+- Upload `.xlsx` file to backend ingestion endpoint.
+- Backend validates/cleans/transforms and persists dataset.
+- Frontend fetches persisted summaries and detailed metrics.
+- Multi-dataset management (select/switch datasets, dataset metadata).
+- Historical comparisons across uploaded datasets and time windows.
+- Export workflows backed by server-generated files.
+
+## 3) Frontend Data And State Model (Current)
+
+## Core state shape (local React state)
+From `useDashboardMetricsModel`:
+- `selectedDate: Date`
+- `breakdownOpen: boolean`
+- `migrationSemester: string | undefined`
+- `uploadedDatasetName: string | null`
+
+## Mock schemas
+Defined in `app/src/features/metrics/types.ts`:
+- `AnalyticsRecord`: `{ year, semester, major, school, studentType, count }`
+- `MigrationRecord`: `{ fromMajor, toMajor, semester, count }`
+- `MajorCohortRecord`: `{ major, cohort, avgGPA, avgCredits, studentCount }`
+- Derived view models: `TrendPoint`, `ForecastPoint`, `SnapshotTotals`
+
+## Temporary assumptions baked into UI
+- Dashboard has immediate synchronous access to full datasets (no loading states from network).
+- Forecast data is computed from recent trend points in selectors, not fetched.
+- `international` in snapshot totals is a fixed 12% calculation (`selectSnapshotTotals`).
+- Upload success is inferred from local file selection only.
+
+## State that must be replaced during backend integration
+- `getMockAnalyticsRepository()` and all fixture generators.
+- Any selector input currently sourced directly from in-memory arrays.
+- `uploadedDatasetName` as an upload success signal (must be replaced by backend response status).
+
+## Components currently assuming synchronous data
+- `DashboardPage` and all tab panels.
+- Metrics chart/table components under `app/src/features/metrics/components/*`.
+- No async loading/error orchestration for API fetch lifecycles yet.
+
+## 4) Backend Integration Surface (PLANNED)
+
+No real endpoints are implemented in this repo today. The following is a UI contract surface inferred from current component needs.
+
+## Likely API integration locations
+- Feature-level services/repositories under:
+  - `app/src/features/metrics/` (replace mock repository)
+  - `app/src/features/upload/` (upload + status)
+  - `app/src/features/exports/` (currently empty placeholder)
+- Hook orchestration point:
+  - `app/src/features/dashboard/hooks/useDashboardMetricsModel.ts`
+
+## Screens requiring backend data
+- Overview: snapshot totals, trend series, student type distribution, school distribution.
+- Majors: major counts, cohort GPA/credits/student counts.
+- Migration: semester options + migration flows.
+- Forecasts: historical trend + backend-supported forecasting (if moved server-side).
+- Upload status panel: actual ingestion/processing status and dataset identifiers.
+
+## Data shapes the UI already expects
+- Analytics records keyed by year/semester/major/school/student type/count.
+- Migration records keyed by from-major/to-major/semester/count.
+- Cohort-level major metrics keyed by cohort/major with GPA/credits/count.
+- Snapshot and trend aggregations consumable as flat arrays for chart components.
+
+## 5) Configuration / Environment Variables
+
+## Current state
+- No frontend runtime API base URL env var is currently used by source code.
+- No backend URL wiring exists in `app/src`.
+- `next.config.mjs` has no API environment configuration.
+
+## Existing env usage (non-runtime app behavior)
+- Coverage/build scripts use process env values:
+  - `COVERAGE_TARGET`
+  - `GREEN_COLOR`
+  - `RESET_COLOR`
+  - `BROWSERSLIST_IGNORE_OLD_DATA`
+  - `BASELINE_BROWSER_MAPPING_IGNORE_OLD_DATA`
+
+## Build vs runtime config
+- Build/runtime app config: static Next config only (`app/next.config.mjs`).
+- Script-time config: env vars consumed by scripts in `app/scripts/*` and helper shell scripts.
+
+## 6) Local Development Guide
 
 ## Prerequisites
+- Node.js (18+ recommended)
+- npm
 
-- Node 18.x, npm
-
-## Setup
-
+## Install
+From repository root:
 ```bash
 cd app
 npm install
 ```
 
-## Running locally
+## Run dev server
+Option 1 (inside app):
+```bash
+cd app
+npm run dev
+```
 
-- Dev server: `cd app && npm run dev`
-- Production build + start: `cd app && npm run build && npm start`
-- From repo root: `./runFrontend.sh` (builds and starts)
+Option 2 (repo root helper):
+```bash
+./runFrontend.sh
+```
 
-Open http://localhost:3000.
+Then open `http://localhost:3000`.
 
-## How OUS Analytics works
+## Useful commands
+From `app/`:
+- `npm run lint`
+- `npm run test`
+- `npm run typecheck`
+- `npm run build`
 
-1. Data: Student data is generated in `app/src/features/metrics/mocks/fixtures/*`.
-2. Upload: The CSV upload control updates local state and displays the file name.
-3. UI: Overview metrics, charts, cohort tables, migration charts, and forecasts render from the generated data.
+From repo root:
+- `npm run dev`
+- `npm run lint`
+- `npm run test`
+- `npm run typecheck`
 
-## Scripts (from `app/`)
+## Required env vars
+- None required to run the frontend dashboard UI today.
 
-- `npm run dev` – Next.js dev server
-- `npm run build` – production build
-- `npm start` – start production server
-- `npm run lint` – ESLint
-- `npm run format` – Prettier check
-- `npm run test` – Jest (unit/integration)
-- `npm run test:coverage` – Jest with coverage enabled
-- `npm run test:ci` – CI-style Jest run (coverage + `--runInBand`)
-- `npm run typecheck` – TypeScript typecheck (`tsc --noEmit`)
+## Known limitations (because backend is not integrated)
+- Upload does not parse/store/send file contents.
+- Dashboard metrics are mock-generated, not institutional source-of-truth data.
+- No persisted datasets, no dataset history, no server-side validation.
+- No real export pipeline.
 
-## Testing and coverage
+## 7) Known Gaps / Technical Debt And Next Steps
 
-- Run tests: `cd app && npm test`
-- Run tests with coverage: `cd app && npm run test:coverage`
-- CI-style run: `cd app && npm run test:ci`
-- Coverage output: `app/coverage/` (`coverage-summary.json`, `coverage-final.json`, `lcov-report/`)
-- Coverage guardrail: `node app/scripts/checkCoverage.js` (default `COVERAGE_TARGET=99`)
-- Coverage ledger: `node app/scripts/generate-coverage-ledger.mjs` (writes `app/docs/COVERAGE_LEDGER.md`)
+## Current gaps
+- Backend integration layer is missing (no services/fetch hooks).
+- Upload pipeline is placeholder-only and currently labeled CSV in UI, while target product requirement is `.xlsx` ingestion.
+- `features/exports` and route-group stubs are present but not implemented.
+- Limited explicit loading/error UX for future async data flows.
 
-## CI
-
-- `frontend-lint.yml` – lint + format checks
-- `frontend-test.yml` – tests + build
-- `frontend-coverage.yml` – coverage gate + artifacts
+## Planned next steps
+1. Introduce typed API client and repository interfaces to replace mock repository usage.
+2. Implement upload flow for `.xlsx` with backend status handling.
+3. Introduce dataset identity/version selection in dashboard state model.
+4. Replace selector inputs with API responses while preserving existing chart contracts.
+5. Add async loading/error/skeleton states across all tabs.

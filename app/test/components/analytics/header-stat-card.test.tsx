@@ -9,7 +9,7 @@ describe('analytics header and stat card', () => {
     render(<DashboardHeader />);
     expect(screen.getByText('OUS Analytics')).toBeInTheDocument();
     expect(
-      screen.getByText('OUS Analytics Dashboard')
+      screen.getByText('Howard University OUS Office')
     ).toBeInTheDocument();
   });
 

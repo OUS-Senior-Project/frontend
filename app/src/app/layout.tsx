@@ -5,7 +5,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'OUS Analytics',
-  description: 'Interactive student analytics dashboard for OUS Analytics',
+  description:
+    'Interactive student analytics dashboard for the Howard University OUS office',
   generator: 'v0.app',
   icons: {
     icon: [

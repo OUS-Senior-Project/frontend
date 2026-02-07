@@ -14,7 +14,7 @@ export function DashboardHeader() {
             OUS Analytics
           </h1>
           <p className="text-sm text-muted-foreground">
-            OUS Analytics Dashboard
+            Howard University OUS Office
           </p>
         </div>
       </div>
