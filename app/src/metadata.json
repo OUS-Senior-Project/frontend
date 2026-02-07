@@ -1,5 +1,0 @@
-{
-  "name": "OUS Enrollment Dashboard",
-  "description": "A dashboard UI for the Office of Undergraduate Studies (OUS) to display enrollment metrics and major insights from uploaded Workday files.",
-  "requestFramePermissions": []
-}

@@ -18,7 +18,7 @@ React + TypeScript dashboard for undergraduate enrollment insights. Users upload
   - `src/types.ts` – shared types and upload response shape
   - `tailwind.config.js`, `postcss.config.js` – Tailwind setup
 - `.github/workflows/` – lint, test, and coverage CI for pushes/PRs
-- `runLocally.sh` / `precommit.sh` – helper scripts at repo root
+- `runFrontend.sh` / `precommit.sh` – helper scripts at repo root
 
 ## Prerequisites
 
@@ -34,7 +34,7 @@ npm install
 
 ## Running locally
 
-- From repo root: `./runLocally.sh` (installs if needed, runs `npm start`)
+- From repo root: `./runFrontend.sh` (installs if needed, runs `npm start`)
 - Or manually: `cd app && npm start`
 
 Open [http://localhost:3000](http://localhost:3000). The dashboard is empty until you upload a file.
