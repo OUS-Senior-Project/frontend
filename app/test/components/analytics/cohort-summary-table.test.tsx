@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { CohortSummaryTable } from '@/components/analytics/cohort-summary-table';
+import { CohortSummaryTable } from '@/features/metrics/components/CohortSummaryTable';
 
 const data = [
   {

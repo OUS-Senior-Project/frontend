@@ -5,7 +5,7 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
-} from '@/components/ui/carousel';
+} from '@/shared/ui/carousel';
 import { __emblaApiMock, __setEmblaApi } from 'embla-carousel-react';
 
 describe('Carousel', () => {

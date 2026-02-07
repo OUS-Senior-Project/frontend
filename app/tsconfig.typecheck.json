@@ -2,13 +2,8 @@
   "extends": "./tsconfig.json",
   "include": [
     "next-env.d.ts",
-    "components/**/*",
-    "hooks/**/*",
-    "lib/**/*",
     "src/**/*",
-    "styles/**/*",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "styles/**/*"
   ],
   "exclude": [
     "node_modules",

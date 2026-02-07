@@ -8,7 +8,7 @@ const customConfig = {
   testEnvironment: 'jest-environment-jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/$1',
+    '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '^recharts$': '<rootDir>/test/mocks/recharts.tsx',
     '^react-day-picker$': '<rootDir>/test/mocks/react-day-picker.tsx',
@@ -24,7 +24,7 @@ const customConfig = {
   },
   testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
   collectCoverageFrom: [
-    '<rootDir>/{components,hooks,lib,src}/**/*.{ts,tsx}',
+    '<rootDir>/src/**/*.{ts,tsx}',
     '!**/*.d.ts',
     '!**/*.stories.*',
     '!**/*.config.*',
@@ -34,24 +34,6 @@ const customConfig = {
   coverageReporters: ['text', 'lcov', 'json', 'json-summary'],
   coverageThreshold: {
     global: {
-      statements: 99,
-      branches: 99,
-      functions: 99,
-      lines: 99,
-    },
-    './components/**/*.{ts,tsx}': {
-      statements: 99,
-      branches: 99,
-      functions: 99,
-      lines: 99,
-    },
-    './hooks/**/*.{ts,tsx}': {
-      statements: 99,
-      branches: 99,
-      functions: 99,
-      lines: 99,
-    },
-    './lib/**/*.{ts,tsx}': {
       statements: 99,
       branches: 99,
       functions: 99,

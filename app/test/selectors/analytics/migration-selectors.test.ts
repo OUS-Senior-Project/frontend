@@ -1,8 +1,8 @@
 import {
   getMigrationPeriodLabel,
   getTopMigrationFlows,
-} from '@/selectors/analytics/migration-selectors';
-import type { MigrationRecord } from '@/types/analytics';
+} from '@/features/metrics/selectors/migration-selectors';
+import type { MigrationRecord } from '@/features/metrics/types';
 
 const records: MigrationRecord[] = [
   {

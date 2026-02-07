@@ -9,7 +9,7 @@ import {
   FormDescription,
   FormMessage,
   useFormField,
-} from '@/components/ui/form';
+} from '@/shared/ui/form';
 import {
   Field,
   FieldSet,
@@ -21,7 +21,7 @@ import {
   FieldDescription,
   FieldSeparator,
   FieldError,
-} from '@/components/ui/field';
+} from '@/shared/ui/field';
 import { useForm } from 'react-hook-form';
 
 function FormFixture({ withError }: { withError?: boolean }) {

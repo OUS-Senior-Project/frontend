@@ -48,8 +48,8 @@ const runUseMobileSuite = (label: string, useIsMobile: UseIsMobileHook) => {
   });
 };
 
-runUseMobileSuite('hooks/use-mobile', require('@/hooks/use-mobile').useIsMobile);
+runUseMobileSuite('hooks/use-mobile', require('@/shared/hooks/useIsMobile').useIsMobile);
 runUseMobileSuite(
   'components/ui/use-mobile',
-  require('@/components/ui/use-mobile').useIsMobile
+  require('@/shared/ui/use-mobile').useIsMobile
 );

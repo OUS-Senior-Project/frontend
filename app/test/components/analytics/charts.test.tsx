@@ -1,18 +1,18 @@
 import { render, screen } from '@testing-library/react';
 import {
-  AnalyticsTrendChart,
-} from '@/components/analytics/analytics-trend-chart';
-import { MajorBreakdownChart } from '@/components/analytics/major-breakdown-chart';
-import { StudentTypeChart } from '@/components/analytics/student-type-chart';
-import { SchoolBreakdownChart } from '@/components/analytics/school-breakdown-chart';
-import { ForecastSection } from '@/components/analytics/forecast-section';
+  MetricsTrendChart,
+} from '@/features/metrics/components/charts/MetricsTrendChart';
+import { MajorDistributionChart } from '@/features/metrics/components/charts/MajorDistributionChart';
+import { StudentTypeDistributionChart } from '@/features/metrics/components/charts/StudentTypeDistributionChart';
+import { SchoolDistributionChart } from '@/features/metrics/components/charts/SchoolDistributionChart';
+import { ForecastSection } from '@/features/metrics/components/ForecastSection';
 import {
   AvgCreditsByCohortChart,
   AvgCreditsByMajorChart,
   AvgGPAByCohortChart,
   AvgGPAByMajorChart,
-} from '@/components/analytics/major-analytics-charts';
-import type { MajorCohortRecord } from '@/lib/analytics-data';
+} from '@/features/metrics/components/major-analytics-charts';
+import type { MajorCohortRecord } from '@/features/metrics/utils/analytics-data';
 
 const trendData = [
   { period: 'Fall 2023', total: 1000 },
@@ -65,28 +65,28 @@ const cohortData: MajorCohortRecord[] = [
 
 describe('analytics charts', () => {
   test('AnalyticsTrendChart renders with and without forecasts', () => {
-    const { rerender } = render(<AnalyticsTrendChart data={trendData} />);
+    const { rerender } = render(<MetricsTrendChart data={trendData} />);
     expect(
       screen.getByText('Student Trends Over Time')
     ).toBeInTheDocument();
     expect(screen.queryByText('Forecasted')).not.toBeInTheDocument();
 
     rerender(
-      <AnalyticsTrendChart data={trendData} forecastData={forecastData} />
+      <MetricsTrendChart data={trendData} forecastData={forecastData} />
     );
     expect(screen.getByText('Forecasted')).toBeInTheDocument();
   });
 
   test('Major and student charts render', () => {
-    render(<MajorBreakdownChart data={majorData} />);
+    render(<MajorDistributionChart data={majorData} />);
     expect(screen.getByText('Students by Major')).toBeInTheDocument();
 
-    render(<StudentTypeChart data={typeData} />);
+    render(<StudentTypeDistributionChart data={typeData} />);
     expect(
       screen.getByText('Student Type Distribution')
     ).toBeInTheDocument();
 
-    render(<SchoolBreakdownChart data={schoolData} />);
+    render(<SchoolDistributionChart data={schoolData} />);
     expect(
       screen.getByText('Students by School/College')
     ).toBeInTheDocument();

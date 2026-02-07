@@ -1,5 +1,6 @@
 import React from 'react';
-import RootLayout, { metadata } from '@/src/app/layout';
+import RootLayout, { metadata } from '@/app/layout';
+import DashboardLayout from '@/app/(dashboard)/layout';
 import { Analytics } from '@vercel/analytics/next';
 
 describe('RootLayout', () => {
@@ -28,5 +29,15 @@ describe('RootLayout', () => {
   test('exports metadata', () => {
     expect(metadata.title).toBe('OUS Analytics');
     expect(metadata.description).toContain('Interactive student analytics');
+  });
+
+  test('DashboardLayout returns children untouched', () => {
+    const element = DashboardLayout({
+      children: <div>Dashboard Child</div>,
+    }) as React.ReactElement;
+
+    expect(React.isValidElement(element)).toBe(true);
+    expect(React.isValidElement(element.props.children)).toBe(true);
+    expect(element.props.children.props.children).toBe('Dashboard Child');
   });
 });

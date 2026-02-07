@@ -15,7 +15,7 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
-} from '@/components/ui/dropdown-menu';
+} from '@/shared/ui/dropdown-menu';
 import {
   ContextMenu,
   ContextMenuPortal,
@@ -32,7 +32,7 @@ import {
   ContextMenuSub,
   ContextMenuSubTrigger,
   ContextMenuSubContent,
-} from '@/components/ui/context-menu';
+} from '@/shared/ui/context-menu';
 import {
   Menubar,
   MenubarPortal,
@@ -50,9 +50,10 @@ import {
   MenubarSub,
   MenubarSubTrigger,
   MenubarSubContent,
-} from '@/components/ui/menubar';
+} from '@/shared/ui/menubar';
 import {
   NavigationMenu,
+  NavigationMenuPrimitiveRoot,
   NavigationMenuList,
   NavigationMenuItem,
   NavigationMenuTrigger,
@@ -61,7 +62,7 @@ import {
   NavigationMenuIndicator,
   NavigationMenuViewport,
   navigationMenuTriggerStyle,
-} from '@/components/ui/navigation-menu';
+} from '@/shared/ui/navigation-menu';
 
 describe('Menu components', () => {
   test('dropdown menu renders items and variants', () => {
@@ -200,5 +201,7 @@ describe('Menu components', () => {
       </NavigationMenu>
     );
     expect(navigationMenuTriggerStyle()).toContain('group');
+    expect(NavigationMenuPrimitiveRoot).toBeDefined();
+    expect(NavigationMenuViewport).toBeDefined();
   });
 });

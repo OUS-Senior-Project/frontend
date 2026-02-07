@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeProvider } from '@/shared/components/ThemeProvider';
 
 describe('ThemeProvider', () => {
   test('renders children', () => {

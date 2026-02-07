@@ -1,12 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Button } from '@/components/ui/button';
-import { Badge, badgeVariants } from '@/components/ui/badge';
+import { Button } from '@/shared/ui/button';
+import { Badge, badgeVariants } from '@/shared/ui/badge';
 import {
   ButtonGroup,
   ButtonGroupSeparator,
   ButtonGroupText,
   buttonGroupVariants,
-} from '@/components/ui/button-group';
+} from '@/shared/ui/button-group';
 import {
   Pagination,
   PaginationContent,
@@ -15,7 +15,7 @@ import {
   PaginationNext,
   PaginationPrevious,
   PaginationEllipsis,
-} from '@/components/ui/pagination';
+} from '@/shared/ui/pagination';
 import {
   Select,
   SelectTrigger,
@@ -27,7 +27,7 @@ import {
   SelectSeparator,
   SelectScrollDownButton,
   SelectScrollUpButton,
-} from '@/components/ui/select';
+} from '@/shared/ui/select';
 import {
   InputGroup,
   InputGroupAddon,
@@ -35,7 +35,7 @@ import {
   InputGroupInput,
   InputGroupText,
   InputGroupTextarea,
-} from '@/components/ui/input-group';
+} from '@/shared/ui/input-group';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -44,7 +44,7 @@ import {
   BreadcrumbSeparator,
   BreadcrumbEllipsis,
   BreadcrumbPage,
-} from '@/components/ui/breadcrumb';
+} from '@/shared/ui/breadcrumb';
 import {
   Item,
   ItemGroup,
@@ -56,7 +56,7 @@ import {
   ItemHeader,
   ItemFooter,
   ItemSeparator,
-} from '@/components/ui/item';
+} from '@/shared/ui/item';
 
 describe('UI variants and branches', () => {
   test('button and badge support asChild', () => {

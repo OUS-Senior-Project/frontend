@@ -1,6 +1,6 @@
 # OUS Analytics (frontend)
 
-OUS Analytics is a Next.js + TypeScript dashboard for undergraduate student insights. The UI currently uses synthetic data generated in `app/lib/analytics-data.ts` and a local CSV upload control that only updates client state (no backend API wiring yet).
+OUS Analytics is a Next.js + TypeScript dashboard for undergraduate student insights. The UI currently uses synthetic fixture data from `app/src/features/metrics/mocks/fixtures/` and a local CSV upload control that only updates client state (no backend API wiring yet).
 
 ## Stack
 
@@ -13,10 +13,10 @@ OUS Analytics is a Next.js + TypeScript dashboard for undergraduate student insi
 ## Project structure
 
 - `app/` – Next.js project root
-  - `src/app/` – App Router (`layout.tsx`, `page.tsx`, global styles)
-  - `components/` – analytics + UI components
-  - `hooks/` – shared hooks
-  - `lib/` – data generators + utilities
+  - `src/app/` – App Router (`layout.tsx`, route groups, global styles)
+  - `src/features/` – feature modules (`dashboard`, `metrics`, `filters`, `upload`)
+  - `src/shared/` – shared UI primitives, hooks, utilities
+  - `src/lib/` – application-level helpers (config/errors/format/storage/files)
   - `styles/` – global styles
   - `test/` – Jest/RTL tests + mocks
   - `scripts/` – coverage helpers
@@ -44,7 +44,7 @@ Open http://localhost:3000.
 
 ## How OUS Analytics works
 
-1. Data: Student data is generated in `app/lib/analytics-data.ts`.
+1. Data: Student data is generated in `app/src/features/metrics/mocks/fixtures/*`.
 2. Upload: The CSV upload control updates local state and displays the file name.
 3. UI: Overview metrics, charts, cohort tables, migration charts, and forecasts render from the generated data.
 

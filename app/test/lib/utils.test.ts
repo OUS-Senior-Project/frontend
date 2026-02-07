@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/utils/cn';
 
 describe('cn', () => {
   test('merges class names and ignores falsy values', () => {

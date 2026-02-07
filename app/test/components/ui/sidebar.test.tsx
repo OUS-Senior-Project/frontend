@@ -25,13 +25,13 @@ import {
   SidebarMenuSubButton,
   SidebarInset,
   useSidebar,
-} from '@/components/ui/sidebar';
+} from '@/shared/ui/sidebar';
 
-jest.mock('@/hooks/use-mobile', () => ({
+jest.mock('@/shared/hooks/useIsMobile', () => ({
   useIsMobile: jest.fn(),
 }));
 
-const useIsMobile = require('@/hooks/use-mobile').useIsMobile as jest.Mock;
+const useIsMobile = require('@/shared/hooks/useIsMobile').useIsMobile as jest.Mock;
 
 describe('Sidebar', () => {
   test('throws when used outside provider', () => {

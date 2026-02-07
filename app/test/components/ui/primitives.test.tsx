@@ -4,7 +4,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
+} from '@/shared/ui/accordion';
 import {
   AlertDialog,
   AlertDialogOverlay,
@@ -17,10 +17,10 @@ import {
   AlertDialogPortal,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AspectRatio } from '@/components/ui/aspect-ratio';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+} from '@/shared/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
+import { AspectRatio } from '@/shared/ui/aspect-ratio';
+import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/avatar';
 import {
   Card,
   CardContent,
@@ -29,13 +29,13 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+} from '@/shared/ui/card';
+import { Checkbox } from '@/shared/ui/checkbox';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+} from '@/shared/ui/collapsible';
 import {
   Drawer,
   DrawerClose,
@@ -47,7 +47,7 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
-} from '@/components/ui/drawer';
+} from '@/shared/ui/drawer';
 import {
   Empty,
   EmptyHeader,
@@ -55,25 +55,25 @@ import {
   EmptyTitle,
   EmptyDescription,
   EmptyContent,
-} from '@/components/ui/empty';
+} from '@/shared/ui/empty';
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from '@/components/ui/hover-card';
-import { Input } from '@/components/ui/input';
-import { Kbd, KbdGroup } from '@/components/ui/kbd';
-import { Label } from '@/components/ui/label';
+} from '@/shared/ui/hover-card';
+import { Input } from '@/shared/ui/input';
+import { Kbd, KbdGroup } from '@/shared/ui/kbd';
+import { Label } from '@/shared/ui/label';
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Progress } from '@/components/ui/progress';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+} from '@/shared/ui/popover';
+import { Progress } from '@/shared/ui/progress';
+import { RadioGroup, RadioGroupItem } from '@/shared/ui/radio-group';
+import { ScrollArea, ScrollBar } from '@/shared/ui/scroll-area';
+import { Separator } from '@/shared/ui/separator';
 import {
   Sheet,
   SheetClose,
@@ -81,13 +81,15 @@ import {
   SheetDescription,
   SheetFooter,
   SheetHeader,
+  SheetOverlay,
+  SheetPortal,
   SheetTitle,
   SheetTrigger,
-} from '@/components/ui/sheet';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Slider } from '@/components/ui/slider';
-import { Spinner } from '@/components/ui/spinner';
-import { Switch } from '@/components/ui/switch';
+} from '@/shared/ui/sheet';
+import { Skeleton } from '@/shared/ui/skeleton';
+import { Slider } from '@/shared/ui/slider';
+import { Spinner } from '@/shared/ui/spinner';
+import { Switch } from '@/shared/ui/switch';
 import {
   Table,
   TableBody,
@@ -97,9 +99,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
+} from '@/shared/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs';
+import { Textarea } from '@/shared/ui/textarea';
 import {
   Toast,
   ToastAction,
@@ -108,15 +110,15 @@ import {
   ToastProvider,
   ToastTitle,
   ToastViewport,
-} from '@/components/ui/toast';
-import { Toggle } from '@/components/ui/toggle';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+} from '@/shared/ui/toast';
+import { Toggle } from '@/shared/ui/toggle';
+import { ToggleGroup, ToggleGroupItem } from '@/shared/ui/toggle-group';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/shared/ui/tooltip';
 import {
   Command,
   CommandDialog,
@@ -127,7 +129,7 @@ import {
   CommandItem,
   CommandSeparator,
   CommandShortcut,
-} from '@/components/ui/command';
+} from '@/shared/ui/command';
 
 describe('UI primitives', () => {
   test('renders basic components', () => {
@@ -289,6 +291,9 @@ describe('UI primitives', () => {
         </TooltipProvider>
         <Sheet open>
           <SheetTrigger>Sheet</SheetTrigger>
+          <SheetPortal>
+            <SheetOverlay />
+          </SheetPortal>
           <SheetContent>
             <SheetHeader>
               <SheetTitle>Sheet Title</SheetTitle>

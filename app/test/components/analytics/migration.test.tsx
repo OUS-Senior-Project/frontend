@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
-import { MigrationSankey } from '@/components/analytics/migration-sankey';
-import { MigrationTable } from '@/components/analytics/migration-table';
-import type { MigrationRecord } from '@/lib/analytics-data';
+import { MigrationFlowChart } from '@/features/metrics/components/charts/MigrationFlowChart';
+import { MigrationTopFlowsTable } from '@/features/metrics/components/MigrationTopFlowsTable';
+import type { MigrationRecord } from '@/features/metrics/utils/analytics-data';
 
 const data: MigrationRecord[] = [
   {
@@ -32,7 +32,7 @@ const data: MigrationRecord[] = [
 
 describe('migration components', () => {
   test('renders sankey insight and filters by semester', () => {
-    render(<MigrationSankey data={data} selectedSemester="Fall 2023" />);
+    render(<MigrationFlowChart data={data} selectedSemester="Fall 2023" />);
 
     expect(screen.getByText('Major Migration Flow')).toBeInTheDocument();
     expect(screen.getByText(/Fall 2023/)).toBeInTheDocument();
@@ -40,24 +40,24 @@ describe('migration components', () => {
   });
 
   test('shows empty state when no migration data', () => {
-    render(<MigrationSankey data={data} selectedSemester="Winter 2020" />);
+    render(<MigrationFlowChart data={data} selectedSemester="Winter 2020" />);
     expect(
       screen.getByText('No migration data available for the selected semester.')
     ).toBeInTheDocument();
   });
 
   test('renders migration table with selected semester label', () => {
-    render(<MigrationTable data={data} selectedSemester="Fall 2023" />);
+    render(<MigrationTopFlowsTable data={data} selectedSemester="Fall 2023" />);
     expect(
       screen.getByText(/Most common major changes \(Fall 2023\)/)
     ).toBeInTheDocument();
   });
 
   test('uses all semesters when no selection', () => {
-    render(<MigrationSankey data={data} />);
+    render(<MigrationFlowChart data={data} />);
     expect(screen.getByText(/All Semesters/)).toBeInTheDocument();
 
-    render(<MigrationTable data={data} />);
+    render(<MigrationTopFlowsTable data={data} />);
     expect(
       screen.getByText(/Most common major changes \(All Semesters\)/)
     ).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('migration components', () => {
       },
     ];
 
-    render(<MigrationSankey data={zeroData} selectedSemester="Fall 2024" />);
+    render(<MigrationFlowChart data={zeroData} selectedSemester="Fall 2024" />);
     expect(screen.getByText(/0 students/)).toBeInTheDocument();
   });
 });

@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogPortal,
   DialogOverlay,
-} from '@/components/ui/dialog';
+} from '@/shared/ui/dialog';
 
 describe('Dialog', () => {
   test('renders content with close button by default', () => {

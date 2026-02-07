@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 const selectedDate = new Date(2024, 1, 2);
 
-jest.mock('@/components/ui/calendar', () => ({
+jest.mock('@/shared/ui/calendar', () => ({
   Calendar: ({ onSelect }: { onSelect?: (date?: Date) => void }) => {
     onSelect?.(undefined);
     onSelect?.(selectedDate);
@@ -10,13 +10,13 @@ jest.mock('@/components/ui/calendar', () => ({
   },
 }));
 
-import { DatePickerButton } from '@/components/analytics/date-picker-button';
+import { DateFilterButton } from '@/features/filters/components/DateFilterButton';
 
-describe('DatePickerButton', () => {
+describe('DateFilterButton', () => {
   test('renders selected date and forwards valid selection', () => {
     const handleChange = jest.fn();
     render(
-      <DatePickerButton
+      <DateFilterButton
         date={new Date(2024, 0, 1)}
         onDateChange={handleChange}
       />

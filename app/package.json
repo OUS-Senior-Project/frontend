@@ -5,9 +5,9 @@
   "scripts": {
     "build": "BROWSERSLIST_IGNORE_OLD_DATA=1 BASELINE_BROWSER_MAPPING_IGNORE_OLD_DATA=1 next build --webpack",
     "dev": "next dev",
-    "format": "prettier --check \"{src,components,hooks,lib,styles,scripts}/**/*.{ts,tsx,js,jsx,css,md,json}\" components.json",
+    "format": "prettier --check \"{src,styles,scripts}/**/*.{ts,tsx,js,jsx,css,md,json}\" components.json",
     "format:check": "npm run format",
-    "lint": "eslint \"{src,components,hooks,lib}/**/*.{ts,tsx,js,jsx}\" --max-warnings=0",
+    "lint": "eslint \"src/**/*.{ts,tsx,js,jsx}\" --max-warnings=0",
     "postinstall": "node ./scripts/patch-browserslist.js",
     "start": "next start",
     "test": "jest",

@@ -4,7 +4,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
   InputOTPSeparator,
-} from '@/components/ui/input-otp';
+} from '@/shared/ui/input-otp';
 import { OTPInputContext } from 'input-otp';
 
 describe('InputOTP', () => {

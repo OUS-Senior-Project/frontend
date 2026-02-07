@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
-import * as hooksToast from '@/hooks/use-toast';
-import * as uiToast from '@/components/ui/use-toast';
+import * as hooksToast from '@/shared/hooks/useToast';
+import * as uiToast from '@/shared/ui/use-toast';
 
 const runToastSuite = (
   label: string,

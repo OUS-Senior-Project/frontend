@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 
-jest.mock('@/components/ui/select', () => ({
+jest.mock('@/shared/ui/select', () => ({
   Select: ({ value, onValueChange, children }: any) => (
     <div
       data-testid="select"
@@ -21,12 +21,12 @@ jest.mock('@/components/ui/select', () => ({
   SelectItem: ({ children }: any) => <div>{children}</div>,
 }));
 
-import { SemesterDropdown } from '@/components/analytics/semester-dropdown';
+import { SemesterFilterSelect } from '@/features/filters/components/SemesterFilterSelect';
 
-describe('SemesterDropdown', () => {
+describe('SemesterFilterSelect', () => {
   test('maps all to undefined and forwards selected semester', () => {
     const handleChange = jest.fn();
-    render(<SemesterDropdown value={undefined} onValueChange={handleChange} />);
+    render(<SemesterFilterSelect value={undefined} onValueChange={handleChange} />);
 
     fireEvent.click(screen.getByTestId('select'));
 

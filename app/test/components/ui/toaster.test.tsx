@@ -1,7 +1,7 @@
 import { render, screen, act } from '@testing-library/react';
-import { Toaster } from '@/components/ui/toaster';
-import { Toaster as SonnerToaster } from '@/components/ui/sonner';
-import { toast } from '@/hooks/use-toast';
+import { Toaster } from '@/shared/ui/toaster';
+import { Toaster as SonnerToaster } from '@/shared/ui/sonner';
+import { toast } from '@/shared/hooks/useToast';
 import { __setTheme } from 'next-themes';
 
 describe('Toaster components', () => {

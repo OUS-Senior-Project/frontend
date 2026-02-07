@@ -1,10 +1,13 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import OUSAnalyticsDashboard from '@/src/app/page';
-import { computeFiveYearGrowth, getTopMajorLabel } from '@/lib/analytics-utils';
+import DashboardPage from '@/app/(dashboard)/page';
+import {
+  calculateFiveYearGrowthRate,
+  selectTopMajorLabel,
+} from '@/features/metrics/utils/metrics-summary-utils';
 
 describe('OUS Analytics page', () => {
   test('renders and handles file upload and breakdown modal', () => {
-    render(<OUSAnalyticsDashboard />);
+    render(<DashboardPage />);
 
     expect(screen.getAllByText('Overview').length).toBeGreaterThan(0);
 
@@ -26,12 +29,12 @@ describe('OUS Analytics page', () => {
   });
 
   test('handles empty yearly totals in growth calculation', () => {
-    expect(computeFiveYearGrowth([])).toBe(0);
+    expect(calculateFiveYearGrowthRate([])).toBe(0);
   });
 
-  test('getTopMajorLabel falls back to N/A', () => {
-    expect(getTopMajorLabel([])).toBe('N/A');
-    expect(getTopMajorLabel([{ major: '' }])).toBe('N/A');
-    expect(getTopMajorLabel([{ major: 'Biology' }])).toBe('Biology');
+  test('selectTopMajorLabel falls back to N/A', () => {
+    expect(selectTopMajorLabel([])).toBe('N/A');
+    expect(selectTopMajorLabel([{ major: '' }])).toBe('N/A');
+    expect(selectTopMajorLabel([{ major: 'Biology' }])).toBe('Biology');
   });
 });

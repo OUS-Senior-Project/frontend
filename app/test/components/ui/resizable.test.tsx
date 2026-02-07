@@ -3,7 +3,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-} from '@/components/ui/resizable';
+} from '@/shared/ui/resizable';
 
 describe('Resizable', () => {
   test('renders handle with and without grip', () => {

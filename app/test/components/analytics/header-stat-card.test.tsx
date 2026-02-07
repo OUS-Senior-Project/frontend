@@ -1,12 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Header } from '@/components/analytics/header';
-import { StatCard } from '@/components/analytics/stat-card';
-import { AnalyticsBreakdownModal } from '@/components/analytics/analytics-breakdown-modal';
+import { DashboardHeader } from '@/features/dashboard/components/DashboardHeader';
+import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
+import { AnalyticsBreakdownModal } from '@/features/metrics/components/AnalyticsBreakdownModal';
 import { Users } from 'lucide-react';
 
 describe('analytics header and stat card', () => {
   test('renders header content', () => {
-    render(<Header />);
+    render(<DashboardHeader />);
     expect(screen.getByText('OUS Analytics')).toBeInTheDocument();
     expect(
       screen.getByText('OUS Analytics Dashboard')
@@ -16,7 +16,7 @@ describe('analytics header and stat card', () => {
   test('stat card handles change states and click interactions', () => {
     const handleClick = jest.fn();
     const { rerender } = render(
-      <StatCard
+      <MetricsSummaryCard
         title="Total Students"
         value={1234}
         icon={Users}
@@ -32,7 +32,7 @@ describe('analytics header and stat card', () => {
     expect(handleClick).toHaveBeenCalledTimes(3);
 
     rerender(
-      <StatCard
+      <MetricsSummaryCard
         title="Change Up"
         value="N/A"
         icon={Users}
@@ -42,7 +42,7 @@ describe('analytics header and stat card', () => {
     expect(screen.getByText('5.0%')).toBeInTheDocument();
 
     rerender(
-      <StatCard
+      <MetricsSummaryCard
         title="Change Down"
         value={500}
         icon={Users}
@@ -52,7 +52,7 @@ describe('analytics header and stat card', () => {
     expect(screen.getByText('2.5%')).toBeInTheDocument();
 
     rerender(
-      <StatCard
+      <MetricsSummaryCard
         title="No Change"
         value={0}
         icon={Users}

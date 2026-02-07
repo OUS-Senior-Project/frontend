@@ -7,7 +7,7 @@ import {
   ChartTooltipContent,
   ChartStyle,
   getPayloadConfigFromPayload,
-} from '@/components/ui/chart';
+} from '@/shared/ui/chart';
 
 const IconMock = () => <svg data-testid="icon" />;
 

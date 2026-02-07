@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { Calendar, CalendarDayButton } from '@/components/ui/calendar';
+import { Calendar, CalendarDayButton } from '@/shared/ui/calendar';
 
 describe('Calendar', () => {
   test('renders with different caption layouts', () => {
