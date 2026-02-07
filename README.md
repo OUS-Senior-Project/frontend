@@ -1,29 +1,31 @@
-# OUS Enrollment Dashboard (frontend)
+# OUS Analytics (frontend)
 
-React + TypeScript dashboard for undergraduate enrollment insights. Users upload a Workday enrollment spreadsheet (.xlsx or .xls); the app sends it to the backend and displays enrollment metrics, GPA/credits charts, and a major-level summary by classification. Uses Tailwind for styling, Recharts for charts, and Axios for the upload API.
+OUS Analytics is a Next.js + TypeScript dashboard for undergraduate student insights. The UI currently uses synthetic data generated in `app/lib/analytics-data.ts` and a local CSV upload control that only updates client state (no backend API wiring yet).
 
 ## Stack
 
-- React 19 (CRA, react-scripts 5) + TypeScript
-- TailwindCSS + PostCSS/Autoprefixer
-- Recharts, lucide-react icons
-- Testing Library + Jest (with mocks for axios/recharts)
+- Next.js 16 (App Router) + React 19 + TypeScript
+- Tailwind CSS + PostCSS/Autoprefixer
+- Radix UI primitives, lucide-react icons
+- Recharts for charts
+- Jest + React Testing Library
 
 ## Project structure
 
-- `app/` – CRA project root
-  - `src/` – TypeScript components, charts, API, types
-  - `src/api/` – axios client (`client.ts`) and file upload (`upload.ts`)
-  - `src/components/` – UI (Header, FileUploadPanel, MetricTile, GPABarChart, CreditsBarChart, MajorInsights, MajorSummaryByClassification, MajorSummaryTable, ExportButton)
-  - `src/types.ts` – shared types and upload response shape
-  - `tailwind.config.js`, `postcss.config.js` – Tailwind setup
-- `.github/workflows/` – lint, test, and coverage CI for pushes/PRs
-- `runFrontend.sh` / `precommit.sh` – helper scripts at repo root
+- `app/` – Next.js project root
+  - `src/app/` – App Router (`layout.tsx`, `page.tsx`, global styles)
+  - `components/` – analytics + UI components
+  - `hooks/` – shared hooks
+  - `lib/` – data generators + utilities
+  - `styles/` – global styles
+  - `test/` – Jest/RTL tests + mocks
+  - `scripts/` – coverage helpers
+  - `docs/` – coverage ledger
+- `.github/workflows/` – lint/test/coverage CI
 
 ## Prerequisites
 
-- Node 18.x (matches GitHub Actions); npm
-- Backend API running and reachable at the URL you set in `REACT_APP_API_BASE`
+- Node 18.x, npm
 
 ## Setup
 
@@ -34,57 +36,41 @@ npm install
 
 ## Running locally
 
-- From repo root: `./runFrontend.sh` (installs if needed, runs `npm start`)
-- Or manually: `cd app && npm start`
+- Dev server: `cd app && npm run dev`
+- Production build + start: `cd app && npm run build && npm start`
+- From repo root: `./runFrontend.sh` (builds and starts)
 
-Open [http://localhost:3000](http://localhost:3000). The dashboard is empty until you upload a file.
+Open http://localhost:3000.
 
-## Environment
+## How OUS Analytics works
 
-Create `app/.env.local` (or `.env`) with:
-
-```bash
-REACT_APP_API_BASE=http://localhost:8000
-```
-
-- Use **http** (not https) for a typical local backend.
-- The app calls **POST** `{REACT_APP_API_BASE}/api/v1/upload` with a multipart file. The backend must accept `.xlsx`/`.xls` and return a JSON body with `file_id`, `filename`, `status`, `enrollment_metrics`, and `program_metrics` (including `by_class_and_program` and `summary`). If the env var is missing, upload will fail with a clear error.
-
-## How the dashboard works
-
-1. **Upload** – User selects a Workday enrollment file (.xlsx or .xls) in the “Upload Workday Enrollment File” panel. The file is sent to `POST /api/v1/upload`.
-2. **Response** – The backend returns enrollment counts (total, undergrad, FTIC, transfer) and program metrics by classification (e.g. Freshman, Sophomore) with per-program GPA, credits, and student count.
-3. **UI** – On success, the app shows:
-   - **Enrollment Overview** – Tiles for total enrollment, undergraduate, FTIC, transfer (international shown as “—” if not in the API).
-   - **Major Insights** – Average GPA by major and average credits by major (bar charts), plus a **Major-Level Summary** table by classification.
-
-Until an upload succeeds, the overview and insights sections are empty.
+1. Data: Student data is generated in `app/lib/analytics-data.ts`.
+2. Upload: The CSV upload control updates local state and displays the file name.
+3. UI: Overview metrics, charts, cohort tables, migration charts, and forecasts render from the generated data.
 
 ## Scripts (from `app/`)
 
-- `npm start` – dev server
-- `npm test` – Jest/RTL (watch in local terminals)
+- `npm run dev` – Next.js dev server
 - `npm run build` – production build
-- `npm run lint` – ESLint (.js/.jsx/.ts/.tsx)
-- `npm run lint:fix` – ESLint with `--fix` (JS/JSX only; extend if desired)
-- `npm run format` / `npm run format:check` – Prettier
+- `npm start` – start production server
+- `npm run lint` – ESLint
+- `npm run format` – Prettier check
+- `npm run test` – Jest (unit/integration)
+- `npm run test:coverage` – Jest with coverage enabled
+- `npm run test:ci` – CI-style Jest run (coverage + `--runInBand`)
+- `npm run typecheck` – TypeScript typecheck (`tsc --noEmit`)
 
-## Pre-commit helper
+## Testing and coverage
 
-From repo root, `./precommit.sh` runs Prettier, ESLint, then tests (`CI=true npm test -- --watch=false`).
-
-## Testing notes
-
-- `src/__mocks__/axios.ts` and `src/__mocks__/recharts.js` mock network and chart libs for predictable tests.
-- `src/App.test.tsx` checks that the dashboard and upload panel render (header, “Upload Workday Enrollment File”, “Enrollment Overview”).
-
-## Styling
-
-- Tailwind layers are imported in `src/index.css`; utilities are used across components.
-- Adjust design tokens in `tailwind.config.js` as needed.
+- Run tests: `cd app && npm test`
+- Run tests with coverage: `cd app && npm run test:coverage`
+- CI-style run: `cd app && npm run test:ci`
+- Coverage output: `app/coverage/` (`coverage-summary.json`, `coverage-final.json`, `lcov-report/`)
+- Coverage guardrail: `node app/scripts/checkCoverage.js` (default `COVERAGE_TARGET=99`)
+- Coverage ledger: `node app/scripts/generate-coverage-ledger.mjs` (writes `app/docs/COVERAGE_LEDGER.md`)
 
 ## CI
 
-- **frontend-lint.yml** – Prettier check + ESLint on PRs/pushes (Node 18, `npm ci`).
-- **frontend-test.yml** – Tests (`CI=true npm test -- --watchAll=false`) and build on PRs/pushes.
-- **frontend-coverage.yml** – Test coverage on PRs/pushes.
+- `frontend-lint.yml` – lint + format checks
+- `frontend-test.yml` – tests + build
+- `frontend-coverage.yml` – coverage gate + artifacts

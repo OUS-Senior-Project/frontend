@@ -1,15 +1,20 @@
 {
-  "name": "my-v0-project",
+  "name": "ous-analytics",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "BROWSERSLIST_IGNORE_OLD_DATA=1 BASELINE_BROWSER_MAPPING_IGNORE_OLD_DATA=1 next build --webpack",
     "dev": "next dev",
     "format": "prettier --check \"{src,components,hooks,lib,styles,scripts}/**/*.{ts,tsx,js,jsx,css,md,json}\" components.json",
+    "format:check": "npm run format",
     "lint": "eslint \"{src,components,hooks,lib}/**/*.{ts,tsx,js,jsx}\" --max-warnings=0",
     "postinstall": "node ./scripts/patch-browserslist.js",
     "start": "next start",
-    "test": "node ./scripts/no-tests.js"
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --coverage --runInBand",
+    "test:e2e": "node ./scripts/no-tests.js",
+    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -64,14 +69,21 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
+    "@types/jest": "^29.5.14",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "baseline-browser-mapping": "^2.9.19",
     "eslint": "^9.39.0",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^9.1.0",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.5",
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.9",

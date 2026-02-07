@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { semesters } from '@/lib/enrollment-data';
+import { semesters } from '@/lib/analytics-data';
 
 interface SemesterDropdownProps {
   value: string | undefined;

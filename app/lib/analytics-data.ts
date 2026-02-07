@@ -1,5 +1,5 @@
-// Dummy enrollment data for Howard University
-export interface EnrollmentRecord {
+// Dummy student data for OUS Analytics
+export interface AnalyticsRecord {
   year: number;
   semester: string;
   major: string;
@@ -96,14 +96,14 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-// Generate 5 years of enrollment data (2019-2024)
-export function generateEnrollmentData(): EnrollmentRecord[] {
-  const data: EnrollmentRecord[] = [];
+// Generate 5 years of student data (2019-2024)
+export function generateAnalyticsData(): AnalyticsRecord[] {
+  const data: AnalyticsRecord[] = [];
   const years = [2019, 2020, 2021, 2022, 2023, 2024];
   const semesterNames = ['Fall', 'Spring'];
   const rand = seededRandom(42);
 
-  const baseEnrollment: Record<string, number> = {
+  const baseStudentCounts: Record<string, number> = {
     Biology: 450,
     Chemistry: 280,
     'Computer Science': 520,
@@ -136,7 +136,7 @@ export function generateEnrollmentData(): EnrollmentRecord[] {
           if (type === 'Dual Enrollment') typeMultiplier = 0.05;
 
           const count = Math.round(
-            baseEnrollment[major] *
+            baseStudentCounts[major] *
               growthFactor *
               seasonalFactor *
               randomVariation *
@@ -278,7 +278,7 @@ export function generateMajorCohortData(): MajorCohortRecord[] {
 }
 
 // Aggregate functions
-export function getYearlyEnrollment(data: EnrollmentRecord[]) {
+export function getYearlyAnalytics(data: AnalyticsRecord[]) {
   const yearlyData: Record<number, number> = {};
   data.forEach((record) => {
     if (!yearlyData[record.year]) {
@@ -295,7 +295,7 @@ export function getYearlyEnrollment(data: EnrollmentRecord[]) {
     .sort((a, b) => a.year - b.year);
 }
 
-export function getEnrollmentByMajor(data: EnrollmentRecord[], year?: number) {
+export function getAnalyticsByMajor(data: AnalyticsRecord[], year?: number) {
   const majorData: Record<string, number> = {};
   const filteredData = year ? data.filter((r) => r.year === year) : data;
 
@@ -314,7 +314,7 @@ export function getEnrollmentByMajor(data: EnrollmentRecord[], year?: number) {
     .sort((a, b) => b.count - a.count);
 }
 
-export function getEnrollmentBySchool(data: EnrollmentRecord[], year?: number) {
+export function getAnalyticsBySchool(data: AnalyticsRecord[], year?: number) {
   const schoolData: Record<string, number> = {};
   const filteredData = year ? data.filter((r) => r.year === year) : data;
 
@@ -333,8 +333,8 @@ export function getEnrollmentBySchool(data: EnrollmentRecord[], year?: number) {
     .sort((a, b) => b.count - a.count);
 }
 
-export function getEnrollmentByStudentType(
-  data: EnrollmentRecord[],
+export function getAnalyticsByStudentType(
+  data: AnalyticsRecord[],
   year?: number
 ) {
   const typeData: Record<string, number> = {};
@@ -355,7 +355,7 @@ export function getEnrollmentByStudentType(
     .sort((a, b) => b.count - a.count);
 }
 
-export function getTrendData(data: EnrollmentRecord[]) {
+export function getTrendData(data: AnalyticsRecord[]) {
   const trendData: Record<string, Record<string, number | string>> = {};
 
   data.forEach((record) => {
@@ -419,7 +419,7 @@ export function generateForecastData(
 }
 
 // Get daily snapshot data (simulated for a given date)
-export function getDailySnapshot(data: EnrollmentRecord[], date: Date) {
+export function getDailySnapshot(data: AnalyticsRecord[], date: Date) {
   // Determine which semester/year the date falls in
   const month = date.getMonth();
   const year = date.getFullYear();
@@ -445,7 +445,7 @@ export function getDailySnapshot(data: EnrollmentRecord[], date: Date) {
   return semesterData;
 }
 
-export function getSnapshotTotals(snapshotData: EnrollmentRecord[]) {
+export function getSnapshotTotals(snapshotData: AnalyticsRecord[]) {
   const total = snapshotData.reduce((sum, r) => sum + r.count, 0);
 
   const undergrad = snapshotData

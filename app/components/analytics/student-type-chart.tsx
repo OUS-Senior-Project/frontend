@@ -48,7 +48,7 @@ export function StudentTypeChart({ data }: StudentTypeChartProps) {
           Student Type Distribution
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Breakdown by enrollment category
+          Breakdown by student category
         </p>
       </CardHeader>
       <CardContent>

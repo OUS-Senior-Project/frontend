@@ -4,9 +4,8 @@ import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Howard University Enrollment Dashboard',
-  description:
-    'Interactive enrollment analytics dashboard for Howard University',
+  title: 'OUS Analytics',
+  description: 'Interactive student analytics dashboard for OUS Analytics',
   generator: 'v0.app',
   icons: {
     icon: [

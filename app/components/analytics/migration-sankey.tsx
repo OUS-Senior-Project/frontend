@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { MigrationRecord } from '@/lib/enrollment-data';
+import type { MigrationRecord } from '@/lib/analytics-data';
 import { ArrowRight } from 'lucide-react';
 
 interface MigrationSankeyProps {

@@ -17,7 +17,7 @@ interface BreakdownData {
   international: number;
 }
 
-interface EnrollmentBreakdownModalProps {
+interface AnalyticsBreakdownModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: BreakdownData;
@@ -39,22 +39,19 @@ const metrics = [
   },
 ];
 
-export function EnrollmentBreakdownModal({
+export function AnalyticsBreakdownModal({
   open,
   onOpenChange,
   data,
   dateLabel,
-}: EnrollmentBreakdownModalProps) {
+}: AnalyticsBreakdownModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        aria-labelledby="breakdown-title"
-        aria-describedby="breakdown-desc"
-      >
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle id="breakdown-title">Enrollment Breakdown</DialogTitle>
-          <DialogDescription id="breakdown-desc">
-            Detailed enrollment composition for the selected data date.
+          <DialogTitle>Student Breakdown</DialogTitle>
+          <DialogDescription>
+            Detailed student composition for the selected data date.
           </DialogDescription>
         </DialogHeader>
 

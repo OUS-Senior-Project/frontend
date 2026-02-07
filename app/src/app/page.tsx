@@ -4,38 +4,39 @@ import React from 'react';
 
 import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Header } from '@/components/dashboard/header';
-import { StatCard } from '@/components/dashboard/stat-card';
-import { EnrollmentTrendChart } from '@/components/dashboard/enrollment-trend-chart';
-import { MajorBreakdownChart } from '@/components/dashboard/major-breakdown-chart';
-import { StudentTypeChart } from '@/components/dashboard/student-type-chart';
-import { SchoolBreakdownChart } from '@/components/dashboard/school-breakdown-chart';
-import { MigrationSankey } from '@/components/dashboard/migration-sankey';
-import { MigrationTable } from '@/components/dashboard/migration-table';
-import { ForecastSection } from '@/components/dashboard/forecast-section';
-import { DatePickerButton } from '@/components/dashboard/date-picker-button';
-import { EnrollmentBreakdownModal } from '@/components/dashboard/enrollment-breakdown-modal';
-import { CohortSummaryTable } from '@/components/dashboard/cohort-summary-table';
+import { Header } from '@/components/analytics/header';
+import { StatCard } from '@/components/analytics/stat-card';
+import { AnalyticsTrendChart } from '@/components/analytics/analytics-trend-chart';
+import { MajorBreakdownChart } from '@/components/analytics/major-breakdown-chart';
+import { StudentTypeChart } from '@/components/analytics/student-type-chart';
+import { SchoolBreakdownChart } from '@/components/analytics/school-breakdown-chart';
+import { MigrationSankey } from '@/components/analytics/migration-sankey';
+import { MigrationTable } from '@/components/analytics/migration-table';
+import { ForecastSection } from '@/components/analytics/forecast-section';
+import { DatePickerButton } from '@/components/analytics/date-picker-button';
+import { AnalyticsBreakdownModal } from '@/components/analytics/analytics-breakdown-modal';
+import { CohortSummaryTable } from '@/components/analytics/cohort-summary-table';
 import {
   AvgGPAByMajorChart,
   AvgCreditsByMajorChart,
   AvgGPAByCohortChart,
   AvgCreditsByCohortChart,
-} from '@/components/dashboard/major-analytics-charts';
-import { SemesterDropdown } from '@/components/dashboard/semester-dropdown';
+} from '@/components/analytics/major-analytics-charts';
+import { SemesterDropdown } from '@/components/analytics/semester-dropdown';
 import {
-  generateEnrollmentData,
+  generateAnalyticsData,
   generateMigrationData,
   generateMajorCohortData,
-  getYearlyEnrollment,
-  getEnrollmentByMajor,
-  getEnrollmentBySchool,
-  getEnrollmentByStudentType,
+  getYearlyAnalytics,
+  getAnalyticsByMajor,
+  getAnalyticsBySchool,
+  getAnalyticsByStudentType,
   getTrendData,
   generateForecastData,
   getDailySnapshot,
   getSnapshotTotals,
-} from '@/lib/enrollment-data';
+} from '@/lib/analytics-data';
+import { computeFiveYearGrowth, getTopMajorLabel } from '@/lib/analytics-utils';
 import {
   Upload,
   Users,
@@ -45,7 +46,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export default function EnrollmentDashboard() {
+export default function OUSAnalyticsDashboard() {
   // Overview state: daily date picker
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [breakdownOpen, setBreakdownOpen] = useState(false);
@@ -58,14 +59,14 @@ export default function EnrollmentDashboard() {
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
 
   // Generate data
-  const enrollmentData = useMemo(() => generateEnrollmentData(), []);
+  const analyticsData = useMemo(() => generateAnalyticsData(), []);
   const migrationData = useMemo(() => generateMigrationData(), []);
   const cohortData = useMemo(() => generateMajorCohortData(), []);
 
   // Overview: daily snapshot
   const snapshotData = useMemo(
-    () => getDailySnapshot(enrollmentData, selectedDate),
-    [enrollmentData, selectedDate]
+    () => getDailySnapshot(analyticsData, selectedDate),
+    [analyticsData, selectedDate]
   );
   const snapshotTotals = useMemo(
     () => getSnapshotTotals(snapshotData),
@@ -73,28 +74,28 @@ export default function EnrollmentDashboard() {
   );
   const snapshotStudentTypes = useMemo(
     () =>
-      getEnrollmentByStudentType(snapshotData.map((r) => ({ ...r })) as any),
+      getAnalyticsByStudentType(snapshotData.map((r) => ({ ...r })) as any),
     [snapshotData]
   );
   const snapshotSchools = useMemo(
-    () => getEnrollmentBySchool(snapshotData.map((r) => ({ ...r })) as any),
+    () => getAnalyticsBySchool(snapshotData.map((r) => ({ ...r })) as any),
     [snapshotData]
   );
 
   // Overview: trend data (always full historical)
   const trendData = useMemo(
-    () => getTrendData(enrollmentData),
-    [enrollmentData]
+    () => getTrendData(analyticsData),
+    [analyticsData]
   );
 
   // Majors tab: aggregated data
   const majorData = useMemo(
-    () => getEnrollmentByMajor(enrollmentData),
-    [enrollmentData]
+    () => getAnalyticsByMajor(analyticsData),
+    [analyticsData]
   );
   const schoolData = useMemo(
-    () => getEnrollmentBySchool(enrollmentData),
-    [enrollmentData]
+    () => getAnalyticsBySchool(analyticsData),
+    [analyticsData]
   );
 
   // Forecasts
@@ -102,18 +103,13 @@ export default function EnrollmentDashboard() {
     () => generateForecastData(trendData),
     [trendData]
   );
-  const yearlyEnrollment = useMemo(
-    () => getYearlyEnrollment(enrollmentData),
-    [enrollmentData]
+  const yearlyAnalytics = useMemo(
+    () => getYearlyAnalytics(analyticsData),
+    [analyticsData]
   );
 
   // 5-year growth calculation
-  const firstYear = yearlyEnrollment[0];
-  const lastYear = yearlyEnrollment[yearlyEnrollment.length - 1];
-  const fiveYearGrowth =
-    firstYear && lastYear
-      ? Math.round(((lastYear.total - firstYear.total) / firstYear.total) * 100)
-      : 0;
+  const fiveYearGrowth = computeFiveYearGrowth(yearlyAnalytics);
 
   const totalMajors = majorData.length;
   const totalSchools = schoolData.length;
@@ -213,7 +209,7 @@ export default function EnrollmentDashboard() {
             {/* Stat cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <StatCard
-                title="Total Enrollment"
+                title="Total Students"
                 value={snapshotTotals.total}
                 icon={Users}
                 description="Current data date"
@@ -233,8 +229,8 @@ export default function EnrollmentDashboard() {
               />
             </div>
 
-            {/* Enrollment Breakdown Modal */}
-            <EnrollmentBreakdownModal
+            {/* Breakdown Modal */}
+            <AnalyticsBreakdownModal
               open={breakdownOpen}
               onOpenChange={setBreakdownOpen}
               data={snapshotTotals}
@@ -243,7 +239,7 @@ export default function EnrollmentDashboard() {
 
             {/* Charts */}
             <div className="grid gap-6 lg:grid-cols-2">
-              <EnrollmentTrendChart data={trendData} />
+              <AnalyticsTrendChart data={trendData} />
               <StudentTypeChart data={snapshotStudentTypes} />
             </div>
 
@@ -263,7 +259,7 @@ export default function EnrollmentDashboard() {
             <div className="grid gap-4 md:grid-cols-3">
               <StatCard
                 title="Top Major"
-                value={majorData[0]?.major || 'N/A'}
+                value={getTopMajorLabel(majorData)}
                 icon={GraduationCap}
                 description={`${majorData[0]?.count.toLocaleString()} students`}
               />
@@ -337,7 +333,7 @@ export default function EnrollmentDashboard() {
                 Predictive Analytics
               </h2>
               <p className="text-sm text-muted-foreground">
-                Enrollment forecasts and data-driven insights
+                Student forecasts and data-driven insights
               </p>
             </div>
 

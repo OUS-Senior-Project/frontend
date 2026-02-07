@@ -15,8 +15,8 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import type { MajorCohortRecord } from '@/lib/enrollment-data';
-import { cohorts } from '@/lib/enrollment-data';
+import type { MajorCohortRecord } from '@/lib/analytics-data';
+import { cohorts } from '@/lib/analytics-data';
 
 interface MajorAnalyticsChartsProps {
   data: MajorCohortRecord[];

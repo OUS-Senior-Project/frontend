@@ -29,14 +29,19 @@ jobs:
         run: npm ci
 
       - name: Run tests with coverage
-        run: npm test -- --coverage --watchAll=false
+        run: npm run test:ci
+
+      - name: Check coverage threshold
+        run: |
+          export COVERAGE_TARGET=99
+          node scripts/checkCoverage.js
 
       - name: Read coverage percentage
         id: coverage
         run: |
           LINES=$(node - <<'EOF'
           const fs = require('fs');
-          const summary = JSON.parse(fs.readFileSync('coverage/coverage-final.json', 'utf8'));
+          const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
           console.log(summary.total.lines.pct);
           EOF
           )
@@ -49,20 +54,6 @@ jobs:
         with:
           name: frontend-coverage-main
           path: coverage
-
-      - name: Enforce 80% coverage threshold
-        run: |
-          LINES=${{ steps.coverage.outputs.lines }}
-          THRESHOLD=80
-
-          echo "Coverage: $LINES% (Threshold: $THRESHOLD%)"
-
-          RESULT=$(echo "$LINES < $THRESHOLD" | bc -l)
-
-          if [ "$RESULT" -eq 1 ]; then
-            echo "::error::Coverage dropped below ${THRESHOLD}% (current: ${LINES}%)"
-            exit 1
-          fi
 
       - name: Generate coverage badge
         run: |

@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight } from 'lucide-react';
-import type { MigrationRecord } from '@/lib/enrollment-data';
+import type { MigrationRecord } from '@/lib/analytics-data';
 
 interface MigrationTableProps {
   data: MigrationRecord[];

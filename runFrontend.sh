@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run the CRA app locally.
+# Run the Next.js app locally.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/app"
 
@@ -11,5 +11,4 @@ if [ ! -d "node_modules" ]; then
 fi
 
 node ./scripts/patch-browserslist.js
-npm run build
-npm start
+npm run dev

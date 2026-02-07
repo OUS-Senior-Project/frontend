@@ -20,15 +20,15 @@ interface TrendData {
   isForecasted?: boolean;
 }
 
-interface EnrollmentTrendChartProps {
+interface AnalyticsTrendChartProps {
   data: TrendData[];
   forecastData?: TrendData[];
 }
 
-export function EnrollmentTrendChart({
+export function AnalyticsTrendChart({
   data,
   forecastData,
-}: EnrollmentTrendChartProps) {
+}: AnalyticsTrendChartProps) {
   const combinedData = [...data, ...(forecastData || [])];
   const lastHistoricalIndex = data.length - 1;
 
@@ -36,10 +36,10 @@ export function EnrollmentTrendChart({
     <Card className="bg-card border-border">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-medium text-foreground">
-          Enrollment Trends Over Time
+          Student Trends Over Time
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Total student enrollment by semester (2019-2024)
+          Total student count by semester (2019-2024)
         </p>
       </CardHeader>
       <CardContent>

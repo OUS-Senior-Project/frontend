@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/table';
 import { ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { MajorCohortRecord } from '@/lib/enrollment-data';
-import { cohorts } from '@/lib/enrollment-data';
+import type { MajorCohortRecord } from '@/lib/analytics-data';
+import { cohorts } from '@/lib/analytics-data';
 
 interface CohortSummaryTableProps {
   data: MajorCohortRecord[];
@@ -61,7 +61,7 @@ export function CohortSummaryTable({ data }: CohortSummaryTableProps) {
           Major Level Summary by FTIC Cohort
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          GPA, credits, and enrollment by major for each FTIC cohort
+          GPA, credits, and student counts by major for each FTIC cohort
         </p>
 
         <div

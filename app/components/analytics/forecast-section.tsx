@@ -44,7 +44,7 @@ export function ForecastSection({
     {
       icon: TrendingUp,
       title: 'Projected Growth',
-      description: `Expected ${projectedGrowth.toFixed(1)}% enrollment increase over the next 2 years based on current trends.`,
+      description: `Expected ${projectedGrowth.toFixed(1)}% student count increase over the next 2 years based on current trends.`,
       type: 'positive' as const,
     },
     {
@@ -68,10 +68,10 @@ export function ForecastSection({
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-medium text-foreground">
-            Enrollment Forecast
+            Student Forecast
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Projected enrollment for upcoming semesters
+            Projected student counts for upcoming semesters
           </p>
         </CardHeader>
         <CardContent>
