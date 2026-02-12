@@ -26,7 +26,13 @@ import { SemesterFilterSelect } from '@/features/filters/components/SemesterFilt
 describe('SemesterFilterSelect', () => {
   test('maps all to undefined and forwards selected semester', () => {
     const handleChange = jest.fn();
-    render(<SemesterFilterSelect value={undefined} onValueChange={handleChange} />);
+    render(
+      <SemesterFilterSelect
+        value={undefined}
+        onValueChange={handleChange}
+        options={['Fall 2023']}
+      />
+    );
 
     fireEvent.click(screen.getByTestId('select'));
 

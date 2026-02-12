@@ -1,22 +1,26 @@
 import { TrendingUp } from 'lucide-react';
 import { ForecastSection } from '@/features/metrics/components/ForecastSection';
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
+import type { ForecastsAnalyticsResponse, UIError } from '@/lib/api/types';
 import { TabsContent } from '@/shared/ui/tabs';
+import {
+  PanelEmptyState,
+  PanelErrorState,
+  PanelLoadingState,
+} from './PanelStates';
 
 interface ForecastsPanelProps {
-  fiveYearGrowth: number;
-  trendData: Array<{ period: string; total: number }>;
-  forecastData: Array<{
-    period: string;
-    total: number;
-    isForecasted?: boolean;
-  }>;
+  data: ForecastsAnalyticsResponse | null;
+  loading: boolean;
+  error: UIError | null;
+  onRetry: () => void;
 }
 
 export function ForecastsPanel({
-  fiveYearGrowth,
-  trendData,
-  forecastData,
+  data,
+  loading,
+  error,
+  onRetry,
 }: ForecastsPanelProps) {
   return (
     <TabsContent value="forecasts" className="space-y-6">
@@ -28,14 +32,36 @@ export function ForecastsPanel({
           Student forecasts and data-driven insights
         </p>
       </div>
-      <MetricsSummaryCard
-        title="5-Year Growth"
-        value={`+${fiveYearGrowth}%`}
-        change={fiveYearGrowth}
-        icon={TrendingUp}
-        description="Since 2019"
-      />
-      <ForecastSection historicalData={trendData} forecastData={forecastData} />
+      {loading && <PanelLoadingState message="Loading forecast analytics..." />}
+      {!loading && error && (
+        <PanelErrorState
+          message={error.message}
+          onRetry={() => {
+            onRetry();
+          }}
+        />
+      )}
+      {!loading && !error && !data && (
+        <PanelEmptyState
+          title="No forecast analytics available"
+          description="Forecast metrics will appear here when historical data is ready."
+        />
+      )}
+      {!loading && !error && data && (
+        <>
+          <MetricsSummaryCard
+            title="5-Year Growth"
+            value={`${data.fiveYearGrowth >= 0 ? '+' : ''}${data.fiveYearGrowth}%`}
+            change={data.fiveYearGrowth}
+            icon={TrendingUp}
+            description="Since 2019"
+          />
+          <ForecastSection
+            historicalData={data.historicalSeries}
+            forecastData={data.forecastSeries}
+          />
+        </>
+      )}
     </TabsContent>
   );
 }

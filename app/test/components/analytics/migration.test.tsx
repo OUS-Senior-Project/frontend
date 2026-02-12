@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { MigrationFlowChart } from '@/features/metrics/components/charts/MigrationFlowChart';
 import { MigrationTopFlowsTable } from '@/features/metrics/components/MigrationTopFlowsTable';
-import type { MigrationRecord } from '@/features/metrics/utils/analytics-data';
+import type { MigrationRecord } from '@/features/metrics/types';
 
 const data: MigrationRecord[] = [
   {

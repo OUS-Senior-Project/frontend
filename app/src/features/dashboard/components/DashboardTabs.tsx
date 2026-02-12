@@ -1,38 +1,42 @@
-import type { ChangeEvent } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs';
 import type {
-  MajorCohortRecord,
-  MigrationRecord,
-  SnapshotTotals,
-} from '@/features/metrics/types';
+  DatasetOverviewResponse,
+  ForecastsAnalyticsResponse,
+  MajorsAnalyticsResponse,
+  MigrationAnalyticsResponse,
+  UIError,
+} from '@/lib/api/types';
 import { ForecastsPanel } from './panels/ForecastsPanel';
 import { MajorsPanel } from './panels/MajorsPanel';
 import { MigrationPanel } from './panels/MigrationPanel';
 import { OverviewPanel } from './panels/OverviewPanel';
 
 interface DashboardTabsProps {
-  dateLabel: string;
   selectedDate: Date;
   onDateChange: (date: Date) => void;
-  onDatasetUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onDatasetUpload: (file: File) => void;
+  uploadLoading: boolean;
+  uploadError: UIError | null;
   breakdownOpen: boolean;
   onBreakdownOpenChange: (isOpen: boolean) => void;
-  snapshotTotals: SnapshotTotals;
-  snapshotStudentTypes: Array<{ type: string; count: number }>;
-  snapshotSchools: Array<{ school: string; count: number }>;
-  trendData: Array<{ period: string; total: number }>;
-  majorData: Array<{ major: string; count: number }>;
-  schoolData: Array<{ school: string; count: number }>;
-  cohortData: MajorCohortRecord[];
-  migrationData: MigrationRecord[];
+  overviewData: DatasetOverviewResponse | null;
+  overviewLoading: boolean;
+  overviewError: UIError | null;
+  onOverviewRetry: () => void;
+  majorsData: MajorsAnalyticsResponse | null;
+  majorsLoading: boolean;
+  majorsError: UIError | null;
+  onMajorsRetry: () => void;
+  migrationData: MigrationAnalyticsResponse | null;
+  migrationLoading: boolean;
+  migrationError: UIError | null;
   migrationSemester?: string;
   onMigrationSemesterChange: (value: string | undefined) => void;
-  fiveYearGrowth: number;
-  forecastData: Array<{
-    period: string;
-    total: number;
-    isForecasted?: boolean;
-  }>;
+  onMigrationRetry: () => void;
+  forecastsData: ForecastsAnalyticsResponse | null;
+  forecastsLoading: boolean;
+  forecastsError: UIError | null;
+  onForecastsRetry: () => void;
 }
 
 export function DashboardTabs(props: DashboardTabsProps) {
@@ -66,33 +70,37 @@ export function DashboardTabs(props: DashboardTabsProps) {
       </TabsList>
 
       <OverviewPanel
-        dateLabel={props.dateLabel}
         selectedDate={props.selectedDate}
         onDateChange={props.onDateChange}
         onDatasetUpload={props.onDatasetUpload}
+        uploadLoading={props.uploadLoading}
+        uploadError={props.uploadError}
         breakdownOpen={props.breakdownOpen}
         onBreakdownOpenChange={props.onBreakdownOpenChange}
-        snapshotTotals={props.snapshotTotals}
-        totalMajors={props.majorData.length}
-        totalSchools={props.schoolData.length}
-        trendData={props.trendData}
-        studentTypeData={props.snapshotStudentTypes}
-        schoolData={props.snapshotSchools}
+        data={props.overviewData}
+        loading={props.overviewLoading}
+        error={props.overviewError}
+        onRetry={props.onOverviewRetry}
       />
       <MajorsPanel
-        majorData={props.majorData}
-        totalMajors={props.majorData.length}
-        cohortData={props.cohortData}
+        data={props.majorsData}
+        loading={props.majorsLoading}
+        error={props.majorsError}
+        onRetry={props.onMajorsRetry}
       />
       <MigrationPanel
-        migrationData={props.migrationData}
+        data={props.migrationData}
+        loading={props.migrationLoading}
+        error={props.migrationError}
         migrationSemester={props.migrationSemester}
         onSemesterChange={props.onMigrationSemesterChange}
+        onRetry={props.onMigrationRetry}
       />
       <ForecastsPanel
-        fiveYearGrowth={props.fiveYearGrowth}
-        trendData={props.trendData}
-        forecastData={props.forecastData}
+        data={props.forecastsData}
+        loading={props.forecastsLoading}
+        error={props.forecastsError}
+        onRetry={props.onForecastsRetry}
       />
     </Tabs>
   );

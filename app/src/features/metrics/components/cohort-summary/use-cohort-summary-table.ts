@@ -1,17 +1,28 @@
 import { useMemo, useState } from 'react';
 import type { MajorCohortRecord } from '@/features/metrics/types';
+import { selectCohortLabels } from '../major-analytics/selectors';
 
 export type SortKey = 'major' | 'avgGPA' | 'avgCredits' | 'studentCount';
 
 export function useCohortSummaryTable(data: MajorCohortRecord[]) {
-  const [selectedCohort, setSelectedCohort] = useState('FTIC 2024');
+  const cohorts = useMemo(() => selectCohortLabels(data), [data]);
+  const [selectedCohort, setSelectedCohort] = useState<string | undefined>(
+    undefined
+  );
   const [sortKey, setSortKey] = useState<SortKey>('studentCount');
   const [sortAsc, setSortAsc] = useState(false);
 
+  const activeCohort =
+    selectedCohort && cohorts.includes(selectedCohort)
+      ? selectedCohort
+      : cohorts[0];
+
   const filteredData = useMemo(() => {
-    const cohortData = data.filter(
-      (record) => record.cohort === selectedCohort
-    );
+    if (!activeCohort) {
+      return [];
+    }
+
+    const cohortData = data.filter((record) => record.cohort === activeCohort);
 
     return [...cohortData].sort((a, b) => {
       const aValue = a[sortKey];
@@ -27,7 +38,7 @@ export function useCohortSummaryTable(data: MajorCohortRecord[]) {
         ? (aValue as number) - (bValue as number)
         : (bValue as number) - (aValue as number);
     });
-  }, [data, selectedCohort, sortAsc, sortKey]);
+  }, [activeCohort, data, sortAsc, sortKey]);
 
   const totalStudents = filteredData.reduce(
     (sum, record) => sum + record.studentCount,
@@ -45,7 +56,8 @@ export function useCohortSummaryTable(data: MajorCohortRecord[]) {
   };
 
   return {
-    selectedCohort,
+    cohorts,
+    selectedCohort: activeCohort,
     setSelectedCohort,
     filteredData,
     totalStudents,

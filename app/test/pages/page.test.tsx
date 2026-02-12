@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import DashboardPage from '@/app/(dashboard)/page';
 import {
   calculateFiveYearGrowthRate,
@@ -6,30 +6,26 @@ import {
 } from '@/features/metrics/utils/metrics-summary-utils';
 
 describe('OUS Analytics page', () => {
-  test('renders and handles file upload and breakdown modal', () => {
+  test('renders no-dataset state and upload CTA', async () => {
     render(<DashboardPage />);
 
-    expect(screen.getAllByText('Overview').length).toBeGreaterThan(0);
-
-    const fileInput = screen.getByLabelText('Upload CSV') as HTMLInputElement;
-    expect(fileInput).toBeInTheDocument();
-    const file = new File(['a,b\n1,2'], 'data.csv', { type: 'text/csv' });
-
-    act(() => {
-      fireEvent.change(fileInput, { target: { files: [file] } });
+    await waitFor(() => {
+      expect(
+        screen.getByText('No dataset uploaded yet')
+      ).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByText('Successfully loaded: data.csv')
-    ).toBeInTheDocument();
-
-    const totalCard = screen.getByText('Total Students');
-    fireEvent.click(totalCard.closest('[role="button"]') as HTMLElement);
-    expect(screen.getByText('Student Breakdown')).toBeInTheDocument();
+    expect(screen.getByLabelText('Upload dataset CSV')).toBeInTheDocument();
   });
 
   test('handles empty yearly totals in growth calculation', () => {
     expect(calculateFiveYearGrowthRate([])).toBe(0);
+  });
+
+  test('calculates growth when both first and last yearly totals exist', () => {
+    expect(
+      calculateFiveYearGrowthRate([{ total: 100 }, { total: 140 }])
+    ).toBe(40);
   });
 
   test('selectTopMajorLabel falls back to N/A', () => {

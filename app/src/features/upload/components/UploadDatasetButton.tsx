@@ -1,17 +1,18 @@
 'use client';
 
-import type { ChangeEvent } from 'react';
 import { Upload } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 
 interface UploadDatasetButtonProps {
-  onDatasetUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onDatasetUpload: (file: File) => void;
   inputId?: string;
+  buttonLabel?: string;
 }
 
 export function UploadDatasetButton({
   onDatasetUpload,
   inputId = 'csv-upload',
+  buttonLabel = 'Upload CSV',
 }: UploadDatasetButtonProps) {
   return (
     <>
@@ -23,7 +24,7 @@ export function UploadDatasetButton({
         >
           <span>
             <Upload className="mr-2 h-4 w-4" />
-            Upload CSV
+            {buttonLabel}
           </span>
         </Button>
       </label>
@@ -31,7 +32,15 @@ export function UploadDatasetButton({
         id={inputId}
         type="file"
         accept=".csv"
-        onChange={onDatasetUpload}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (!file) {
+            return;
+          }
+
+          onDatasetUpload(file);
+          event.target.value = '';
+        }}
         className="sr-only"
       />
     </>

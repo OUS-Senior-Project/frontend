@@ -32,6 +32,11 @@ export function MigrationTopFlowsTable({
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
+          {sortedMigrations.length === 0 && (
+            <p className="rounded-lg bg-secondary/30 px-3 py-6 text-sm text-muted-foreground">
+              No migration paths available for this selection.
+            </p>
+          )}
           {sortedMigrations.map((migration, index) => (
             <div
               key={`${migration.fromMajor}-${migration.toMajor}`}

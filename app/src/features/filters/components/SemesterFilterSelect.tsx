@@ -8,16 +8,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/select';
-import { semesters } from '@/features/metrics/utils/analytics-data';
 
 interface SemesterFilterSelectProps {
   value: string | undefined;
   onValueChange: (value: string | undefined) => void;
+  options: string[];
 }
 
 export function SemesterFilterSelect({
   value,
   onValueChange,
+  options,
 }: SemesterFilterSelectProps) {
   return (
     <div className="flex items-center gap-2">
@@ -34,7 +35,7 @@ export function SemesterFilterSelect({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Semesters</SelectItem>
-          {semesters.map((sem) => (
+          {options.map((sem) => (
             <SelectItem key={sem} value={sem}>
               {sem}
             </SelectItem>

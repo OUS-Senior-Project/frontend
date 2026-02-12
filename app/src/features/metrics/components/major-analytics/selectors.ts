@@ -1,5 +1,18 @@
-import { cohorts } from '@/features/metrics/mocks/fixtures';
 import type { MajorCohortRecord } from '@/features/metrics/types';
+
+function cohortYearValue(cohort: string) {
+  const match = cohort.match(/\d{4}/);
+  return match ? Number.parseInt(match[0], 10) : 0;
+}
+
+export function selectCohortLabels(data: MajorCohortRecord[]) {
+  return Array.from(new Set(data.map((record) => record.cohort))).sort(
+    (left, right) => {
+      const yearDelta = cohortYearValue(right) - cohortYearValue(left);
+      return yearDelta !== 0 ? yearDelta : right.localeCompare(left);
+    }
+  );
+}
 
 export function selectWeightedGpaByMajor(data: MajorCohortRecord[]) {
   const majorMap: Record<string, { total: number; count: number }> = {};
@@ -41,6 +54,7 @@ export function selectCohortRowsByMajor(
   data: MajorCohortRecord[],
   metric: 'avgGPA' | 'avgCredits'
 ) {
+  const cohorts = selectCohortLabels(data);
   const majors = Array.from(new Set(data.map((record) => record.major)));
 
   return majors.map((major) => {

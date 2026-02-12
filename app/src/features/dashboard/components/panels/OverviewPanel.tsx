@@ -1,4 +1,3 @@
-import type { ChangeEvent } from 'react';
 import { Building, GraduationCap, Users } from 'lucide-react';
 import { AnalyticsBreakdownModal } from '@/features/metrics/components/AnalyticsBreakdownModal';
 import { MetricsTrendChart } from '@/features/metrics/components/charts/MetricsTrendChart';
@@ -7,38 +6,51 @@ import { SchoolDistributionChart } from '@/features/metrics/components/charts/Sc
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
 import { StudentTypeDistributionChart } from '@/features/metrics/components/charts/StudentTypeDistributionChart';
 import { UploadDatasetButton } from '@/features/upload/components/UploadDatasetButton';
+import type { DatasetOverviewResponse, UIError } from '@/lib/api/types';
+import { Spinner } from '@/shared/ui/spinner';
 import { TabsContent } from '@/shared/ui/tabs';
-import type { SnapshotTotals } from '@/features/metrics/types';
+import {
+  PanelEmptyState,
+  PanelErrorState,
+  PanelLoadingState,
+} from './PanelStates';
 
 interface OverviewPanelProps {
-  dateLabel: string;
   selectedDate: Date;
   onDateChange: (date: Date) => void;
-  onDatasetUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onDatasetUpload: (file: File) => void;
+  uploadLoading: boolean;
+  uploadError: UIError | null;
   breakdownOpen: boolean;
   onBreakdownOpenChange: (isOpen: boolean) => void;
-  snapshotTotals: SnapshotTotals;
-  totalMajors: number;
-  totalSchools: number;
-  trendData: Array<{ period: string; total: number }>;
-  studentTypeData: Array<{ type: string; count: number }>;
-  schoolData: Array<{ school: string; count: number }>;
+  data: DatasetOverviewResponse | null;
+  loading: boolean;
+  error: UIError | null;
+  onRetry: () => void;
 }
 
 export function OverviewPanel({
-  dateLabel,
   selectedDate,
   onDateChange,
   onDatasetUpload,
+  uploadLoading,
+  uploadError,
   breakdownOpen,
   onBreakdownOpenChange,
-  snapshotTotals,
-  totalMajors,
-  totalSchools,
-  trendData,
-  studentTypeData,
-  schoolData,
+  data,
+  loading,
+  error,
+  onRetry,
 }: OverviewPanelProps) {
+  const dateLabel = (data?.asOfDate
+    ? new Date(data.asOfDate)
+    : selectedDate
+  ).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
   return (
     <TabsContent value="overview" className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -51,40 +63,66 @@ export function OverviewPanel({
           <DateFilterButton date={selectedDate} onDateChange={onDateChange} />
         </div>
       </div>
+      {uploadLoading && (
+        <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <Spinner className="h-4 w-4" />
+          Submitting dataset...
+        </p>
+      )}
+      {uploadError && <p className="text-sm text-destructive">{uploadError.message}</p>}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <MetricsSummaryCard
-          title="Total Students"
-          value={snapshotTotals.total}
-          icon={Users}
-          description="Current data date"
-          onClick={() => onBreakdownOpenChange(true)}
+      {loading && <PanelLoadingState message="Loading overview metrics..." />}
+      {!loading && error && (
+        <PanelErrorState
+          message={error.message}
+          onRetry={() => {
+            onRetry();
+          }}
         />
-        <MetricsSummaryCard
-          title="Active Majors"
-          value={totalMajors}
-          icon={GraduationCap}
-          description="Across all schools"
+      )}
+      {!loading && !error && !data && (
+        <PanelEmptyState
+          title="No overview metrics available"
+          description="Upload and process a dataset to populate this tab."
         />
-        <MetricsSummaryCard
-          title="Schools/Colleges"
-          value={totalSchools}
-          icon={Building}
-          description="Academic units"
-        />
-      </div>
+      )}
+      {!loading && !error && data && (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <MetricsSummaryCard
+              title="Total Students"
+              value={data.snapshotTotals.total}
+              icon={Users}
+              description="Current data date"
+              onClick={() => onBreakdownOpenChange(true)}
+            />
+            <MetricsSummaryCard
+              title="Active Majors"
+              value={data.majorCount}
+              icon={GraduationCap}
+              description="Across all schools"
+            />
+            <MetricsSummaryCard
+              title="Schools/Colleges"
+              value={data.schoolCount}
+              icon={Building}
+              description="Academic units"
+            />
+          </div>
 
-      <AnalyticsBreakdownModal
-        open={breakdownOpen}
-        onOpenChange={onBreakdownOpenChange}
-        data={snapshotTotals}
-        dateLabel={dateLabel}
-      />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <MetricsTrendChart data={trendData} />
-        <StudentTypeDistributionChart data={studentTypeData} />
-      </div>
-      <SchoolDistributionChart data={schoolData} />
+          <AnalyticsBreakdownModal
+            open={breakdownOpen}
+            onOpenChange={onBreakdownOpenChange}
+            data={data.snapshotTotals}
+            dateLabel={dateLabel}
+          />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <MetricsTrendChart data={data.trendSeries} />
+            <StudentTypeDistributionChart data={data.studentTypeDistribution} />
+          </div>
+          <SchoolDistributionChart data={data.schoolDistribution} />
+        </>
+      )}
     </TabsContent>
   );
 }
