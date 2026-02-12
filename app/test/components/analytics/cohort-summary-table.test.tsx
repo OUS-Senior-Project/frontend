@@ -62,4 +62,27 @@ describe('CohortSummaryTable', () => {
     expect(within(updatedRows[1]).getByText('Biology')).toBeInTheDocument();
     expect(within(updatedRows[1]).getByText('150')).toBeInTheDocument();
   });
+
+  test('renders fallback values when avg metrics are null', () => {
+    render(
+      <CohortSummaryTable
+        data={[
+          {
+            major: 'Physics',
+            cohort: 'FTIC 2025',
+            avgGPA: null,
+            avgCredits: null,
+            studentCount: 10,
+          },
+        ]}
+      />
+    );
+
+    const table = screen.getByRole('table');
+    const rows = within(table).getAllByRole('row');
+    expect(within(rows[1]).getByText('Physics')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('0.00')).toBeInTheDocument();
+    expect(within(rows[1]).getAllByText('0').length).toBeGreaterThan(0);
+    expect(within(rows[2]).getByText('10')).toBeInTheDocument();
+  });
 });

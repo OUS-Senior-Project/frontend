@@ -18,16 +18,15 @@ Internal administrative analytics dashboard UI for the Howard University OUS off
 ## Product Status
 
 ### Current state (implemented)
-- Frontend-only Next.js app (`app/src/app`), no backend integration.
-- No real API calls are implemented.
-- All dashboard data is generated from local mock fixtures in memory.
-- Upload control is UI-only: selecting a file shows its name in the interface; file contents are not parsed or persisted.
+- Next.js App Router frontend wired to FastAPI backend endpoints under `/api/v1`.
+- Runtime networking is implemented via `app/src/lib/api/client.ts` using `NEXT_PUBLIC_API_BASE_URL`.
+- Dashboard tabs (Overview, Majors, Migration, Forecasts) load real backend data with loading/error/empty states.
+- Upload flow posts multipart file payloads to backend and polls submission status until terminal state.
 
-### Target state (planned, not implemented yet)
-- Upload institutional enrollment data (`.xlsx`).
-- Send data to backend ingestion/cleaning pipelines.
-- Persist cleaned/computed datasets.
-- Drive dashboard metrics from persisted backend data.
+### Current priorities
+- Expand dataset management UX beyond the active dataset workflow.
+- Implement export-focused routes/workflows under `features/exports`.
+- Continue improving async UX and edge-case handling around long-running ingestion.
 
 ## 1) Routing And Structure Map
 
@@ -59,19 +58,16 @@ Internal administrative analytics dashboard UI for the Howard University OUS off
 - `app/src/features/exports/`: currently empty placeholders.
 - `app/src/shared/ui/`: reusable UI primitives (Radix/Tailwind wrappers).
 - `app/src/shared/hooks/`: shared hooks (toast, mobile helpers).
-- `app/src/lib/`: placeholder directories with README notes; no active runtime code yet.
+- `app/src/lib/`: shared API client, error normalization, and type contracts.
 
-## Data mocking, state ownership, and logic boundaries
-- Mock data source:
-  - `app/src/features/metrics/mocks/analytics-repository.ts`
-  - `app/src/features/metrics/mocks/fixtures/*`
-- Stateful UI model:
+## Data flow and state ownership
+- Backend service modules:
+  - `app/src/features/*/api/*.ts`
+  - `app/src/lib/api/client.ts`
+- Stateful UI orchestration:
   - `app/src/features/dashboard/hooks/useDashboardMetricsModel.ts`
-  - Local React state for selected date, modal open state, selected migration semester, uploaded file name.
-- UI-only behavior:
-  - `app/src/features/upload/components/UploadDatasetButton.tsx`
-  - `app/src/features/upload/components/UploadStatusPanel.tsx`
-- Domain/derivation logic (still frontend-local today):
+- Local UI state includes selected date, modal state, migration semester, and forecast horizon controls.
+- Domain/derivation logic remains frontend-local:
   - `app/src/features/metrics/selectors/*`
   - `app/src/features/metrics/utils/metrics-summary-utils.ts`
 
@@ -181,9 +177,9 @@ No real endpoints are implemented in this repo today. The following is a UI cont
 ## 5) Configuration / Environment Variables
 
 ## Current state
-- No frontend runtime API base URL env var is currently used by source code.
-- No backend URL wiring exists in `app/src`.
-- `next.config.mjs` has no API environment configuration.
+- Frontend runtime requires `NEXT_PUBLIC_API_BASE_URL` for backend API requests.
+- API calls are routed through `app/src/lib/api/client.ts` and service modules in `app/src/features/*/api`.
+- `next.config.mjs` remains focused on Next.js build/runtime behavior.
 
 ## Existing env usage (non-runtime app behavior)
 - Coverage/build scripts use process env values:
@@ -238,25 +234,22 @@ From repo root:
 - `npm run typecheck`
 
 ## Required env vars
-- None required to run the frontend dashboard UI today.
+- `NEXT_PUBLIC_API_BASE_URL` (example: `http://localhost:8000`)
 
-## Known limitations (because backend is not integrated)
-- Upload does not parse/store/send file contents.
-- Dashboard metrics are mock-generated, not institutional source-of-truth data.
-- No persisted datasets, no dataset history, no server-side validation.
-- No real export pipeline.
+## Known limitations
+- The UI currently operates around the backend "active dataset" and does not yet provide full dataset browsing/switching workflows.
+- Export routes/workflows remain placeholders.
+- Forecast and migration controls are intentionally minimal in MVP1.
 
 ## 7) Known Gaps / Technical Debt And Next Steps
 
 ## Current gaps
-- Backend integration layer is missing (no services/fetch hooks).
-- Upload pipeline is placeholder-only and currently labeled CSV in UI, while target product requirement is `.xlsx` ingestion.
-- `features/exports` and route-group stubs are present but not implemented.
-- Limited explicit loading/error UX for future async data flows.
+- Export workflows are not implemented.
+- Dataset management beyond active-dataset reads/activation is still limited in the current UI.
+- Some documentation sections still describe the pre-integration architecture and need consolidation.
 
 ## Planned next steps
-1. Introduce typed API client and repository interfaces to replace mock repository usage.
-2. Implement upload flow for `.xlsx` with backend status handling.
-3. Introduce dataset identity/version selection in dashboard state model.
-4. Replace selector inputs with API responses while preserving existing chart contracts.
-5. Add async loading/error/skeleton states across all tabs.
+1. Add dataset browsing/version selection UX on top of existing backend dataset endpoints.
+2. Implement export workflows and corresponding route-level UI.
+3. Add deeper observability for ingestion lifecycle states (long-running jobs and retries).
+4. Consolidate docs to remove remaining pre-integration references.

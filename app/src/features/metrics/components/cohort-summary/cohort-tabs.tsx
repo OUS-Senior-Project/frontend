@@ -1,11 +1,18 @@
-import { cohorts } from '@/features/metrics/mocks/fixtures';
-
 interface CohortTabsProps {
-  selectedCohort: string;
+  cohorts: string[];
+  selectedCohort: string | undefined;
   onSelect: (cohort: string) => void;
 }
 
-export function CohortTabs({ selectedCohort, onSelect }: CohortTabsProps) {
+export function CohortTabs({
+  cohorts,
+  selectedCohort,
+  onSelect,
+}: CohortTabsProps) {
+  if (cohorts.length === 0) {
+    return null;
+  }
+
   return (
     <div
       className="mt-3 flex gap-1 rounded-lg bg-secondary p-1"

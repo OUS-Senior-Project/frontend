@@ -14,6 +14,7 @@ interface CohortSummaryTableProps {
 
 export function CohortSummaryTable({ data }: CohortSummaryTableProps) {
   const {
+    cohorts,
     selectedCohort,
     setSelectedCohort,
     filteredData,
@@ -31,6 +32,7 @@ export function CohortSummaryTable({ data }: CohortSummaryTableProps) {
           GPA, credits, and student counts by major for each FTIC cohort
         </p>
         <CohortTabs
+          cohorts={cohorts}
           selectedCohort={selectedCohort}
           onSelect={setSelectedCohort}
         />

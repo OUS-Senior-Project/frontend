@@ -1,20 +1,34 @@
 import { MigrationFlowChart } from '@/features/metrics/components/charts/MigrationFlowChart';
 import { MigrationTopFlowsTable } from '@/features/metrics/components/MigrationTopFlowsTable';
 import { SemesterFilterSelect } from '@/features/filters/components/SemesterFilterSelect';
+import type { MigrationAnalyticsResponse, UIError } from '@/lib/api/types';
 import { TabsContent } from '@/shared/ui/tabs';
-import type { MigrationRecord } from '@/features/metrics/types';
+import {
+  PanelEmptyState,
+  PanelErrorState,
+  PanelLoadingState,
+} from './PanelStates';
 
 interface MigrationPanelProps {
-  migrationData: MigrationRecord[];
+  data: MigrationAnalyticsResponse | null;
+  loading: boolean;
+  error: UIError | null;
   migrationSemester?: string;
   onSemesterChange: (value: string | undefined) => void;
+  onRetry: () => void;
 }
 
 export function MigrationPanel({
-  migrationData,
+  data,
+  loading,
+  error,
   migrationSemester,
   onSemesterChange,
+  onRetry,
 }: MigrationPanelProps) {
+  const semesterOptions = data?.semesters ?? [];
+  const migrationData = data?.records ?? [];
+
   return (
     <TabsContent value="migration" className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -29,20 +43,40 @@ export function MigrationPanel({
         <SemesterFilterSelect
           value={migrationSemester}
           onValueChange={onSemesterChange}
+          options={semesterOptions}
         />
       </div>
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <MigrationFlowChart
+      {loading && (
+        <PanelLoadingState message="Loading migration analytics..." />
+      )}
+      {!loading && error && (
+        <PanelErrorState
+          message={error.message}
+          onRetry={() => {
+            onRetry();
+          }}
+        />
+      )}
+      {!loading && !error && !data && (
+        <PanelEmptyState
+          title="No migration analytics available"
+          description="Migration flows will appear here once records are available."
+        />
+      )}
+      {!loading && !error && data && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <MigrationFlowChart
+              data={migrationData}
+              selectedSemester={migrationSemester}
+            />
+          </div>
+          <MigrationTopFlowsTable
             data={migrationData}
             selectedSemester={migrationSemester}
           />
         </div>
-        <MigrationTopFlowsTable
-          data={migrationData}
-          selectedSemester={migrationSemester}
-        />
-      </div>
+      )}
     </TabsContent>
   );
 }

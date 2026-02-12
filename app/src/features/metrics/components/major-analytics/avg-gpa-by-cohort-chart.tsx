@@ -10,17 +10,17 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { cohorts } from '@/features/metrics/mocks/fixtures';
 import type { MajorCohortRecord } from '@/features/metrics/types';
 import { MajorAnalyticsChartCard } from './chart-card';
-import { chartTooltipStyle, cohortColors } from './chart-theme';
-import { selectCohortRowsByMajor } from './selectors';
+import { chartTooltipStyle, getCohortColor } from './chart-theme';
+import { selectCohortLabels, selectCohortRowsByMajor } from './selectors';
 
 interface MajorAnalyticsChartsProps {
   data: MajorCohortRecord[];
 }
 
 export function AvgGPAByCohortChart({ data }: MajorAnalyticsChartsProps) {
+  const cohorts = useMemo(() => selectCohortLabels(data), [data]);
   const chartData = useMemo(
     () => selectCohortRowsByMajor(data, 'avgGPA'),
     [data]
@@ -37,7 +37,12 @@ export function AvgGPAByCohortChart({ data }: MajorAnalyticsChartsProps) {
           <div key={cohort} className="flex items-center gap-1.5">
             <div
               className="h-2.5 w-2.5 rounded-sm"
-              style={{ backgroundColor: cohortColors[cohort] }}
+              style={{
+                backgroundColor: getCohortColor(
+                  cohort,
+                  cohorts.indexOf(cohort)
+                ),
+              }}
             />
             <span className="text-xs text-muted-foreground">{cohort}</span>
           </div>
@@ -83,7 +88,7 @@ export function AvgGPAByCohortChart({ data }: MajorAnalyticsChartsProps) {
               <Bar
                 key={cohort}
                 dataKey={cohort}
-                fill={cohortColors[cohort]}
+                fill={getCohortColor(cohort, cohorts.indexOf(cohort))}
                 radius={[0, 3, 3, 0]}
                 barSize={10}
               />

@@ -15,10 +15,10 @@ export function CohortTableRows({ rows, totalStudents }: CohortTableRowsProps) {
             {row.major}
           </TableCell>
           <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-            {row.avgGPA.toFixed(2)}
+            {(row.avgGPA ?? 0).toFixed(2)}
           </TableCell>
           <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-            {row.avgCredits}
+            {row.avgCredits ?? 0}
           </TableCell>
           <TableCell className="text-right text-sm font-medium tabular-nums text-foreground">
             {row.studentCount.toLocaleString()}

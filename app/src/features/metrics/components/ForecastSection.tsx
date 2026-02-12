@@ -10,6 +10,7 @@ import type { ForecastSectionProps } from './forecast/types';
 export function ForecastSection({
   historicalData,
   forecastData,
+  insights: insightTexts,
 }: ForecastSectionProps) {
   const combinedData = useMemo(
     () => [...historicalData.slice(-6), ...forecastData],
@@ -26,8 +27,19 @@ export function ForecastSection({
   }, [forecastData, historicalData]);
 
   const insights = useMemo(
-    () => buildForecastInsights({ projectedGrowth }),
-    [projectedGrowth]
+    () =>
+      buildForecastInsights({
+        projectedGrowth,
+        projectedGrowthText: insightTexts?.projectedGrowthText,
+        resourcePlanningText: insightTexts?.resourcePlanningText,
+        recommendationText: insightTexts?.recommendationText,
+      }),
+    [
+      insightTexts?.projectedGrowthText,
+      insightTexts?.recommendationText,
+      insightTexts?.resourcePlanningText,
+      projectedGrowth,
+    ]
   );
 
   return (

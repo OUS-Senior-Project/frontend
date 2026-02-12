@@ -12,7 +12,7 @@ import {
   AvgGPAByCohortChart,
   AvgGPAByMajorChart,
 } from '@/features/metrics/components/major-analytics-charts';
-import type { MajorCohortRecord } from '@/features/metrics/utils/analytics-data';
+import type { MajorCohortRecord } from '@/features/metrics/types';
 
 const trendData = [
   { period: 'Fall 2023', total: 1000 },

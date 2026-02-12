@@ -8,23 +8,35 @@ import {
   AvgGPAByMajorChart,
 } from '@/features/metrics/components/major-analytics-charts';
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
+import type { MajorsAnalyticsResponse, UIError } from '@/lib/api/types';
 import { TabsContent } from '@/shared/ui/tabs';
 import { selectTopMajorLabel } from '@/features/metrics/utils/metrics-summary-utils';
-import type { MajorCohortRecord } from '@/features/metrics/types';
+import {
+  PanelEmptyState,
+  PanelErrorState,
+  PanelLoadingState,
+} from './PanelStates';
 
 interface MajorsPanelProps {
-  majorData: Array<{ major: string; count: number }>;
-  totalMajors: number;
-  cohortData: MajorCohortRecord[];
+  data: MajorsAnalyticsResponse | null;
+  loading: boolean;
+  error: UIError | null;
+  onRetry: () => void;
 }
 
 export function MajorsPanel({
-  majorData,
-  totalMajors,
-  cohortData,
+  data,
+  loading,
+  error,
+  onRetry,
 }: MajorsPanelProps) {
+  const majorData = data?.majorDistribution ?? [];
+  const cohortData = data?.cohortRecords ?? [];
+  const totalMajors = majorData.length;
   const averagePerMajor = Math.round(
-    majorData.reduce((sum, major) => sum + major.count, 0) / majorData.length
+    totalMajors === 0
+      ? 0
+      : majorData.reduce((sum, major) => sum + major.count, 0) / totalMajors
   );
 
   return (
@@ -35,34 +47,56 @@ export function MajorsPanel({
           Major-level analytics and cohort breakdowns
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricsSummaryCard
-          title="Top Major"
-          value={selectTopMajorLabel(majorData)}
-          icon={GraduationCap}
-          description={`${majorData[0]?.count.toLocaleString()} students`}
+      {loading && <PanelLoadingState message="Loading majors analytics..." />}
+      {!loading && error && (
+        <PanelErrorState
+          message={error.message}
+          onRetry={() => {
+            onRetry();
+          }}
         />
-        <MetricsSummaryCard
-          title="Total Programs"
-          value={totalMajors}
-          icon={Building}
-          description="Active majors"
+      )}
+      {!loading && !error && !data && (
+        <PanelEmptyState
+          title="No majors analytics available"
+          description="Majors metrics will appear here after dataset processing."
         />
-        <MetricsSummaryCard
-          title="Avg per Major"
-          value={averagePerMajor}
-          icon={Users}
-          description="Students per major"
-        />
-      </div>
-      <MajorDistributionChart data={majorData} title="Top Majors Overview" />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <AvgGPAByMajorChart data={cohortData} />
-        <AvgCreditsByMajorChart data={cohortData} />
-      </div>
-      <AvgGPAByCohortChart data={cohortData} />
-      <AvgCreditsByCohortChart data={cohortData} />
-      <CohortSummaryTable data={cohortData} />
+      )}
+      {!loading && !error && data && (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <MetricsSummaryCard
+              title="Top Major"
+              value={selectTopMajorLabel(majorData)}
+              icon={GraduationCap}
+              description={`${(majorData[0]?.count ?? 0).toLocaleString()} students`}
+            />
+            <MetricsSummaryCard
+              title="Total Programs"
+              value={totalMajors}
+              icon={Building}
+              description="Active majors"
+            />
+            <MetricsSummaryCard
+              title="Avg per Major"
+              value={averagePerMajor}
+              icon={Users}
+              description="Students per major"
+            />
+          </div>
+          <MajorDistributionChart
+            data={majorData}
+            title="Top Majors Overview"
+          />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <AvgGPAByMajorChart data={cohortData} />
+            <AvgCreditsByMajorChart data={cohortData} />
+          </div>
+          <AvgGPAByCohortChart data={cohortData} />
+          <AvgCreditsByCohortChart data={cohortData} />
+          <CohortSummaryTable data={cohortData} />
+        </>
+      )}
     </TabsContent>
   );
 }
