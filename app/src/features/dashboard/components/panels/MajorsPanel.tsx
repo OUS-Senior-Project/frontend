@@ -24,7 +24,12 @@ interface MajorsPanelProps {
   onRetry: () => void;
 }
 
-export function MajorsPanel({ data, loading, error, onRetry }: MajorsPanelProps) {
+export function MajorsPanel({
+  data,
+  loading,
+  error,
+  onRetry,
+}: MajorsPanelProps) {
   const majorData = data?.majorDistribution ?? [];
   const cohortData = data?.cohortRecords ?? [];
   const totalMajors = majorData.length;
@@ -79,7 +84,10 @@ export function MajorsPanel({ data, loading, error, onRetry }: MajorsPanelProps)
               description="Students per major"
             />
           </div>
-          <MajorDistributionChart data={majorData} title="Top Majors Overview" />
+          <MajorDistributionChart
+            data={majorData}
+            title="Top Majors Overview"
+          />
           <div className="grid gap-6 lg:grid-cols-2">
             <AvgGPAByMajorChart data={cohortData} />
             <AvgCreditsByMajorChart data={cohortData} />

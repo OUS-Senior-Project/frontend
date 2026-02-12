@@ -2,11 +2,7 @@ import { ApiError, ServiceError } from './errors';
 import type { ApiErrorEnvelope } from './types';
 
 type QueryPrimitive = string | number | boolean;
-type QueryValue =
-  | QueryPrimitive
-  | QueryPrimitive[]
-  | null
-  | undefined;
+type QueryValue = QueryPrimitive | QueryPrimitive[] | null | undefined;
 
 export interface ApiRequestOptions {
   query?: Record<string, QueryValue>;
@@ -43,7 +39,11 @@ const datasetResponseCache = new Map<string, DatasetCacheEntry>();
 
 export interface ApiClient {
   get<T>(path: string, options?: ApiRequestOptions): Promise<T>;
-  post<T>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<T>;
+  post<T>(
+    path: string,
+    body?: unknown,
+    options?: ApiRequestOptions
+  ): Promise<T>;
   put<T>(path: string, body?: unknown, options?: ApiRequestOptions): Promise<T>;
   postForm<T>(
     path: string,
@@ -54,10 +54,7 @@ export interface ApiClient {
 
 function normalizeBaseUrl(baseUrl: string) {
   const trimmed = baseUrl.trim().replace(/\/+$/, '');
-  if (
-    trimmed === API_V1_PREFIX ||
-    trimmed.endsWith(`${API_V1_PREFIX}`)
-  ) {
+  if (trimmed === API_V1_PREFIX || trimmed.endsWith(`${API_V1_PREFIX}`)) {
     return trimmed.slice(0, -API_V1_PREFIX.length).replace(/\/+$/, '');
   }
 
@@ -127,7 +124,11 @@ function buildDatasetCacheKey(
   return `${datasetId}|${normalizeApiPath(path)}|${canonicalQueryString}`;
 }
 
-function composeUrl(baseUrl: string, path: string, canonicalQueryString: string) {
+function composeUrl(
+  baseUrl: string,
+  path: string,
+  canonicalQueryString: string
+) {
   const base = `${baseUrl}${normalizeApiPath(path)}`;
   return canonicalQueryString ? `${base}?${canonicalQueryString}` : base;
 }
@@ -250,7 +251,10 @@ async function executeRequest(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const canonicalQuery = buildCanonicalQueryString(options.query);
   const request = createAbortSignal(options.signal, timeoutMs);
-  const headers = createHeaders(options.headers, Boolean(options.body) && !options.isMultipart);
+  const headers = createHeaders(
+    options.headers,
+    Boolean(options.body) && !options.isMultipart
+  );
 
   const init: RequestInit = {
     method: options.method,
@@ -281,7 +285,11 @@ async function executeRequest(
         );
       }
 
-      throw new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true);
+      throw new ServiceError(
+        'REQUEST_ABORTED',
+        'The request was cancelled.',
+        true
+      );
     }
 
     throw new ServiceError(
@@ -346,7 +354,10 @@ export function createApiClient(
         }
 
         headers.delete('If-None-Match');
-        const recovery = await executeRequest(normalizedBaseUrl, requestOptions);
+        const recovery = await executeRequest(
+          normalizedBaseUrl,
+          requestOptions
+        );
         if (recovery.response.status === 304) {
           throw new ServiceError(
             'CACHE_MISS',

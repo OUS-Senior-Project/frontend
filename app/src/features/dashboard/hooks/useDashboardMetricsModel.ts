@@ -54,10 +54,7 @@ function isActiveDatasetNotFound(error: unknown) {
     return false;
   }
 
-  if (
-    maybeError.status !== undefined &&
-    maybeError.status !== 404
-  ) {
+  if (maybeError.status !== undefined && maybeError.status !== 404) {
     return false;
   }
 
@@ -101,7 +98,9 @@ export function useDashboardMetricsModel() {
   const [migrationSemester, setMigrationSemester] = useState<
     string | undefined
   >(undefined);
-  const [forecastHorizon, setForecastHorizon] = useState(DEFAULT_FORECAST_HORIZON);
+  const [forecastHorizon, setForecastHorizon] = useState(
+    DEFAULT_FORECAST_HORIZON
+  );
 
   const [datasetState, setDatasetState] = useState<
     AsyncResourceState<DatasetSummary>
@@ -135,8 +134,10 @@ export function useDashboardMetricsModel() {
   const uploadControllerRef = useRef<AbortController | null>(null);
 
   const runDeduped = useCallback(
-    async <T,>(key: string, request: () => Promise<T>): Promise<T> => {
-      const existing = inFlightByKeyRef.current.get(key) as Promise<T> | undefined;
+    async <T>(key: string, request: () => Promise<T>): Promise<T> => {
+      const existing = inFlightByKeyRef.current.get(key) as
+        | Promise<T>
+        | undefined;
       if (existing) {
         return existing;
       }
@@ -166,7 +167,10 @@ export function useDashboardMetricsModel() {
           signal,
         });
 
-        if (submission.status === 'completed' || submission.status === 'failed') {
+        if (
+          submission.status === 'completed' ||
+          submission.status === 'failed'
+        ) {
           return submission;
         }
 

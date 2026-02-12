@@ -19,7 +19,9 @@ export const cohortColors: Record<string, string> = {
 };
 
 export function getCohortColor(cohort: string, index: number) {
-  return cohortColors[cohort] ?? majorChartColors[index % majorChartColors.length];
+  return (
+    cohortColors[cohort] ?? majorChartColors[index % majorChartColors.length]
+  );
 }
 
 export const chartTooltipStyle = {

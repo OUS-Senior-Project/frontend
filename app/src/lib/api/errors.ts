@@ -112,8 +112,7 @@ export function toUIError(
 ): UIError {
   if (error instanceof ServiceError) {
     const message =
-      (getCrossOriginCorsGuidance(error) ?? error.message) ||
-      fallbackMessage;
+      (getCrossOriginCorsGuidance(error) ?? error.message) || fallbackMessage;
 
     return {
       code: error.code,

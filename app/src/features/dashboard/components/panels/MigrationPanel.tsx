@@ -46,7 +46,9 @@ export function MigrationPanel({
           options={semesterOptions}
         />
       </div>
-      {loading && <PanelLoadingState message="Loading migration analytics..." />}
+      {loading && (
+        <PanelLoadingState message="Loading migration analytics..." />
+      )}
       {!loading && error && (
         <PanelErrorState
           message={error.message}

@@ -34,9 +34,12 @@ export async function getActiveDataset(
   options: RequestOptions = {}
 ): Promise<DatasetSummary | null> {
   try {
-    return await apiClient.get<DatasetSummary>(`${API_PREFIX}/datasets/active`, {
-      signal: options.signal,
-    });
+    return await apiClient.get<DatasetSummary>(
+      `${API_PREFIX}/datasets/active`,
+      {
+        signal: options.signal,
+      }
+    );
   } catch (error) {
     if (
       error instanceof ServiceError &&
@@ -54,10 +57,13 @@ export async function getDatasetById(
   options: RequestOptions = {}
 ): Promise<DatasetDetail> {
   const encodedDatasetId = encodeURIComponent(datasetId);
-  return apiClient.get<DatasetDetail>(`${API_PREFIX}/datasets/${encodedDatasetId}`, {
-    signal: options.signal,
-    datasetCache: { datasetId },
-  });
+  return apiClient.get<DatasetDetail>(
+    `${API_PREFIX}/datasets/${encodedDatasetId}`,
+    {
+      signal: options.signal,
+      datasetCache: { datasetId },
+    }
+  );
 }
 
 export async function activateDataset(

@@ -13,7 +13,10 @@ export type RawDatasetForecastPoint = Omit<DatasetForecastPoint, 'semester'> & {
   semester?: string | number | null;
 };
 
-export type RawDatasetOverviewResponse = Omit<DatasetOverviewResponse, 'trend'> & {
+export type RawDatasetOverviewResponse = Omit<
+  DatasetOverviewResponse,
+  'trend'
+> & {
   trend: RawDatasetTrendPoint[];
 };
 
@@ -25,7 +28,9 @@ export type RawDatasetForecastResponse = Omit<
   forecast: RawDatasetForecastPoint[];
 };
 
-function normalizeSemester(semester: string | number | null | undefined): string {
+function normalizeSemester(
+  semester: string | number | null | undefined
+): string {
   if (typeof semester === 'string') {
     return semester;
   }

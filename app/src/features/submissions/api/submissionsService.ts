@@ -87,16 +87,19 @@ export async function getDatasetSubmissionStatus(
 export async function listSubmissions(
   options: ListSubmissionsOptions = {}
 ): Promise<SubmissionHistoryListResponse> {
-  return apiClient.get<SubmissionHistoryListResponse>(`${API_PREFIX}/submissions`, {
-    query: {
-      page: options.page ?? 1,
-      pageSize: options.pageSize ?? 20,
-      status: options.status,
-      createdAfter: options.createdAfter,
-      createdBefore: options.createdBefore,
-    },
-    signal: options.signal,
-  });
+  return apiClient.get<SubmissionHistoryListResponse>(
+    `${API_PREFIX}/submissions`,
+    {
+      query: {
+        page: options.page ?? 1,
+        pageSize: options.pageSize ?? 20,
+        status: options.status,
+        createdAfter: options.createdAfter,
+        createdBefore: options.createdBefore,
+      },
+      signal: options.signal,
+    }
+  );
 }
 
 export async function createBulkSubmissionJob(
@@ -105,10 +108,7 @@ export async function createBulkSubmissionJob(
   const formData = new FormData();
 
   formData.append('activate_latest', String(request.activateLatest ?? true));
-  formData.append(
-    'continue_on_error',
-    String(request.continueOnError ?? true)
-  );
+  formData.append('continue_on_error', String(request.continueOnError ?? true));
   formData.append('dry_run', String(request.dryRun ?? false));
 
   request.files.forEach((file) => {

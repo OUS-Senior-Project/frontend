@@ -66,7 +66,9 @@ export function OverviewPanel({
           Submitting dataset...
         </p>
       )}
-      {uploadError && <p className="text-sm text-destructive">{uploadError.message}</p>}
+      {uploadError && (
+        <p className="text-sm text-destructive">{uploadError.message}</p>
+      )}
 
       {loading && <PanelLoadingState message="Loading overview metrics..." />}
       {!loading && error && (

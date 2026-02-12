@@ -13,10 +13,13 @@ interface GetMajorsAnalyticsOptions {
 }
 
 function buildMajorDistribution(records: AnalyticsRecord[]) {
-  const countsByMajor = records.reduce<Record<string, number>>((acc, record) => {
-    acc[record.major] = (acc[record.major] ?? 0) + record.count;
-    return acc;
-  }, {});
+  const countsByMajor = records.reduce<Record<string, number>>(
+    (acc, record) => {
+      acc[record.major] = (acc[record.major] ?? 0) + record.count;
+      return acc;
+    },
+    {}
+  );
 
   return Object.entries(countsByMajor)
     .map(([major, count]) => ({ major, count }))
