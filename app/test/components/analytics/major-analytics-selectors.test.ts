@@ -60,12 +60,55 @@ describe('major analytics selectors', () => {
     expect(credits[0]).toEqual({ major: 'Chemistry', avgCredits: 17 });
   });
 
+  test('weighted selectors handle null GPA and credits as zero', () => {
+    const withNullMetrics = [
+      {
+        major: 'Math',
+        cohort: 'FTIC 2024',
+        avgGPA: null,
+        avgCredits: null,
+        studentCount: 10,
+      },
+      {
+        major: 'Math',
+        cohort: 'Transfer 2024',
+        avgGPA: 3.0,
+        avgCredits: 12,
+        studentCount: 5,
+      },
+    ];
+
+    const gpa = selectWeightedGpaByMajor(withNullMetrics);
+    const credits = selectWeightedCreditsByMajor(withNullMetrics);
+
+    expect(gpa).toEqual([{ major: 'Math', avgGPA: 1 }]);
+    expect(credits).toEqual([{ major: 'Math', avgCredits: 4 }]);
+  });
+
   test('selectCohortRowsByMajor includes missing cohort metrics as zero', () => {
     const rows = selectCohortRowsByMajor(sample, 'avgCredits');
     const chemistry = rows.find((row) => row.major === 'Chemistry');
 
     expect(chemistry?.['Transfer 2024']).toBe(0);
     expect(chemistry?.['FTIC 2023']).toBe(18);
+  });
+
+  test('selectCohortRowsByMajor supports avgGPA metric and null fallback values', () => {
+    const withNulls = [
+      ...sample,
+      {
+        major: 'Math',
+        cohort: 'FTIC 2024',
+        avgGPA: null,
+        avgCredits: 9,
+        studentCount: 5,
+      },
+    ];
+    const rows = selectCohortRowsByMajor(withNulls, 'avgGPA');
+    const math = rows.find((row) => row.major === 'Math');
+
+    expect(math?.['FTIC 2024']).toBe(0);
+    expect(math?.['Transfer 2024']).toBe(0);
   });
 
   test('getCohortColor uses fixed color when known and fallback palette when unknown', () => {

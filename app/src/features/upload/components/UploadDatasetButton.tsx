@@ -11,8 +11,8 @@ interface UploadDatasetButtonProps {
 
 export function UploadDatasetButton({
   onDatasetUpload,
-  inputId = 'csv-upload',
-  buttonLabel = 'Upload CSV',
+  inputId = 'dataset-upload',
+  buttonLabel = 'Upload Dataset',
 }: UploadDatasetButtonProps) {
   return (
     <>
@@ -31,7 +31,7 @@ export function UploadDatasetButton({
       <input
         id={inputId}
         type="file"
-        accept=".csv"
+        accept=".csv,.xlsx"
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (!file) {

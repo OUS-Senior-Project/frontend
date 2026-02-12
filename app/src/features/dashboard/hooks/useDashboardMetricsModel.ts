@@ -1,15 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getActiveDataset } from '@/features/datasets/api/datasetsService';
 import { getForecastsAnalytics } from '@/features/forecasts/api/forecastsService';
 import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
 import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
 import { getDatasetOverview } from '@/features/overview/api/overviewService';
-import { createDatasetSubmission } from '@/features/submissions/api/submissionsService';
-import { toUIError } from '@/lib/api/errors';
+import {
+  createDatasetSubmission,
+  getDatasetSubmissionStatus,
+} from '@/features/submissions/api/submissionsService';
+import { ServiceError, toUIError } from '@/lib/api/errors';
 import type {
   DatasetOverviewResponse,
+  DatasetSubmission,
   DatasetSummary,
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
@@ -23,6 +27,11 @@ interface AsyncResourceState<T> {
   error: UIError | null;
 }
 
+const SUBMISSION_POLL_INTERVAL_MIN_MS = 1_000;
+const SUBMISSION_POLL_INTERVAL_MAX_MS = 3_000;
+const SUBMISSION_POLL_TIMEOUT_MS = 180_000;
+const DEFAULT_FORECAST_HORIZON = 4;
+
 function initialAsyncResourceState<T>(): AsyncResourceState<T> {
   return {
     data: null,
@@ -31,12 +40,68 @@ function initialAsyncResourceState<T>(): AsyncResourceState<T> {
   };
 }
 
+function isAbortedRequest(error: unknown) {
+  return error instanceof ServiceError && error.code === 'REQUEST_ABORTED';
+}
+
+function isActiveDatasetNotFound(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const maybeError = error as { code?: unknown; status?: unknown };
+  if (maybeError.code !== 'ACTIVE_DATASET_NOT_FOUND') {
+    return false;
+  }
+
+  if (
+    maybeError.status !== undefined &&
+    maybeError.status !== 404
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function getSubmissionPollDelayMs(attempt: number) {
+  const steppedDelay = SUBMISSION_POLL_INTERVAL_MIN_MS + attempt * 1_000;
+  return Math.min(steppedDelay, SUBMISSION_POLL_INTERVAL_MAX_MS);
+}
+
+function delay(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(
+        new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+      );
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      window.clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', onAbort);
+      reject(
+        new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+      );
+    };
+
+    signal?.addEventListener('abort', onAbort);
+  });
+}
+
 export function useDashboardMetricsModel() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [migrationSemester, setMigrationSemester] = useState<
     string | undefined
   >(undefined);
+  const [forecastHorizon, setForecastHorizon] = useState(DEFAULT_FORECAST_HORIZON);
 
   const [datasetState, setDatasetState] = useState<
     AsyncResourceState<DatasetSummary>
@@ -66,221 +131,442 @@ export function useDashboardMetricsModel() {
     error: null,
   });
 
-  const loadDataset = useCallback(async () => {
-    setDatasetState((previous) => ({
-      ...previous,
-      loading: true,
-      error: null,
-    }));
+  const inFlightByKeyRef = useRef(new Map<string, Promise<unknown>>());
+  const uploadControllerRef = useRef<AbortController | null>(null);
 
-    try {
-      const dataset = await getActiveDataset();
+  const runDeduped = useCallback(
+    async <T,>(key: string, request: () => Promise<T>): Promise<T> => {
+      const existing = inFlightByKeyRef.current.get(key) as Promise<T> | undefined;
+      if (existing) {
+        return existing;
+      }
 
-      setDatasetState({
-        data: dataset,
-        loading: false,
-        error: null,
+      const nextPromise = request().finally(() => {
+        if (inFlightByKeyRef.current.get(key) === nextPromise) {
+          inFlightByKeyRef.current.delete(key);
+        }
       });
-    } catch (error) {
-      const uiError = toUIError(
-        error,
-        'Unable to load active dataset state.'
-      );
 
-      if (uiError.code === 'DATASET_NOT_FOUND') {
+      inFlightByKeyRef.current.set(key, nextPromise);
+      return nextPromise;
+    },
+    []
+  );
+
+  const pollSubmissionUntilTerminal = useCallback(
+    async (
+      submissionId: string,
+      signal?: AbortSignal
+    ): Promise<DatasetSubmission> => {
+      const startedAt = Date.now();
+      let pollAttempt = 0;
+
+      while (true) {
+        const submission = await getDatasetSubmissionStatus(submissionId, {
+          signal,
+        });
+
+        if (submission.status === 'completed' || submission.status === 'failed') {
+          return submission;
+        }
+
+        if (Date.now() - startedAt >= SUBMISSION_POLL_TIMEOUT_MS) {
+          throw new ServiceError(
+            'SUBMISSION_POLL_TIMEOUT',
+            'Dataset processing timed out while polling submission status.',
+            true
+          );
+        }
+
+        await delay(getSubmissionPollDelayMs(pollAttempt), signal);
+        pollAttempt += 1;
+      }
+    },
+    []
+  );
+
+  const loadDataset = useCallback(
+    async (signal?: AbortSignal): Promise<DatasetSummary | null> => {
+      setDatasetState((previous) => ({
+        ...previous,
+        loading: true,
+        error: null,
+      }));
+
+      try {
+        const dataset = await runDeduped('dataset:active', () =>
+          getActiveDataset({ signal })
+        );
+
         setDatasetState({
-          data: null,
+          data: dataset,
           loading: false,
           error: null,
         });
+
+        return dataset;
+      } catch (error) {
+        if (isAbortedRequest(error)) {
+          return null;
+        }
+
+        if (isActiveDatasetNotFound(error)) {
+          setDatasetState({
+            data: null,
+            loading: false,
+            error: null,
+          });
+          return null;
+        }
+
+        setDatasetState({
+          data: null,
+          loading: false,
+          error: toUIError(error, 'Unable to load active dataset state.'),
+        });
+        return null;
+      }
+    },
+    [runDeduped]
+  );
+
+  const loadOverview = useCallback(
+    async (datasetId: string | undefined, signal?: AbortSignal) => {
+      if (!datasetId) {
+        setOverviewState(initialAsyncResourceState);
         return;
       }
 
-      setDatasetState({
-        data: null,
-        loading: false,
-        error: uiError,
-      });
-    }
-  }, []);
-
-  const activeDatasetId = datasetState.data?.id;
-
-  const loadOverview = useCallback(async () => {
-    if (!activeDatasetId) {
-      setOverviewState(initialAsyncResourceState);
-      return;
-    }
-
-    setOverviewState((previous) => ({
-      ...previous,
-      loading: true,
-      error: null,
-    }));
-
-    try {
-      const data = await getDatasetOverview(activeDatasetId, selectedDate);
-      setOverviewState({
-        data,
-        loading: false,
+      setOverviewState((previous) => ({
+        ...previous,
+        loading: true,
         error: null,
-      });
-    } catch (error) {
-      setOverviewState({
-        data: null,
-        loading: false,
-        error: toUIError(error, 'Unable to load overview metrics.'),
-      });
-    }
-  }, [activeDatasetId, selectedDate]);
+      }));
 
-  const loadMajors = useCallback(async () => {
-    if (!activeDatasetId) {
-      setMajorsState(initialAsyncResourceState);
-      return;
-    }
+      const dateKey = selectedDate.toISOString().slice(0, 10);
+      const requestKey = `overview:${datasetId}:${dateKey}`;
 
-    setMajorsState((previous) => ({
-      ...previous,
-      loading: true,
-      error: null,
-    }));
+      try {
+        const data = await runDeduped(requestKey, () =>
+          getDatasetOverview(datasetId, { signal })
+        );
 
-    try {
-      const data = await getMajorsAnalytics(activeDatasetId);
-      setMajorsState({
-        data,
-        loading: false,
+        setOverviewState({
+          data,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        if (isAbortedRequest(error)) {
+          return;
+        }
+
+        setOverviewState({
+          data: null,
+          loading: false,
+          error: toUIError(error, 'Unable to load overview metrics.'),
+        });
+      }
+    },
+    [runDeduped, selectedDate]
+  );
+
+  const loadMajors = useCallback(
+    async (datasetId: string | undefined, signal?: AbortSignal) => {
+      if (!datasetId) {
+        setMajorsState(initialAsyncResourceState);
+        return;
+      }
+
+      setMajorsState((previous) => ({
+        ...previous,
+        loading: true,
         error: null,
-      });
-    } catch (error) {
-      setMajorsState({
-        data: null,
-        loading: false,
-        error: toUIError(error, 'Unable to load majors analytics.'),
-      });
-    }
-  }, [activeDatasetId]);
+      }));
 
-  const loadMigration = useCallback(async () => {
-    if (!activeDatasetId) {
-      setMigrationState(initialAsyncResourceState);
-      return;
-    }
+      const requestKey = `majors:${datasetId}`;
 
-    setMigrationState((previous) => ({
-      ...previous,
-      loading: true,
-      error: null,
-    }));
+      try {
+        const data = await runDeduped(requestKey, () =>
+          getMajorsAnalytics(datasetId, { signal })
+        );
 
-    try {
-      const data = await getMigrationAnalytics(activeDatasetId);
-      setMigrationState({
-        data,
-        loading: false,
+        setMajorsState({
+          data,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        if (isAbortedRequest(error)) {
+          return;
+        }
+
+        setMajorsState({
+          data: null,
+          loading: false,
+          error: toUIError(error, 'Unable to load majors analytics.'),
+        });
+      }
+    },
+    [runDeduped]
+  );
+
+  const loadMigration = useCallback(
+    async (
+      datasetId: string | undefined,
+      semester: string | undefined,
+      signal?: AbortSignal
+    ) => {
+      if (!datasetId) {
+        setMigrationState(initialAsyncResourceState);
+        return;
+      }
+
+      setMigrationState((previous) => ({
+        ...previous,
+        loading: true,
         error: null,
-      });
-    } catch (error) {
-      setMigrationState({
-        data: null,
-        loading: false,
-        error: toUIError(error, 'Unable to load migration analytics.'),
-      });
-    }
-  }, [activeDatasetId]);
+      }));
 
-  const loadForecasts = useCallback(async () => {
-    if (!activeDatasetId) {
-      setForecastsState(initialAsyncResourceState);
-      return;
-    }
+      const requestKey = `migration:${datasetId}:${semester ?? 'all'}`;
 
-    setForecastsState((previous) => ({
-      ...previous,
-      loading: true,
-      error: null,
-    }));
+      try {
+        const data = await runDeduped(requestKey, () =>
+          getMigrationAnalytics(datasetId, {
+            semester,
+            signal,
+          })
+        );
 
-    try {
-      const data = await getForecastsAnalytics(activeDatasetId);
-      setForecastsState({
-        data,
-        loading: false,
+        setMigrationState({
+          data,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        if (isAbortedRequest(error)) {
+          return;
+        }
+
+        setMigrationState({
+          data: null,
+          loading: false,
+          error: toUIError(error, 'Unable to load migration analytics.'),
+        });
+      }
+    },
+    [runDeduped]
+  );
+
+  const loadForecasts = useCallback(
+    async (
+      datasetId: string | undefined,
+      horizon: number,
+      signal?: AbortSignal
+    ) => {
+      if (!datasetId) {
+        setForecastsState(initialAsyncResourceState);
+        return;
+      }
+
+      setForecastsState((previous) => ({
+        ...previous,
+        loading: true,
         error: null,
-      });
-    } catch (error) {
-      setForecastsState({
-        data: null,
-        loading: false,
-        error: toUIError(error, 'Unable to load forecast analytics.'),
-      });
-    }
-  }, [activeDatasetId]);
+      }));
+
+      const requestKey = `forecasts:${datasetId}:${horizon}`;
+
+      try {
+        const data = await runDeduped(requestKey, () =>
+          getForecastsAnalytics(datasetId, {
+            horizon,
+            signal,
+          })
+        );
+
+        setForecastsState({
+          data,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        if (isAbortedRequest(error)) {
+          return;
+        }
+
+        const uiError = toUIError(error, 'Unable to load forecast analytics.');
+        const normalizedForecastError =
+          uiError.code === 'NEEDS_REBUILD'
+            ? {
+                ...uiError,
+                message:
+                  'Forecasts are not ready yet for this dataset. Rebuild is required before forecast analytics can be shown.',
+              }
+            : uiError;
+
+        setForecastsState({
+          data: null,
+          loading: false,
+          error: normalizedForecastError,
+        });
+      }
+    },
+    [runDeduped]
+  );
 
   const handleDatasetUpload = useCallback(
     async (file: File) => {
+      uploadControllerRef.current?.abort();
+      const uploadController = new AbortController();
+      uploadControllerRef.current = uploadController;
+
       setUploadState({
         loading: true,
         error: null,
       });
 
       try {
-        await createDatasetSubmission({ file });
-        await loadDataset();
+        const startedSubmission = await createDatasetSubmission(
+          {
+            file,
+            activateOnSuccess: true,
+          },
+          {
+            signal: uploadController.signal,
+          }
+        );
+
+        const terminalSubmission = await pollSubmissionUntilTerminal(
+          startedSubmission.submissionId,
+          uploadController.signal
+        );
+
+        if (terminalSubmission.status === 'failed') {
+          const firstValidationError = terminalSubmission.validationErrors?.[0];
+          throw new ServiceError(
+            String(firstValidationError?.code ?? 'SUBMISSION_FAILED'),
+            String(
+              firstValidationError?.message ??
+                'Dataset processing failed. Check validation errors and retry.'
+            ),
+            {
+              retryable: true,
+              details: {
+                submissionId: terminalSubmission.submissionId,
+                datasetId: terminalSubmission.datasetId,
+                validationErrors: terminalSubmission.validationErrors ?? [],
+              },
+            }
+          );
+        }
+
+        const refreshedDataset = await loadDataset(uploadController.signal);
+        const refreshedDatasetId =
+          refreshedDataset?.datasetId ?? terminalSubmission.datasetId;
+
+        await Promise.all([
+          loadOverview(refreshedDatasetId, uploadController.signal),
+          loadMajors(refreshedDatasetId, uploadController.signal),
+          loadMigration(
+            refreshedDatasetId,
+            migrationSemester,
+            uploadController.signal
+          ),
+          loadForecasts(
+            refreshedDatasetId,
+            forecastHorizon,
+            uploadController.signal
+          ),
+        ]);
+
         setUploadState({
           loading: false,
           error: null,
         });
       } catch (error) {
+        if (isAbortedRequest(error)) {
+          return;
+        }
+
         setUploadState({
           loading: false,
           error: toUIError(error, `Unable to upload "${file.name}".`),
         });
+      } finally {
+        if (uploadControllerRef.current === uploadController) {
+          uploadControllerRef.current = null;
+        }
       }
     },
-    [loadDataset]
+    [
+      forecastHorizon,
+      loadDataset,
+      loadForecasts,
+      loadMajors,
+      loadMigration,
+      loadOverview,
+      migrationSemester,
+      pollSubmissionUntilTerminal,
+    ]
   );
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void loadDataset();
-    }, 0);
+    const controller = new AbortController();
+    void loadDataset(controller.signal);
 
     return () => {
-      window.clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [loadDataset]);
 
+  const activeDatasetId = datasetState.data?.datasetId;
+
   useEffect(() => {
-    if (!activeDatasetId) {
+    const controller = new AbortController();
+    void loadOverview(activeDatasetId, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [activeDatasetId, loadOverview, selectedDate]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadMajors(activeDatasetId, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [activeDatasetId, loadMajors]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadMigration(activeDatasetId, migrationSemester, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [activeDatasetId, loadMigration, migrationSemester]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadForecasts(activeDatasetId, forecastHorizon, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [activeDatasetId, forecastHorizon, loadForecasts]);
+
+  useEffect(() => {
+    if (!migrationSemester || !migrationState.data) {
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      void loadMajors();
-      void loadMigration();
-      void loadForecasts();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [activeDatasetId, loadForecasts, loadMajors, loadMigration]);
-
-  useEffect(() => {
-    if (!activeDatasetId) {
-      return;
+    if (!migrationState.data.semesters.includes(migrationSemester)) {
+      setMigrationSemester(undefined);
     }
-
-    const timeoutId = window.setTimeout(() => {
-      void loadOverview();
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [activeDatasetId, loadOverview]);
+  }, [migrationSemester, migrationState.data]);
 
   const activeMigrationSemester =
     migrationSemester &&
@@ -298,6 +584,8 @@ export function useDashboardMetricsModel() {
     setBreakdownOpen,
     migrationSemester: activeMigrationSemester,
     setMigrationSemester,
+    forecastHorizon,
+    setForecastHorizon,
     handleDatasetUpload,
     uploadLoading: uploadState.loading,
     uploadError: uploadState.error,
@@ -305,22 +593,22 @@ export function useDashboardMetricsModel() {
     datasetLoading: datasetState.loading,
     datasetError: datasetState.error,
     noDataset,
-    retryDataset: loadDataset,
+    retryDataset: () => loadDataset(),
     overviewData: overviewState.data,
     overviewLoading: overviewState.loading,
     overviewError: overviewState.error,
-    retryOverview: loadOverview,
+    retryOverview: () => loadOverview(activeDatasetId),
     majorsData: majorsState.data,
     majorsLoading: majorsState.loading,
     majorsError: majorsState.error,
-    retryMajors: loadMajors,
+    retryMajors: () => loadMajors(activeDatasetId),
     migrationData: migrationState.data,
     migrationLoading: migrationState.loading,
     migrationError: migrationState.error,
-    retryMigration: loadMigration,
+    retryMigration: () => loadMigration(activeDatasetId, migrationSemester),
     forecastsData: forecastsState.data,
     forecastsLoading: forecastsState.loading,
     forecastsError: forecastsState.error,
-    retryForecasts: loadForecasts,
+    retryForecasts: () => loadForecasts(activeDatasetId, forecastHorizon),
   };
 }

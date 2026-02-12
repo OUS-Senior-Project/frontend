@@ -42,10 +42,7 @@ export function OverviewPanel({
   error,
   onRetry,
 }: OverviewPanelProps) {
-  const dateLabel = (data?.asOfDate
-    ? new Date(data.asOfDate)
-    : selectedDate
-  ).toLocaleDateString('en-US', {
+  const dateLabel = selectedDate.toLocaleDateString('en-US', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -98,13 +95,13 @@ export function OverviewPanel({
             />
             <MetricsSummaryCard
               title="Active Majors"
-              value={data.majorCount}
+              value={data.activeMajors}
               icon={GraduationCap}
               description="Across all schools"
             />
             <MetricsSummaryCard
               title="Schools/Colleges"
-              value={data.schoolCount}
+              value={data.activeSchools}
               icon={Building}
               description="Academic units"
             />
@@ -117,7 +114,7 @@ export function OverviewPanel({
             dateLabel={dateLabel}
           />
           <div className="grid gap-6 lg:grid-cols-2">
-            <MetricsTrendChart data={data.trendSeries} />
+            <MetricsTrendChart data={data.trend} />
             <StudentTypeDistributionChart data={data.studentTypeDistribution} />
           </div>
           <SchoolDistributionChart data={data.schoolDistribution} />

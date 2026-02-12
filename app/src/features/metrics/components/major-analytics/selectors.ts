@@ -20,7 +20,7 @@ export function selectWeightedGpaByMajor(data: MajorCohortRecord[]) {
   data.forEach((record) => {
     if (!majorMap[record.major])
       majorMap[record.major] = { total: 0, count: 0 };
-    majorMap[record.major].total += record.avgGPA * record.studentCount;
+    majorMap[record.major].total += (record.avgGPA ?? 0) * record.studentCount;
     majorMap[record.major].count += record.studentCount;
   });
 
@@ -38,7 +38,8 @@ export function selectWeightedCreditsByMajor(data: MajorCohortRecord[]) {
   data.forEach((record) => {
     if (!majorMap[record.major])
       majorMap[record.major] = { total: 0, count: 0 };
-    majorMap[record.major].total += record.avgCredits * record.studentCount;
+    majorMap[record.major].total +=
+      (record.avgCredits ?? 0) * record.studentCount;
     majorMap[record.major].count += record.studentCount;
   });
 
@@ -63,7 +64,7 @@ export function selectCohortRowsByMajor(
       const match = data.find(
         (record) => record.major === major && record.cohort === cohort
       );
-      row[cohort] = match ? match[metric] : 0;
+      row[cohort] = match ? (match[metric] ?? 0) : 0;
     });
     return row;
   });

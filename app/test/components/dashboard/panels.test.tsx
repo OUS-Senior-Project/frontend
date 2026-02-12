@@ -21,7 +21,7 @@ jest.mock('@/shared/ui/tabs', () => ({
 jest.mock('@/features/upload/components/UploadDatasetButton', () => ({
   UploadDatasetButton: ({
     onDatasetUpload,
-    buttonLabel = 'Upload CSV',
+    buttonLabel = 'Upload Dataset',
   }: {
     onDatasetUpload: (file: File) => void;
     buttonLabel?: string;
@@ -144,6 +144,36 @@ jest.mock('@/features/filters/components/SemesterFilterSelect', () => ({
   ),
 }));
 
+jest.mock('@/shared/ui/select', () => ({
+  Select: ({
+    children,
+    onValueChange,
+  }: {
+    children: React.ReactNode;
+    onValueChange?: (value: string) => void;
+  }) => (
+    <div>
+      <button
+        onClick={() => {
+          onValueChange?.('6');
+        }}
+      >
+        Trigger Select Value
+      </button>
+      {children}
+    </div>
+  ),
+  SelectTrigger: ({
+    children,
+    ...props
+  }: {
+    children: React.ReactNode;
+  }) => <button {...props}>{children}</button>,
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
+  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SelectItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 jest.mock('@/features/metrics/components/ForecastSection', () => ({
   ForecastSection: ({
     historicalData,
@@ -232,7 +262,6 @@ describe('dashboard panel states', () => {
         {...baseProps}
         data={{
           datasetId: 'dataset-1',
-          asOfDate: '2026-02-10T12:00:00Z',
           snapshotTotals: {
             total: 1200,
             undergrad: 1000,
@@ -240,17 +269,24 @@ describe('dashboard panel states', () => {
             transfer: 250,
             international: 144,
           },
+          activeMajors: 17,
+          activeSchools: 6,
           studentTypeDistribution: [{ type: 'FTIC', count: 400 }],
           schoolDistribution: [{ school: 'School of Business', count: 320 }],
-          trendSeries: [{ period: 'Fall 2025', year: 2025, semester: 1, total: 1190 }],
-          majorCount: 17,
-          schoolCount: 6,
+          trend: [
+            {
+              period: 'Fall 2025',
+              year: 2025,
+              semester: 'Fall',
+              total: 1190,
+            },
+          ],
         }}
         loading={false}
         error={null}
         uploadLoading={true}
         uploadError={{
-          code: 'NOT_IMPLEMENTED',
+          code: 'UPLOAD_FAILED',
           message: 'Upload API not ready',
           retryable: true,
         }}
@@ -262,12 +298,12 @@ describe('dashboard panel states', () => {
     expect(screen.getByText('Trend points: 1')).toBeInTheDocument();
     expect(screen.getByText('Student type points: 1')).toBeInTheDocument();
     expect(screen.getByText('School points: 1')).toBeInTheDocument();
-    expect(screen.getByText('Date: February 10, 2026')).toBeInTheDocument();
+    expect(screen.getByText(/Date:/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Total Students:/ }));
     expect(onBreakdownOpenChange).toHaveBeenCalledWith(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Upload CSV' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Upload Dataset' }));
     expect(onDatasetUpload).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Change Date' }));
@@ -302,6 +338,7 @@ describe('dashboard panel states', () => {
       <MajorsPanel
         data={{
           datasetId: 'dataset-1',
+          analyticsRecords: [],
           majorDistribution: [
             { major: 'Biology', count: 150 },
             { major: 'Chemistry', count: 50 },
@@ -331,6 +368,7 @@ describe('dashboard panel states', () => {
       <MajorsPanel
         data={{
           datasetId: 'dataset-2',
+          analyticsRecords: [],
           majorDistribution: [],
           cohortRecords: [],
         }}
@@ -415,9 +453,17 @@ describe('dashboard panel states', () => {
 
   test('ForecastsPanel handles states and both growth sign branches', () => {
     const onRetry = jest.fn();
+    const onHorizonChange = jest.fn();
 
     const { rerender } = render(
-      <ForecastsPanel data={null} loading={true} error={null} onRetry={onRetry} />
+      <ForecastsPanel
+        data={null}
+        loading={true}
+        error={null}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
+        onRetry={onRetry}
+      />
     );
     expect(screen.getByText('Loading forecast analytics...')).toBeInTheDocument();
 
@@ -426,6 +472,8 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={{ code: 'UNKNOWN', message: 'Forecast failed', retryable: true }}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
         onRetry={onRetry}
       />
     );
@@ -433,7 +481,14 @@ describe('dashboard panel states', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
 
     rerender(
-      <ForecastsPanel data={null} loading={false} error={null} onRetry={onRetry} />
+      <ForecastsPanel
+        data={null}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
+        onRetry={onRetry}
+      />
     );
     expect(screen.getByText('No forecast analytics available')).toBeInTheDocument();
 
@@ -441,22 +496,29 @@ describe('dashboard panel states', () => {
       <ForecastsPanel
         data={{
           datasetId: 'dataset-1',
-          historicalSeries: [
-            { period: 'Fall 2025', year: 2025, semester: 1, total: 1000 },
+          historical: [
+            { period: 'Fall 2025', year: 2025, semester: 'Fall', total: 1000 },
           ],
-          forecastSeries: [
+          forecast: [
             {
               period: 'Spring 2026',
               year: 2026,
-              semester: 2,
+              semester: 'Spring',
               total: 1010,
               isForecasted: true,
             },
           ],
-          fiveYearGrowth: 8,
+          fiveYearGrowthPct: 8,
+          insights: {
+            projectedGrowthText: 'Projected growth.',
+            resourcePlanningText: 'Resource planning.',
+            recommendationText: 'Recommendation.',
+          },
         }}
         loading={false}
         error={null}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
         onRetry={onRetry}
       />
     );
@@ -467,15 +529,24 @@ describe('dashboard panel states', () => {
       <ForecastsPanel
         data={{
           datasetId: 'dataset-1',
-          historicalSeries: [],
-          forecastSeries: [],
-          fiveYearGrowth: -3,
+          historical: [],
+          forecast: [],
+          fiveYearGrowthPct: -3,
+          insights: {
+            projectedGrowthText: 'Projected growth.',
+            resourcePlanningText: 'Resource planning.',
+            recommendationText: 'Recommendation.',
+          },
         }}
         loading={false}
         error={null}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
         onRetry={onRetry}
       />
     );
     expect(screen.getByText('5-Year Growth: -3%')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Trigger Select Value' }));
+    expect(onHorizonChange).toHaveBeenCalledWith(6);
   });
 });

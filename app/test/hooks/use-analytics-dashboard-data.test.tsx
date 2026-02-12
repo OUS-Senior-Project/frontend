@@ -1,12 +1,15 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useDashboardMetricsModel } from '@/features/dashboard/hooks/useDashboardMetricsModel';
-import { ServiceError } from '@/lib/api/errors';
+import { ApiError, ServiceError } from '@/lib/api/errors';
 import { getActiveDataset } from '@/features/datasets/api/datasetsService';
 import { getDatasetOverview } from '@/features/overview/api/overviewService';
 import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
 import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
 import { getForecastsAnalytics } from '@/features/forecasts/api/forecastsService';
-import { createDatasetSubmission } from '@/features/submissions/api/submissionsService';
+import {
+  createDatasetSubmission,
+  getDatasetSubmissionStatus,
+} from '@/features/submissions/api/submissionsService';
 
 jest.mock('@/features/datasets/api/datasetsService', () => ({
   getActiveDataset: jest.fn(),
@@ -30,6 +33,7 @@ jest.mock('@/features/forecasts/api/forecastsService', () => ({
 
 jest.mock('@/features/submissions/api/submissionsService', () => ({
   createDatasetSubmission: jest.fn(),
+  getDatasetSubmissionStatus: jest.fn(),
 }));
 
 const mockGetActiveDataset = getActiveDataset as jest.MockedFunction<
@@ -49,6 +53,32 @@ const mockGetForecastsAnalytics = getForecastsAnalytics as jest.MockedFunction<
 >;
 const mockCreateDatasetSubmission =
   createDatasetSubmission as jest.MockedFunction<typeof createDatasetSubmission>;
+const mockGetDatasetSubmissionStatus =
+  getDatasetSubmissionStatus as jest.MockedFunction<
+    typeof getDatasetSubmissionStatus
+  >;
+
+function withApiBaseUrlOverride(
+  value: string | undefined,
+  testFn: () => Promise<void>
+) {
+  const originalValue = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  if (value === undefined) {
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
+  } else {
+    process.env.NEXT_PUBLIC_API_BASE_URL = value;
+  }
+
+  return testFn().finally(() => {
+    if (originalValue === undefined) {
+      delete process.env.NEXT_PUBLIC_API_BASE_URL;
+      return;
+    }
+
+    process.env.NEXT_PUBLIC_API_BASE_URL = originalValue;
+  });
+}
 
 describe('useDashboardMetricsModel', () => {
   beforeEach(() => {
@@ -56,13 +86,7 @@ describe('useDashboardMetricsModel', () => {
   });
 
   test('exposes no-dataset state when active dataset is missing', async () => {
-    mockGetActiveDataset.mockRejectedValue(
-      new ServiceError(
-        'DATASET_NOT_FOUND',
-        'No active dataset found. Upload a CSV to begin.',
-        true
-      )
-    );
+    mockGetActiveDataset.mockResolvedValue(null);
 
     const { result } = renderHook(() => useDashboardMetricsModel());
 
@@ -75,17 +99,140 @@ describe('useDashboardMetricsModel', () => {
     expect(result.current.datasetError).toBeNull();
   });
 
+  test('treats ACTIVE_DATASET_NOT_FOUND bootstrap errors as empty first-run state', async () => {
+    mockGetActiveDataset.mockRejectedValue(
+      new ApiError({
+        code: 'ACTIVE_DATASET_NOT_FOUND',
+        message: 'No active dataset yet.',
+        status: 404,
+        retryable: false,
+      })
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    expect(result.current.noDataset).toBe(true);
+    expect(result.current.activeDataset).toBeNull();
+    expect(result.current.datasetError).toBeNull();
+    expect(mockGetDatasetOverview).not.toHaveBeenCalled();
+    expect(mockGetMajorsAnalytics).not.toHaveBeenCalled();
+    expect(mockGetMigrationAnalytics).not.toHaveBeenCalled();
+    expect(mockGetForecastsAnalytics).not.toHaveBeenCalled();
+  });
+
+  test('does not treat ACTIVE_DATASET_NOT_FOUND as empty state when status is non-404', async () => {
+    mockGetActiveDataset.mockRejectedValue(
+      new ApiError({
+        code: 'ACTIVE_DATASET_NOT_FOUND',
+        message: 'No active dataset yet.',
+        status: 500,
+        retryable: false,
+      })
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    expect(result.current.noDataset).toBe(false);
+    expect(result.current.activeDataset).toBeNull();
+    expect(result.current.datasetError).toEqual({
+      code: 'ACTIVE_DATASET_NOT_FOUND',
+      message: 'No active dataset yet.',
+      retryable: false,
+      status: 500,
+    });
+  });
+
+  test('shows CORS guidance when bootstrap fails with a cross-origin browser network error', async () => {
+    await withApiBaseUrlOverride('http://localhost:8000', async () => {
+      mockGetActiveDataset.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.datasetLoading).toBe(false);
+      });
+
+      expect(result.current.noDataset).toBe(false);
+      expect(result.current.datasetError?.code).toBe('NETWORK_ERROR');
+      expect(result.current.datasetError?.message).toContain(
+        'missing CORS headers'
+      );
+      expect(result.current.datasetError?.message).toContain(
+        'backend that is not running'
+      );
+      expect(result.current.datasetError?.message).toContain(
+        'Access-Control-Allow-Origin'
+      );
+      expect(result.current.datasetError?.message).toContain(
+        window.location.origin
+      );
+    });
+  });
+
+  test('does not treat other 404 codes as empty state during bootstrap', async () => {
+    mockGetActiveDataset.mockRejectedValue(
+      new ApiError({
+        code: 'DATASET_NOT_FOUND',
+        message: 'Dataset not found.',
+        status: 404,
+        retryable: false,
+      })
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    expect(result.current.noDataset).toBe(false);
+    expect(result.current.activeDataset).toBeNull();
+    expect(result.current.datasetError).toEqual({
+      code: 'DATASET_NOT_FOUND',
+      message: 'Dataset not found.',
+      retryable: false,
+      status: 404,
+    });
+  });
+
+  test('surfaces primitive bootstrap failures as non-empty error state', async () => {
+    mockGetActiveDataset.mockRejectedValue('bootstrap failed');
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    expect(result.current.noDataset).toBe(false);
+    expect(result.current.activeDataset).toBeNull();
+    expect(result.current.datasetError).toEqual({
+      code: 'UNKNOWN',
+      message: 'Unable to load active dataset state.',
+      retryable: true,
+    });
+  });
+
   test('loads dataset analytics through service boundaries', async () => {
     mockGetActiveDataset.mockResolvedValue({
-      id: 'dataset-1',
+      datasetId: 'dataset-1',
       name: 'enrollment.csv',
-      uploadedAt: '2026-02-11T00:00:00Z',
       status: 'ready',
+      isActive: true,
+      createdAt: '2026-02-11T00:00:00Z',
+      sourceSubmissionId: 'sub-1',
     });
 
     mockGetDatasetOverview.mockResolvedValue({
       datasetId: 'dataset-1',
-      asOfDate: '2026-02-11',
       snapshotTotals: {
         total: 1000,
         undergrad: 900,
@@ -93,18 +240,16 @@ describe('useDashboardMetricsModel', () => {
         transfer: 200,
         international: 120,
       },
+      activeMajors: 12,
+      activeSchools: 6,
       studentTypeDistribution: [{ type: 'FTIC', count: 400 }],
       schoolDistribution: [{ school: 'School of Business', count: 250 }],
-      trendSeries: [
-        { period: 'Fall 2025', year: 2025, semester: 1, total: 950 },
-        { period: 'Spring 2026', year: 2026, semester: 2, total: 1000 },
-      ],
-      majorCount: 12,
-      schoolCount: 6,
+      trend: [{ period: 'Fall 2025', year: 2025, semester: 'Fall', total: 950 }],
     });
 
     mockGetMajorsAnalytics.mockResolvedValue({
       datasetId: 'dataset-1',
+      analyticsRecords: [],
       majorDistribution: [{ major: 'Biology', count: 200 }],
       cohortRecords: [
         {
@@ -132,25 +277,30 @@ describe('useDashboardMetricsModel', () => {
 
     mockGetForecastsAnalytics.mockResolvedValue({
       datasetId: 'dataset-1',
-      historicalSeries: [
-        { period: 'Fall 2025', year: 2025, semester: 1, total: 950 },
+      historical: [
+        { period: 'Fall 2025', year: 2025, semester: 'Fall', total: 950 },
       ],
-      forecastSeries: [
+      forecast: [
         {
           period: 'Spring 2026',
           year: 2026,
-          semester: 2,
+          semester: 'Spring',
           total: 1000,
           isForecasted: true,
         },
       ],
-      fiveYearGrowth: 8,
+      fiveYearGrowthPct: 8,
+      insights: {
+        projectedGrowthText: 'Projected growth.',
+        resourcePlanningText: 'Resource planning.',
+        recommendationText: 'Recommendation.',
+      },
     });
 
     const { result } = renderHook(() => useDashboardMetricsModel());
 
     await waitFor(() => {
-      expect(result.current.activeDataset?.id).toBe('dataset-1');
+      expect(result.current.activeDataset?.datasetId).toBe('dataset-1');
     });
 
     await waitFor(() => {
@@ -164,15 +314,9 @@ describe('useDashboardMetricsModel', () => {
   });
 
   test('tracks upload errors without fabricating submission state', async () => {
-    mockGetActiveDataset.mockRejectedValue(
-      new ServiceError('DATASET_NOT_FOUND', 'No dataset', true)
-    );
+    mockGetActiveDataset.mockResolvedValue(null);
     mockCreateDatasetSubmission.mockRejectedValue(
-      new ServiceError(
-        'NOT_IMPLEMENTED',
-        'Not implemented: createDatasetSubmission (Campaign 3)',
-        true
-      )
+      new ServiceError('UPLOAD_FAILED', 'Upload failed', true)
     );
 
     const { result } = renderHook(() => useDashboardMetricsModel());
@@ -187,8 +331,12 @@ describe('useDashboardMetricsModel', () => {
       await result.current.handleDatasetUpload(file);
     });
 
-    expect(mockCreateDatasetSubmission).toHaveBeenCalledWith({ file });
-    expect(result.current.uploadError?.code).toBe('NOT_IMPLEMENTED');
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
+    expect(mockCreateDatasetSubmission.mock.calls[0]?.[0]).toEqual({
+      file,
+      activateOnSuccess: true,
+    });
+    expect(result.current.uploadError?.code).toBe('UPLOAD_FAILED');
   });
 
   test('surfaces non-dataset-not-found errors from active dataset loading', async () => {
@@ -209,9 +357,7 @@ describe('useDashboardMetricsModel', () => {
   });
 
   test('retry handlers no-op to empty state when no active dataset is available', async () => {
-    mockGetActiveDataset.mockRejectedValue(
-      new ServiceError('DATASET_NOT_FOUND', 'No active dataset found', true)
-    );
+    mockGetActiveDataset.mockResolvedValue(null);
 
     const { result } = renderHook(() => useDashboardMetricsModel());
 
@@ -238,10 +384,12 @@ describe('useDashboardMetricsModel', () => {
 
   test('captures overview/majors/migration/forecast errors when active dataset exists', async () => {
     mockGetActiveDataset.mockResolvedValue({
-      id: 'dataset-1',
+      datasetId: 'dataset-1',
       name: 'enrollment.csv',
-      uploadedAt: '2026-02-11T00:00:00Z',
       status: 'ready',
+      isActive: true,
+      createdAt: '2026-02-11T00:00:00Z',
+      sourceSubmissionId: 'sub-1',
     });
     mockGetDatasetOverview.mockRejectedValue(new Error('Overview unavailable'));
     mockGetMajorsAnalytics.mockRejectedValue(new Error('Majors unavailable'));
@@ -251,7 +399,7 @@ describe('useDashboardMetricsModel', () => {
     const { result } = renderHook(() => useDashboardMetricsModel());
 
     await waitFor(() => {
-      expect(result.current.activeDataset?.id).toBe('dataset-1');
+      expect(result.current.activeDataset?.datasetId).toBe('dataset-1');
     });
 
     await waitFor(() => {
@@ -262,16 +410,17 @@ describe('useDashboardMetricsModel', () => {
     });
   });
 
-  test('resets invalid migration semester selections when not in loaded options', async () => {
+  test('maps NEEDS_REBUILD forecast errors to a panel-specific message', async () => {
     mockGetActiveDataset.mockResolvedValue({
-      id: 'dataset-1',
+      datasetId: 'dataset-1',
       name: 'enrollment.csv',
-      uploadedAt: '2026-02-11T00:00:00Z',
       status: 'ready',
+      isActive: true,
+      createdAt: '2026-02-11T00:00:00Z',
+      sourceSubmissionId: 'sub-1',
     });
     mockGetDatasetOverview.mockResolvedValue({
       datasetId: 'dataset-1',
-      asOfDate: '2026-02-11',
       snapshotTotals: {
         total: 0,
         undergrad: 0,
@@ -279,14 +428,105 @@ describe('useDashboardMetricsModel', () => {
         transfer: 0,
         international: 0,
       },
+      activeMajors: 0,
+      activeSchools: 0,
       studentTypeDistribution: [],
       schoolDistribution: [],
-      trendSeries: [],
-      majorCount: 0,
-      schoolCount: 0,
+      trend: [],
     });
     mockGetMajorsAnalytics.mockResolvedValue({
       datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockRejectedValue(
+      new ServiceError('NEEDS_REBUILD', 'Rebuild required', false)
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.forecastsError?.code).toBe('NEEDS_REBUILD');
+    });
+
+    expect(result.current.forecastsError?.message).toBe(
+      'Forecasts are not ready yet for this dataset. Rebuild is required before forecast analytics can be shown.'
+    );
+  });
+
+  test('ignores REQUEST_ABORTED errors from panel loaders', async () => {
+    mockGetActiveDataset.mockResolvedValue({
+      datasetId: 'dataset-1',
+      name: 'enrollment.csv',
+      status: 'ready',
+      isActive: true,
+      createdAt: '2026-02-11T00:00:00Z',
+      sourceSubmissionId: 'sub-1',
+    });
+    mockGetDatasetOverview.mockRejectedValue(
+      new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+    );
+    mockGetMajorsAnalytics.mockRejectedValue(
+      new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+    );
+    mockGetMigrationAnalytics.mockRejectedValue(
+      new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+    );
+    mockGetForecastsAnalytics.mockRejectedValue(
+      new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.activeDataset?.datasetId).toBe('dataset-1');
+    });
+
+    await act(async () => {
+      await result.current.retryOverview();
+      await result.current.retryMajors();
+      await result.current.retryMigration();
+      await result.current.retryForecasts();
+    });
+
+    expect(result.current.overviewError).toBeNull();
+    expect(result.current.majorsError).toBeNull();
+    expect(result.current.migrationError).toBeNull();
+    expect(result.current.forecastsError).toBeNull();
+  });
+
+  test('resets invalid migration semester selections when not in loaded options', async () => {
+    mockGetActiveDataset.mockResolvedValue({
+      datasetId: 'dataset-1',
+      name: 'enrollment.csv',
+      status: 'ready',
+      isActive: true,
+      createdAt: '2026-02-11T00:00:00Z',
+      sourceSubmissionId: 'sub-1',
+    });
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
       majorDistribution: [],
       cohortRecords: [],
     });
@@ -297,9 +537,14 @@ describe('useDashboardMetricsModel', () => {
     });
     mockGetForecastsAnalytics.mockResolvedValue({
       datasetId: 'dataset-1',
-      historicalSeries: [],
-      forecastSeries: [],
-      fiveYearGrowth: 0,
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
     });
 
     const { result } = renderHook(() => useDashboardMetricsModel());
@@ -308,37 +553,55 @@ describe('useDashboardMetricsModel', () => {
       expect(result.current.migrationData?.semesters).toEqual(['Spring 2026']);
     });
 
-    act(() => {
+    await act(async () => {
       result.current.setMigrationSemester('Fall 2025');
     });
 
-    expect(result.current.migrationSemester).toBeUndefined();
+    await waitFor(() => {
+      expect(result.current.migrationSemester).toBeUndefined();
+    });
 
-    act(() => {
+    await act(async () => {
       result.current.setMigrationSemester('Spring 2026');
     });
 
-    expect(result.current.migrationSemester).toBe('Spring 2026');
+    await waitFor(() => {
+      expect(result.current.migrationSemester).toBe('Spring 2026');
+    });
   });
 
   test('upload success reloads dataset state and clears upload error', async () => {
     mockGetActiveDataset
-      .mockRejectedValueOnce(new ServiceError('DATASET_NOT_FOUND', 'No dataset', true))
+      .mockResolvedValueOnce(null)
       .mockResolvedValue({
-        id: 'dataset-2',
+        datasetId: 'dataset-2',
         name: 'latest.csv',
-        uploadedAt: '2026-02-11T00:00:00Z',
-        status: 'processing',
+        status: 'ready',
+        isActive: true,
+        createdAt: '2026-02-11T00:00:00Z',
+        sourceSubmissionId: 'sub-1',
       });
+
     mockCreateDatasetSubmission.mockResolvedValue({
-      id: 'submission-1',
-      datasetName: 'latest.csv',
+      submissionId: 'submission-1',
+      datasetId: 'dataset-2',
       status: 'queued',
+      fileName: 'latest.csv',
       createdAt: '2026-02-11T00:00:00Z',
     });
+
+    mockGetDatasetSubmissionStatus.mockResolvedValue({
+      submissionId: 'submission-1',
+      datasetId: 'dataset-2',
+      status: 'completed',
+      fileName: 'latest.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+      completedAt: '2026-02-11T00:01:00Z',
+      validationErrors: [],
+    });
+
     mockGetDatasetOverview.mockResolvedValue({
       datasetId: 'dataset-2',
-      asOfDate: '2026-02-11',
       snapshotTotals: {
         total: 0,
         undergrad: 0,
@@ -346,14 +609,15 @@ describe('useDashboardMetricsModel', () => {
         transfer: 0,
         international: 0,
       },
+      activeMajors: 0,
+      activeSchools: 0,
       studentTypeDistribution: [],
       schoolDistribution: [],
-      trendSeries: [],
-      majorCount: 0,
-      schoolCount: 0,
+      trend: [],
     });
     mockGetMajorsAnalytics.mockResolvedValue({
       datasetId: 'dataset-2',
+      analyticsRecords: [],
       majorDistribution: [],
       cohortRecords: [],
     });
@@ -364,9 +628,14 @@ describe('useDashboardMetricsModel', () => {
     });
     mockGetForecastsAnalytics.mockResolvedValue({
       datasetId: 'dataset-2',
-      historicalSeries: [],
-      forecastSeries: [],
-      fiveYearGrowth: 0,
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
     });
 
     const { result } = renderHook(() => useDashboardMetricsModel());
@@ -383,11 +652,427 @@ describe('useDashboardMetricsModel', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.activeDataset?.id).toBe('dataset-2');
+      expect(result.current.activeDataset?.datasetId).toBe('dataset-2');
     });
 
-    expect(mockGetActiveDataset).toHaveBeenCalledTimes(2);
+    expect(mockGetDatasetSubmissionStatus).toHaveBeenCalledWith('submission-1', {
+      signal: expect.any(Object),
+    });
     expect(result.current.uploadError).toBeNull();
     expect(result.current.uploadLoading).toBe(false);
+  });
+
+  test('deduplicates concurrent active dataset requests', async () => {
+    let resolveDataset: ((value: Awaited<ReturnType<typeof getActiveDataset>>) => void) | null =
+      null;
+    const deferred = new Promise<Awaited<ReturnType<typeof getActiveDataset>>>(
+      (resolve) => {
+        resolveDataset = resolve;
+      }
+    );
+    mockGetActiveDataset.mockReturnValue(deferred);
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await act(async () => {
+      const first = result.current.retryDataset();
+      const second = result.current.retryDataset();
+      resolveDataset?.({
+        datasetId: 'dataset-1',
+        name: 'enrollment.csv',
+        status: 'ready',
+        isActive: true,
+        createdAt: '2026-02-11T00:00:00Z',
+        sourceSubmissionId: 'sub-1',
+      });
+      await Promise.all([first, second]);
+    });
+
+    expect(mockGetActiveDataset).toHaveBeenCalledTimes(1);
+  });
+
+  test('ignores aborted active dataset requests without surfacing errors', async () => {
+    mockGetActiveDataset.mockRejectedValue(
+      new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.datasetError).toBeNull();
+    });
+  });
+
+  test('maps terminal failed submissions to upload error details', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+    mockCreateDatasetSubmission.mockResolvedValue({
+      submissionId: 'submission-1',
+      datasetId: 'dataset-1',
+      status: 'queued',
+      fileName: 'bad.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+    });
+    mockGetDatasetSubmissionStatus.mockResolvedValue({
+      submissionId: 'submission-1',
+      datasetId: 'dataset-1',
+      status: 'failed',
+      fileName: 'bad.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+      completedAt: '2026-02-11T00:00:10Z',
+      validationErrors: [{ code: 'ROW_INVALID', message: 'Row 12 invalid.' }],
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'bad.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(result.current.uploadError).toMatchObject({
+      code: 'ROW_INVALID',
+      message: 'Row 12 invalid.',
+    });
+  });
+
+  test('falls back to default failed-submission error metadata when validation errors are absent', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+    mockCreateDatasetSubmission.mockResolvedValue({
+      submissionId: 'submission-1',
+      datasetId: 'dataset-1',
+      status: 'queued',
+      fileName: 'bad.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+    });
+    mockGetDatasetSubmissionStatus.mockResolvedValue({
+      submissionId: 'submission-1',
+      datasetId: 'dataset-1',
+      status: 'failed',
+      fileName: 'bad.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+      completedAt: '2026-02-11T00:00:10Z',
+      validationErrors: undefined,
+    } as unknown as Awaited<ReturnType<typeof getDatasetSubmissionStatus>>);
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'bad.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(result.current.uploadError).toMatchObject({
+      code: 'SUBMISSION_FAILED',
+      message: 'Dataset processing failed. Check validation errors and retry.',
+      details: {
+        validationErrors: [],
+      },
+    });
+  });
+
+  test('times out submission polling with bounded backoff', async () => {
+    jest.useFakeTimers();
+    let now = 0;
+    const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      mockGetActiveDataset.mockResolvedValue(null);
+      mockCreateDatasetSubmission.mockResolvedValue({
+        submissionId: 'submission-timeout',
+        datasetId: 'dataset-1',
+        status: 'queued',
+        fileName: 'slow.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+      });
+      let statusCalls = 0;
+      mockGetDatasetSubmissionStatus.mockImplementation(async () => {
+        statusCalls += 1;
+        if (statusCalls >= 2) {
+          now = 181_000;
+        }
+
+        return {
+          submissionId: 'submission-timeout',
+          datasetId: 'dataset-1',
+          status: 'processing',
+          fileName: 'slow.csv',
+          createdAt: '2026-02-11T00:00:00Z',
+          completedAt: null,
+          validationErrors: [],
+        };
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+      await waitFor(() => {
+        expect(result.current.datasetLoading).toBe(false);
+      });
+
+      await act(async () => {
+        const uploadPromise = result.current.handleDatasetUpload(
+          new File(['x,y\n1,2'], 'slow.csv', { type: 'text/csv' })
+        );
+        await jest.advanceTimersByTimeAsync(1_000);
+        await uploadPromise;
+      });
+
+      expect(result.current.uploadError?.code).toBe('SUBMISSION_POLL_TIMEOUT');
+      expect(mockGetDatasetSubmissionStatus).toHaveBeenCalled();
+    } finally {
+      dateNowSpy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  test('aborts in-flight upload polling when a new upload starts', async () => {
+    mockGetActiveDataset
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({
+        datasetId: 'dataset-2',
+        name: 'latest.csv',
+        status: 'ready',
+        isActive: true,
+        createdAt: '2026-02-11T00:00:00Z',
+        sourceSubmissionId: 'sub-2',
+      });
+
+    mockCreateDatasetSubmission
+      .mockResolvedValueOnce({
+        submissionId: 'submission-1',
+        datasetId: 'dataset-1',
+        status: 'queued',
+        fileName: 'first.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+      })
+      .mockResolvedValueOnce({
+        submissionId: 'submission-2',
+        datasetId: 'dataset-2',
+        status: 'queued',
+        fileName: 'second.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+      });
+
+    mockGetDatasetSubmissionStatus
+      .mockResolvedValueOnce({
+        submissionId: 'submission-1',
+        datasetId: 'dataset-1',
+        status: 'processing',
+        fileName: 'first.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+        completedAt: null,
+        validationErrors: [],
+      })
+      .mockResolvedValueOnce({
+        submissionId: 'submission-2',
+        datasetId: 'dataset-2',
+        status: 'completed',
+        fileName: 'second.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+        completedAt: '2026-02-11T00:01:00Z',
+        validationErrors: [],
+      });
+
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-2',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    let firstUploadPromise!: Promise<void>;
+    await act(async () => {
+      firstUploadPromise = result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'first.csv', { type: 'text/csv' })
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'second.csv', { type: 'text/csv' })
+      );
+    });
+
+    await act(async () => {
+      await firstUploadPromise;
+    });
+
+    expect(result.current.uploadError).toBeNull();
+    expect(result.current.uploadLoading).toBe(false);
+    expect(result.current.activeDataset?.datasetId).toBe('dataset-2');
+  });
+
+  test('uses submission dataset id when refreshed active dataset is unavailable after upload success', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+    mockCreateDatasetSubmission.mockResolvedValue({
+      submissionId: 'submission-9',
+      datasetId: 'dataset-9',
+      status: 'queued',
+      fileName: 'latest.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+    });
+    mockGetDatasetSubmissionStatus.mockResolvedValue({
+      submissionId: 'submission-9',
+      datasetId: 'dataset-9',
+      status: 'completed',
+      fileName: 'latest.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+      completedAt: '2026-02-11T00:00:10Z',
+      validationErrors: [],
+    });
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-9',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-9',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-9',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-9',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'latest.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(mockGetDatasetOverview).toHaveBeenCalledWith('dataset-9', {
+      signal: expect.any(Object),
+    });
+  });
+
+  test('handles uploads aborted before delay wait begins', async () => {
+    jest.useFakeTimers();
+    try {
+    mockGetActiveDataset.mockResolvedValue(null);
+    mockCreateDatasetSubmission
+      .mockResolvedValueOnce({
+        submissionId: 'submission-1',
+        datasetId: 'dataset-1',
+        status: 'queued',
+        fileName: 'first.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+      })
+      .mockRejectedValueOnce(
+        new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+      );
+
+    mockGetDatasetSubmissionStatus.mockImplementationOnce(() => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            submissionId: 'submission-1',
+            datasetId: 'dataset-1',
+            status: 'processing',
+            fileName: 'first.csv',
+            createdAt: '2026-02-11T00:00:00Z',
+            completedAt: null,
+            validationErrors: [],
+          });
+        }, 0);
+      });
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    let firstUploadPromise!: Promise<void>;
+    act(() => {
+      firstUploadPromise = result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'first.csv', { type: 'text/csv' })
+      );
+    });
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'second.csv', { type: 'text/csv' })
+      );
+      await jest.advanceTimersByTimeAsync(0);
+      await firstUploadPromise;
+    });
+
+    expect(result.current.uploadError).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

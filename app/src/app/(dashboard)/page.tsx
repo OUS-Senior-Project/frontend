@@ -82,6 +82,8 @@ export default function DashboardPage() {
               forecastsData={dashboard.forecastsData}
               forecastsLoading={dashboard.forecastsLoading}
               forecastsError={dashboard.forecastsError}
+              forecastHorizon={dashboard.forecastHorizon}
+              onForecastHorizonChange={dashboard.setForecastHorizon}
               onForecastsRetry={dashboard.retryForecasts}
             />
           )}

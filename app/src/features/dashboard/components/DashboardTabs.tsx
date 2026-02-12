@@ -36,6 +36,8 @@ interface DashboardTabsProps {
   forecastsData: ForecastsAnalyticsResponse | null;
   forecastsLoading: boolean;
   forecastsError: UIError | null;
+  forecastHorizon: number;
+  onForecastHorizonChange: (horizon: number) => void;
   onForecastsRetry: () => void;
 }
 
@@ -100,6 +102,8 @@ export function DashboardTabs(props: DashboardTabsProps) {
         data={props.forecastsData}
         loading={props.forecastsLoading}
         error={props.forecastsError}
+        horizon={props.forecastHorizon}
+        onHorizonChange={props.onForecastHorizonChange}
         onRetry={props.onForecastsRetry}
       />
     </Tabs>

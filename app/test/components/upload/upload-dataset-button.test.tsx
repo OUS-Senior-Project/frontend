@@ -7,22 +7,22 @@ describe('UploadDatasetButton', () => {
     const { rerender } = render(
       <UploadDatasetButton onDatasetUpload={onDatasetUpload} />
     );
-    expect(screen.getByLabelText('Upload CSV')).toBeInTheDocument();
+    expect(screen.getByLabelText('Upload Dataset')).toBeInTheDocument();
 
     rerender(
       <UploadDatasetButton
         onDatasetUpload={onDatasetUpload}
-        buttonLabel="Upload dataset CSV"
+        buttonLabel="Upload dataset"
       />
     );
-    expect(screen.getByLabelText('Upload dataset CSV')).toBeInTheDocument();
+    expect(screen.getByLabelText('Upload dataset')).toBeInTheDocument();
   });
 
   test('ignores empty file selection', () => {
     const onDatasetUpload = jest.fn();
     render(<UploadDatasetButton onDatasetUpload={onDatasetUpload} />);
 
-    const input = screen.getByLabelText('Upload CSV') as HTMLInputElement;
+    const input = screen.getByLabelText('Upload Dataset') as HTMLInputElement;
     fireEvent.change(input, {
       target: { files: [] },
     });
@@ -34,7 +34,7 @@ describe('UploadDatasetButton', () => {
     const onDatasetUpload = jest.fn();
     render(<UploadDatasetButton onDatasetUpload={onDatasetUpload} />);
 
-    const input = screen.getByLabelText('Upload CSV') as HTMLInputElement;
+    const input = screen.getByLabelText('Upload Dataset') as HTMLInputElement;
     const file = new File(['id,name\n1,Jane'], 'dataset.csv', {
       type: 'text/csv',
     });

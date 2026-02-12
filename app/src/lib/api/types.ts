@@ -1,20 +1,38 @@
 export interface ApiErrorEnvelope {
-  code: string;
-  message: string;
-  details?: unknown;
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
 }
 
 export interface UIError {
   code: string;
   message: string;
   retryable: boolean;
+  details?: unknown;
+  requestId?: string;
+  status?: number;
 }
 
+export type DatasetStatus = 'building' | 'ready' | 'failed';
+
 export interface DatasetSummary {
-  id: string;
+  datasetId: string;
   name: string;
-  uploadedAt: string;
-  status: 'ready' | 'processing' | 'failed';
+  status: DatasetStatus;
+  isActive: boolean;
+  createdAt: string;
+  sourceSubmissionId: string | null;
+}
+
+export type DatasetDetail = DatasetSummary;
+
+export interface DatasetListResponse {
+  items: DatasetSummary[];
+  page: number;
+  pageSize: number;
+  total: number;
 }
 
 export interface AnalyticsRecord {
@@ -36,8 +54,8 @@ export interface MigrationRecord {
 export interface MajorCohortRecord {
   major: string;
   cohort: string;
-  avgGPA: number;
-  avgCredits: number;
+  avgGPA: number | null;
+  avgCredits: number | null;
   studentCount: number;
 }
 
@@ -49,6 +67,17 @@ export interface TrendPoint {
 }
 
 export interface ForecastPoint extends TrendPoint {
+  isForecasted: true;
+}
+
+export interface DatasetTrendPoint {
+  period: string;
+  year: number;
+  semester: string;
+  total: number;
+}
+
+export interface DatasetForecastPoint extends DatasetTrendPoint {
   isForecasted: true;
 }
 
@@ -77,13 +106,12 @@ export interface StudentTypeCount {
 
 export interface DatasetOverviewResponse {
   datasetId: string;
-  asOfDate: string;
   snapshotTotals: SnapshotTotals;
+  activeMajors: number;
+  activeSchools: number;
+  trend: DatasetTrendPoint[];
   studentTypeDistribution: StudentTypeCount[];
   schoolDistribution: SchoolCount[];
-  trendSeries: TrendPoint[];
-  majorCount: number;
-  schoolCount: number;
 }
 
 export interface AnalyticsRecordsResponse {
@@ -91,10 +119,26 @@ export interface AnalyticsRecordsResponse {
   records: AnalyticsRecord[];
 }
 
+export interface MajorCohortRecordsResponse {
+  datasetId: string;
+  records: MajorCohortRecord[];
+}
+
 export interface MajorsAnalyticsResponse {
   datasetId: string;
+  analyticsRecords: AnalyticsRecord[];
   majorDistribution: MajorCount[];
   cohortRecords: MajorCohortRecord[];
+}
+
+export interface MigrationRecordsResponse {
+  datasetId: string;
+  records: MigrationRecord[];
+}
+
+export interface MigrationOptionsResponse {
+  datasetId: string;
+  semesters: string[];
 }
 
 export interface MigrationAnalyticsResponse {
@@ -103,27 +147,121 @@ export interface MigrationAnalyticsResponse {
   records: MigrationRecord[];
 }
 
-export interface ForecastsAnalyticsResponse {
-  datasetId: string;
-  historicalSeries: TrendPoint[];
-  forecastSeries: ForecastPoint[];
-  fiveYearGrowth: number;
+export interface ForecastInsights {
+  projectedGrowthText: string;
+  resourcePlanningText: string;
+  recommendationText: string;
 }
 
-export type SubmissionStatus =
-  | 'queued'
-  | 'processing'
-  | 'completed'
-  | 'failed';
+export interface DatasetForecastResponse {
+  datasetId: string;
+  fiveYearGrowthPct: number;
+  historical: DatasetTrendPoint[];
+  forecast: DatasetForecastPoint[];
+  insights: ForecastInsights;
+}
+
+export type ForecastsAnalyticsResponse = DatasetForecastResponse;
+
+export interface ErrorDetail {
+  code?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
+export type SubmissionStatus = 'queued' | 'processing' | 'completed' | 'failed';
+
+export interface SubmissionCreateResponse {
+  submissionId: string;
+  datasetId: string;
+  status: SubmissionStatus;
+  fileName: string;
+  createdAt: string;
+}
+
+export interface SubmissionStatusResponse {
+  submissionId: string;
+  datasetId: string;
+  status: SubmissionStatus;
+  fileName: string;
+  createdAt: string;
+  completedAt: string | null;
+  validationErrors: ErrorDetail[];
+}
+
+export interface SubmissionHistoryItem {
+  submissionId: string;
+  datasetId: string;
+  status: SubmissionStatus;
+  fileName: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface SubmissionHistoryListResponse {
+  items: SubmissionHistoryItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
 
 export interface DatasetSubmission {
-  id: string;
-  datasetId?: string;
-  datasetName: string;
+  submissionId: string;
+  datasetId: string;
   status: SubmissionStatus;
+  fileName: string;
   createdAt: string;
+  completedAt?: string | null;
+  validationErrors?: ErrorDetail[];
 }
 
 export interface CreateSubmissionRequest {
   file: File;
+  activateOnSuccess?: boolean;
+}
+
+export type BulkJobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+export type BulkJobItemStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'skipped';
+
+export interface BulkSubmissionCreateResponse {
+  jobId: string;
+  status: BulkJobStatus;
+  totalFiles: number;
+  activateLatest: boolean;
+  continueOnError: boolean;
+  dryRun: boolean;
+  createdAt: string;
+}
+
+export interface BulkSubmissionFileResult {
+  fileOrder: number;
+  fileName: string;
+  status: BulkJobItemStatus;
+  submissionId: string | null;
+  datasetId: string | null;
+  completedAt: string | null;
+  validationErrors: ErrorDetail[];
+  error: ErrorDetail | null;
+}
+
+export interface BulkSubmissionStatusResponse {
+  jobId: string;
+  status: BulkJobStatus;
+  totalFiles: number;
+  processedFiles: number;
+  succeededFiles: number;
+  failedFiles: number;
+  activateLatest: boolean;
+  continueOnError: boolean;
+  dryRun: boolean;
+  activatedDatasetId: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  results: BulkSubmissionFileResult[];
 }

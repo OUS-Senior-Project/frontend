@@ -25,15 +25,14 @@ export function DashboardNoDatasetState({
           No dataset uploaded yet
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Upload a CSV dataset to populate Overview, Majors, Migration, and
-          Forecasts.
+          Upload a roster file to generate analytics.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <UploadDatasetButton
             onDatasetUpload={onDatasetUpload}
-            buttonLabel="Upload dataset CSV"
+            buttonLabel="Upload file"
           />
           {uploadLoading && (
             <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
