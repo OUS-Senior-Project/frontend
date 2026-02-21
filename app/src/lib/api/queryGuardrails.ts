@@ -16,7 +16,9 @@ function isQueryPrimitive(value: unknown): value is QueryPrimitive {
 }
 
 function isQueryArray(value: unknown): value is QueryPrimitive[] {
-  return Array.isArray(value) && value.length > 0 && value.every(isQueryPrimitive);
+  return (
+    Array.isArray(value) && value.length > 0 && value.every(isQueryPrimitive)
+  );
 }
 
 function isOmittedValue(value: unknown) {

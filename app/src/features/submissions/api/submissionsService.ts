@@ -161,13 +161,10 @@ export async function getDatasetSubmissionStatus(
 export async function listSubmissions(
   options: ListSubmissionsOptions = {}
 ): Promise<SubmissionHistoryListResponse> {
-  return apiClient.get<SubmissionHistoryListResponse>(
-    SUBMISSIONS_ENDPOINT,
-    {
-      query: buildListSubmissionsQuery(options),
-      signal: options.signal,
-    }
-  );
+  return apiClient.get<SubmissionHistoryListResponse>(SUBMISSIONS_ENDPOINT, {
+    query: buildListSubmissionsQuery(options),
+    signal: options.signal,
+  });
 }
 
 export async function createBulkSubmissionJob(
