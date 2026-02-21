@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import { ServiceError } from '@/lib/api/errors';
+import { filterQueryParams } from '@/lib/api/queryGuardrails';
 import type {
   DatasetDetail,
   DatasetListResponse,
@@ -7,10 +8,17 @@ import type {
 } from '@/lib/api/types';
 
 const API_PREFIX = '/api/v1';
+const DATASETS_ENDPOINT = `${API_PREFIX}/datasets`;
+const LIST_DATASETS_QUERY_ALLOWLIST = ['page', 'pageSize'] as const;
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
 
-interface ListDatasetsOptions {
+type PaginationParams = {
   page?: number;
   pageSize?: number;
+};
+
+interface ListDatasetsOptions extends PaginationParams {
   signal?: AbortSignal;
 }
 
@@ -18,14 +26,68 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+function warnPaginationNormalization(
+  endpoint: string,
+  key: 'page' | 'pageSize',
+  value: number,
+  fallback: number
+) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+
+  console.warn(
+    `[api-query-guardrail] Normalized invalid ${key} for ${endpoint}: ${value} -> ${fallback}`
+  );
+}
+
+function normalizePaginationValue(
+  endpoint: string,
+  key: 'page' | 'pageSize',
+  value: number | undefined,
+  fallback: number
+) {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  if (!Number.isFinite(value) || value < 1) {
+    warnPaginationNormalization(endpoint, key, value, fallback);
+    return fallback;
+  }
+
+  return value;
+}
+
+function buildListDatasetsQuery(options: ListDatasetsOptions) {
+  const page = normalizePaginationValue(
+    DATASETS_ENDPOINT,
+    'page',
+    options.page,
+    DEFAULT_PAGE
+  );
+  const pageSize = normalizePaginationValue(
+    DATASETS_ENDPOINT,
+    'pageSize',
+    options.pageSize,
+    DEFAULT_PAGE_SIZE
+  );
+
+  return filterQueryParams({
+    endpoint: DATASETS_ENDPOINT,
+    params: {
+      page,
+      pageSize,
+    },
+    allowedKeys: LIST_DATASETS_QUERY_ALLOWLIST,
+  });
+}
+
 export async function listDatasets(
   options: ListDatasetsOptions = {}
 ): Promise<DatasetListResponse> {
-  return apiClient.get<DatasetListResponse>(`${API_PREFIX}/datasets`, {
-    query: {
-      page: options.page ?? 1,
-      pageSize: options.pageSize ?? 20,
-    },
+  return apiClient.get<DatasetListResponse>(DATASETS_ENDPOINT, {
+    query: buildListDatasetsQuery(options),
     signal: options.signal,
   });
 }

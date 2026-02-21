@@ -16,6 +16,7 @@ import {
 } from '@/features/submissions/api/submissionsService';
 import { ServiceError } from '@/lib/api/errors';
 import { apiClient } from '@/lib/api/client';
+import { filterQueryParams } from '@/lib/api/queryGuardrails';
 
 jest.mock('@/lib/api/client', () => ({
   apiClient: {
@@ -27,6 +28,309 @@ jest.mock('@/lib/api/client', () => ({
 }));
 
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+
+function withNodeEnv(
+  value: string,
+  testFn: () => Promise<void> | void
+): Promise<void> | void {
+  const originalNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = value;
+
+  const cleanup = () => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+      return;
+    }
+
+    process.env.NODE_ENV = originalNodeEnv;
+  };
+
+  try {
+    const maybePromise = testFn();
+    if (maybePromise instanceof Promise) {
+      return maybePromise.finally(cleanup);
+    }
+    cleanup();
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+}
+
+function createHeaderBag(headers: Record<string, string> = {}) {
+  const table = new Map<string, string>();
+  Object.entries(headers).forEach(([key, value]) => {
+    table.set(key.toLowerCase(), value);
+  });
+
+  return {
+    get(name: string) {
+      return table.get(name.toLowerCase()) ?? null;
+    },
+  };
+}
+
+function jsonResponse(body: unknown) {
+  return {
+    status: 200,
+    ok: true,
+    headers: createHeaderBag({
+      'content-type': 'application/json',
+    }),
+    text: async () => JSON.stringify(body),
+  } as unknown as Response;
+}
+
+function installFetchMock() {
+  const fetchMock = jest.fn() as jest.MockedFunction<typeof fetch>;
+  Object.defineProperty(globalThis, 'fetch', {
+    writable: true,
+    value: fetchMock,
+  });
+
+  return fetchMock;
+}
+
+describe('query guardrails', () => {
+  test('filterQueryParams keeps valid non-empty primitive arrays without warning', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('development', () => {
+        const query = filterQueryParams({
+          endpoint: '/api/v1/submissions',
+          params: {
+            page: 1,
+            pageSize: 20,
+            tags: ['queued', 'failed'],
+          },
+          allowedKeys: ['page', 'pageSize', 'tags'],
+        });
+
+        expect(query).toEqual({
+          page: 1,
+          pageSize: 20,
+          tags: ['queued', 'failed'],
+        });
+      });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('filterQueryParams omits undefined, null, empty strings, and empty arrays without warning', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('development', () => {
+        const query = filterQueryParams({
+          endpoint: '/api/v1/submissions',
+          params: {
+            page: 1,
+            pageSize: 20,
+            status: undefined,
+            createdAfter: null,
+            createdBefore: '',
+            tags: [],
+          },
+          allowedKeys: [
+            'page',
+            'pageSize',
+            'status',
+            'createdAfter',
+            'createdBefore',
+            'tags',
+          ],
+        });
+
+        expect(query).toEqual({
+          page: 1,
+          pageSize: 20,
+        });
+      });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('filterQueryParams drops unknown keys and warns in non-production environments', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('development', () => {
+        const query = filterQueryParams({
+          endpoint: '/api/v1/datasets',
+          params: {
+            page: 1,
+            pageSize: 10,
+            limit: 10,
+            offset: 20,
+          },
+          allowedKeys: ['page', 'pageSize'],
+        });
+
+        expect(query).toEqual({
+          page: 1,
+          pageSize: 10,
+        });
+      });
+
+      const warningMessage = String(warnSpy.mock.calls[0]?.[0]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warningMessage).toContain('/api/v1/datasets');
+      expect(warningMessage).toContain('limit');
+      expect(warningMessage).toContain('offset');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('filterQueryParams drops invalid types and non-finite numbers with warning in non-production environments', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('development', () => {
+        const query = filterQueryParams({
+          endpoint: '/api/v1/submissions',
+          params: {
+            page: 1,
+            pageSize: Number.POSITIVE_INFINITY,
+            status: { value: 'failed' },
+          },
+          allowedKeys: ['page', 'pageSize', 'status'],
+        });
+
+        expect(query).toEqual({
+          page: 1,
+        });
+      });
+
+      const warningMessage = String(warnSpy.mock.calls[0]?.[0]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warningMessage).toContain('/api/v1/submissions');
+      expect(warningMessage).toContain('pageSize');
+      expect(warningMessage).toContain('status');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('filterQueryParams drops arrays with invalid entries and warns in non-production environments', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('development', () => {
+        const query = filterQueryParams({
+          endpoint: '/api/v1/submissions',
+          params: {
+            page: 1,
+            tags: ['queued', { bad: true }],
+          },
+          allowedKeys: ['page', 'tags'],
+        });
+
+        expect(query).toEqual({
+          page: 1,
+        });
+      });
+
+      const warningMessage = String(warnSpy.mock.calls[0]?.[0]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warningMessage).toContain('/api/v1/submissions');
+      expect(warningMessage).toContain('tags');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('filterQueryParams suppresses warning logs in production', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('production', () => {
+        const query = filterQueryParams({
+          endpoint: '/api/v1/submissions',
+          params: {
+            page: 1,
+            pageSize: Number.NaN,
+            status: { value: 'failed' },
+            limit: 10,
+          },
+          allowedKeys: ['page', 'pageSize', 'status'],
+        });
+
+        expect(query).toEqual({
+          page: 1,
+        });
+      });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('wire-level query serialization excludes dropped and omitted params', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const originalFetch = globalThis.fetch;
+
+    try {
+      const fetchSpy = installFetchMock();
+      fetchSpy.mockResolvedValueOnce(jsonResponse({ items: [] }));
+
+      const { createApiClient } = jest.requireActual(
+        '@/lib/api/client'
+      ) as typeof import('@/lib/api/client');
+
+      const filteredQuery = filterQueryParams({
+        endpoint: '/api/v1/submissions',
+        params: {
+          page: 1,
+          pageSize: 1,
+          status: undefined,
+          createdAfter: null,
+          createdBefore: '',
+          tags: [],
+          invalidShape: { value: 'bad' },
+          invalidNumber: Number.NaN,
+          limit: 25,
+        },
+        allowedKeys: [
+          'page',
+          'pageSize',
+          'status',
+          'createdAfter',
+          'createdBefore',
+          'tags',
+          'invalidShape',
+          'invalidNumber',
+        ],
+      });
+
+      const client = createApiClient('http://localhost:8000');
+      await client.get('/api/v1/submissions', { query: filteredQuery });
+
+      const raw = String(fetchSpy.mock.calls[0]?.[0]);
+      const parsed = new URL(raw);
+      expect(`${parsed.origin}${parsed.pathname}`).toBe(
+        'http://localhost:8000/api/v1/submissions'
+      );
+      expect(parsed.searchParams.get('page')).toBe('1');
+      expect(parsed.searchParams.get('pageSize')).toBe('1');
+      expect([...parsed.searchParams.keys()].sort()).toEqual([
+        'page',
+        'pageSize',
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+      warnSpy.mockRestore();
+    }
+  });
+});
 
 describe('service modules', () => {
   beforeEach(() => {
@@ -93,6 +397,100 @@ describe('service modules', () => {
       undefined,
       { signal: undefined }
     );
+  });
+
+  test('listDatasets normalizes invalid pagination values and warns in non-production environments', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      pageSize: 20,
+      total: 0,
+    });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('development', async () => {
+        await listDatasets({
+          page: 0,
+          pageSize: -5,
+        });
+      });
+
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/datasets', {
+        query: {
+          page: 1,
+          pageSize: 20,
+        },
+        signal: undefined,
+      });
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      const warningMessage = String(warnSpy.mock.calls[0]?.[0]);
+      expect(warningMessage).toContain('/api/v1/datasets');
+      expect(warningMessage).toContain('page');
+      expect(String(warnSpy.mock.calls[1]?.[0])).toContain('pageSize');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('listDatasets keeps valid pagination values without normalization warnings', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      items: [],
+      page: 3,
+      pageSize: 15,
+      total: 0,
+    });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('development', async () => {
+        await listDatasets({
+          page: 3,
+          pageSize: 15,
+        });
+      });
+
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/datasets', {
+        query: {
+          page: 3,
+          pageSize: 15,
+        },
+        signal: undefined,
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('listDatasets suppresses pagination normalization warnings in production', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      pageSize: 20,
+      total: 0,
+    });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('production', async () => {
+        await listDatasets({
+          page: 0,
+          pageSize: -1,
+        });
+      });
+
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/datasets', {
+        query: {
+          page: 1,
+          pageSize: 20,
+        },
+        signal: undefined,
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   test('getActiveDataset maps ACTIVE_DATASET_NOT_FOUND to null and rethrows other errors', async () => {
@@ -408,9 +806,6 @@ describe('service modules', () => {
       query: {
         page: 1,
         pageSize: 20,
-        status: undefined,
-        createdAfter: undefined,
-        createdBefore: undefined,
       },
       signal: undefined,
     });
@@ -420,5 +815,76 @@ describe('service modules', () => {
     expect(bulkBody.get('activate_latest')).toBe('true');
     expect(bulkBody.get('continue_on_error')).toBe('true');
     expect(bulkBody.get('dry_run')).toBe('false');
+  });
+
+  test('listSubmissions keeps expected keys and normalizes invalid pagination values', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      pageSize: 20,
+      total: 0,
+    });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('development', async () => {
+        await listSubmissions({
+          page: Number.NaN,
+          pageSize: Number.POSITIVE_INFINITY,
+          status: 'processing',
+          createdAfter: '2026-02-01T00:00:00Z',
+          createdBefore: '',
+        });
+      });
+
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/submissions', {
+        query: {
+          page: 1,
+          pageSize: 20,
+          status: 'processing',
+          createdAfter: '2026-02-01T00:00:00Z',
+        },
+        signal: undefined,
+      });
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      const warningMessage = String(warnSpy.mock.calls[0]?.[0]);
+      expect(warningMessage).toContain('/api/v1/submissions');
+      expect(warningMessage).toContain('page');
+      expect(String(warnSpy.mock.calls[1]?.[0])).toContain('pageSize');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test('listSubmissions suppresses pagination normalization warnings in production', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      pageSize: 20,
+      total: 0,
+    });
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      await withNodeEnv('production', async () => {
+        await listSubmissions({
+          page: 0,
+          pageSize: -1,
+          status: 'failed',
+        });
+      });
+
+      expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/submissions', {
+        query: {
+          page: 1,
+          pageSize: 20,
+          status: 'failed',
+        },
+        signal: undefined,
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
