@@ -6,7 +6,9 @@ import { TabsContent } from '@/shared/ui/tabs';
 import {
   PanelEmptyState,
   PanelErrorState,
+  PanelFailedState,
   PanelLoadingState,
+  PanelProcessingState,
 } from './PanelStates';
 
 interface MigrationPanelProps {
@@ -16,6 +18,11 @@ interface MigrationPanelProps {
   migrationSemester?: string;
   onSemesterChange: (value: string | undefined) => void;
   onRetry: () => void;
+  readModelState: 'ready' | 'processing' | 'failed';
+  readModelStatus: string | null;
+  readModelError: UIError | null;
+  readModelPollingTimedOut: boolean;
+  onReadModelRetry: () => void;
 }
 
 export function MigrationPanel({
@@ -25,6 +32,11 @@ export function MigrationPanel({
   migrationSemester,
   onSemesterChange,
   onRetry,
+  readModelState,
+  readModelStatus,
+  readModelError,
+  readModelPollingTimedOut,
+  onReadModelRetry,
 }: MigrationPanelProps) {
   const semesterOptions = data?.semesters ?? [];
   const migrationData = data?.records ?? [];
@@ -46,10 +58,34 @@ export function MigrationPanel({
           options={semesterOptions}
         />
       </div>
-      {loading && (
+      {readModelState === 'processing' && (
+        <PanelProcessingState
+          status={readModelStatus}
+          message={
+            readModelPollingTimedOut
+              ? 'Dataset is still processing. Automatic status checks are paused. Use Refresh status to check again.'
+              : 'Dataset processing is in progress. Migration analytics will refresh automatically when ready.'
+          }
+          onRefresh={() => {
+            void onReadModelRetry();
+          }}
+        />
+      )}
+      {readModelState === 'failed' && (
+        <PanelFailedState
+          message={
+            readModelError?.message ??
+            'Dataset processing failed. Upload a new dataset to continue.'
+          }
+          onRefresh={() => {
+            void onReadModelRetry();
+          }}
+        />
+      )}
+      {readModelState === 'ready' && loading && (
         <PanelLoadingState message="Loading migration analytics..." />
       )}
-      {!loading && error && (
+      {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
           message={error.message}
           onRetry={() => {
@@ -57,13 +93,13 @@ export function MigrationPanel({
           }}
         />
       )}
-      {!loading && !error && !data && (
+      {readModelState === 'ready' && !loading && !error && !data && (
         <PanelEmptyState
           title="No migration analytics available"
           description="Migration flows will appear here once records are available."
         />
       )}
-      {!loading && !error && data && (
+      {readModelState === 'ready' && !loading && !error && data && (
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <MigrationFlowChart

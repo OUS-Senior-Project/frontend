@@ -63,6 +63,11 @@ export default function DashboardPage() {
               onDatasetUpload={dashboard.handleDatasetUpload}
               uploadLoading={dashboard.uploadLoading}
               uploadError={dashboard.uploadError}
+              readModelState={dashboard.readModelState}
+              readModelStatus={dashboard.readModelStatus}
+              readModelError={dashboard.readModelError}
+              readModelPollingTimedOut={dashboard.readModelPollingTimedOut}
+              onReadModelRetry={dashboard.retryReadModelState}
               breakdownOpen={dashboard.breakdownOpen}
               onBreakdownOpenChange={dashboard.setBreakdownOpen}
               overviewData={dashboard.overviewData}

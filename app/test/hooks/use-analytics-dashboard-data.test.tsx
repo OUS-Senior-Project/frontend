@@ -1,7 +1,14 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { useDashboardMetricsModel } from '@/features/dashboard/hooks/useDashboardMetricsModel';
+import {
+  DATASET_STATUS_POLL_INTERVAL_MS,
+  DATASET_STATUS_POLL_MAX_DURATION_MS,
+  useDashboardMetricsModel,
+} from '@/features/dashboard/hooks/useDashboardMetricsModel';
 import { ApiError, ServiceError } from '@/lib/api/errors';
-import { getActiveDataset } from '@/features/datasets/api/datasetsService';
+import {
+  getActiveDataset,
+  getDatasetById,
+} from '@/features/datasets/api/datasetsService';
 import { getDatasetOverview } from '@/features/overview/api/overviewService';
 import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
 import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
@@ -13,6 +20,7 @@ import {
 
 jest.mock('@/features/datasets/api/datasetsService', () => ({
   getActiveDataset: jest.fn(),
+  getDatasetById: jest.fn(),
 }));
 
 jest.mock('@/features/overview/api/overviewService', () => ({
@@ -39,6 +47,9 @@ jest.mock('@/features/submissions/api/submissionsService', () => ({
 const mockGetActiveDataset = getActiveDataset as jest.MockedFunction<
   typeof getActiveDataset
 >;
+const mockGetDatasetById = getDatasetById as jest.MockedFunction<
+  typeof getDatasetById
+>;
 const mockGetDatasetOverview = getDatasetOverview as jest.MockedFunction<
   typeof getDatasetOverview
 >;
@@ -57,6 +68,18 @@ const mockGetDatasetSubmissionStatus =
   getDatasetSubmissionStatus as jest.MockedFunction<
     typeof getDatasetSubmissionStatus
   >;
+type ActiveDataset = NonNullable<Awaited<ReturnType<typeof getActiveDataset>>>;
+
+function makeActiveDataset(datasetId: string, status: string): ActiveDataset {
+  return {
+    datasetId,
+    name: `${datasetId}.csv`,
+    status,
+    isActive: true,
+    createdAt: '2026-02-11T00:00:00Z',
+    sourceSubmissionId: `sub-${datasetId}`,
+  } as ActiveDataset;
+}
 
 function withApiBaseUrlOverride(
   value: string | undefined,
@@ -311,6 +334,1087 @@ describe('useDashboardMetricsModel', () => {
     });
 
     expect(result.current.noDataset).toBe(false);
+  });
+
+  test('maps DATASET_NOT_READY to processing state and refreshes reads when dataset becomes ready', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetActiveDataset.mockResolvedValue({
+        datasetId: 'dataset-1',
+        name: 'enrollment.csv',
+        status: 'ready',
+        isActive: true,
+        createdAt: '2026-02-11T00:00:00Z',
+        sourceSubmissionId: 'sub-1',
+      });
+      mockGetDatasetById
+        .mockResolvedValueOnce({
+          datasetId: 'dataset-1',
+          name: 'enrollment.csv',
+          status: 'building',
+          isActive: true,
+          createdAt: '2026-02-11T00:00:00Z',
+          sourceSubmissionId: 'sub-1',
+        })
+        .mockResolvedValue({
+          datasetId: 'dataset-1',
+          name: 'enrollment.csv',
+          status: 'ready',
+          isActive: true,
+          createdAt: '2026-02-11T00:00:00Z',
+          sourceSubmissionId: 'sub-1',
+        });
+      mockGetDatasetOverview
+        .mockRejectedValueOnce(
+          new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+            retryable: false,
+            status: 409,
+            details: {
+              datasetId: 'dataset-1',
+              status: 'building',
+              requiredStatus: 'ready',
+            },
+          })
+        )
+        .mockResolvedValue({
+          datasetId: 'dataset-1',
+          snapshotTotals: {
+            total: 1000,
+            undergrad: 900,
+            ftic: 400,
+            transfer: 200,
+            international: 120,
+          },
+          activeMajors: 12,
+          activeSchools: 6,
+          studentTypeDistribution: [{ type: 'FTIC', count: 400 }],
+          schoolDistribution: [{ school: 'School of Business', count: 250 }],
+          trend: [
+            { period: 'Fall 2025', year: 2025, semester: 'Fall', total: 950 },
+          ],
+        });
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('processing');
+      });
+
+      expect(result.current.overviewData).toBeNull();
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(3_000);
+      });
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('ready');
+      });
+      await waitFor(() => {
+        expect(result.current.overviewData?.datasetId).toBe('dataset-1');
+      });
+      expect(mockGetDatasetById).toHaveBeenCalledWith('dataset-1', {
+        signal: expect.any(AbortSignal),
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('maps DATASET_FAILED to terminal failed state and does not poll status indefinitely', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetActiveDataset.mockResolvedValue({
+        datasetId: 'dataset-1',
+        name: 'enrollment.csv',
+        status: 'ready',
+        isActive: true,
+        createdAt: '2026-02-11T00:00:00Z',
+        sourceSubmissionId: 'sub-1',
+      });
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_FAILED', 'Dataset failed.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'failed',
+          },
+        })
+      );
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('failed');
+      });
+      expect(result.current.readModelError).toMatchObject({
+        code: 'DATASET_FAILED',
+        retryable: false,
+        status: 409,
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(9_000);
+      });
+
+      expect(mockGetDatasetById).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('falls back to failed status when DATASET_FAILED details omit status', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockGetDatasetOverview.mockRejectedValue(
+      new ServiceError('DATASET_FAILED', 'Dataset failed.', {
+        retryable: false,
+        status: 409,
+        details: {
+          datasetId: 'dataset-1',
+        },
+      })
+    );
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.readModelState).toBe('failed');
+    });
+    expect(result.current.readModelStatus).toBe('failed');
+  });
+
+  test('maps active dataset status failed to terminal failed read-model state', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'failed'));
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.readModelState).toBe('failed');
+    });
+    expect(result.current.readModelError).toMatchObject({
+      code: 'DATASET_FAILED',
+      retryable: false,
+      status: 409,
+      details: {
+        datasetId: 'dataset-1',
+        status: 'failed',
+      },
+    });
+  });
+
+  test('falls back to default processing status when DATASET_NOT_READY details payload is not an object', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockGetDatasetOverview.mockRejectedValue(
+      new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+        retryable: false,
+        status: 409,
+        details: 'bad-shape',
+      })
+    );
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.readModelState).toBe('processing');
+    });
+    expect(result.current.readModelStatus).toBe('building');
+  });
+
+  test('treats unknown 409 read-model errors as normal panel errors', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockGetDatasetOverview.mockRejectedValue(
+      new ServiceError('UNEXPECTED_CONFLICT', 'Conflict', {
+        retryable: false,
+        status: 409,
+        details: {
+          datasetId: 'dataset-1',
+        },
+      })
+    );
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.overviewError?.code).toBe('UNEXPECTED_CONFLICT');
+    });
+    expect(result.current.readModelState).toBe('ready');
+  });
+
+  test('allows failed read-model state to transition to processing when active dataset changes', async () => {
+    const queuedDataset = {
+      datasetId: 'dataset-2',
+      name: 'next-upload.csv',
+      status: 'queued',
+      isActive: true,
+      createdAt: '2026-02-12T00:00:00Z',
+      sourceSubmissionId: 'sub-2',
+    } as unknown as ActiveDataset;
+
+    mockGetActiveDataset
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-1',
+        name: 'failed-upload.csv',
+        status: 'ready',
+        isActive: true,
+        createdAt: '2026-02-11T00:00:00Z',
+        sourceSubmissionId: 'sub-1',
+      })
+      .mockResolvedValueOnce(queuedDataset);
+
+    mockGetDatasetById.mockResolvedValue(queuedDataset);
+
+    mockGetDatasetOverview
+      .mockRejectedValueOnce(
+        new ServiceError('DATASET_FAILED', 'Dataset failed.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'failed',
+          },
+        })
+      )
+      .mockRejectedValue(
+        new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-2',
+            status: 'queued',
+            requiredStatus: 'ready',
+          },
+        })
+      );
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.readModelState).toBe('failed');
+    });
+    expect(result.current.activeDataset?.datasetId).toBe('dataset-1');
+
+    await act(async () => {
+      await result.current.retryDataset();
+    });
+
+    await waitFor(() => {
+      expect(result.current.activeDataset?.datasetId).toBe('dataset-2');
+      expect(result.current.readModelState).toBe('processing');
+      expect(result.current.readModelStatus).toBe('queued');
+    });
+  });
+
+  test('keeps failed state when same dataset later reports DATASET_NOT_READY from another read-model endpoint', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_FAILED', 'Dataset failed.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'failed',
+          },
+        })
+      );
+      mockGetMajorsAnalytics.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(
+                new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+                  retryable: false,
+                  status: 409,
+                  details: {
+                    datasetId: 'dataset-1',
+                    status: 'building',
+                    requiredStatus: 'ready',
+                  },
+                })
+              );
+            }, 5);
+          })
+      );
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('failed');
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(5);
+      });
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('failed');
+      });
+      expect(result.current.readModelError?.code).toBe('DATASET_FAILED');
+      expect(result.current.majorsError).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('deduplicates repeated DATASET_FAILED transitions for the same dataset', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_FAILED', 'Dataset failed.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'failed',
+          },
+        })
+      );
+      mockGetMajorsAnalytics.mockImplementation(
+        () =>
+          new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(
+                new ServiceError('DATASET_FAILED', 'Dataset failed.', {
+                  retryable: false,
+                  status: 409,
+                  details: {
+                    datasetId: 'dataset-1',
+                    status: 'failed',
+                  },
+                })
+              );
+            }, 5);
+          })
+      );
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('failed');
+      });
+      const firstErrorRef = result.current.readModelError;
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(5);
+      });
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('failed');
+      });
+      expect(result.current.readModelError).toBe(firstErrorRef);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('maps DATASET_NOT_READY from majors, migration, and forecasts to processing state with cleared panel errors', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockRejectedValue(
+      new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+        retryable: false,
+        status: 409,
+        details: {
+          datasetId: 'dataset-1',
+          status: 'queued',
+          requiredStatus: 'ready',
+        },
+      })
+    );
+    mockGetMigrationAnalytics.mockRejectedValue(
+      new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+        retryable: false,
+        status: 409,
+        details: {
+          datasetId: 'dataset-1',
+          status: 'queued',
+          requiredStatus: 'ready',
+        },
+      })
+    );
+    mockGetForecastsAnalytics.mockRejectedValue(
+      new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+        retryable: false,
+        status: 409,
+        details: {
+          datasetId: 'dataset-1',
+          status: 'queued',
+          requiredStatus: 'ready',
+        },
+      })
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.readModelState).toBe('processing');
+    });
+    expect(result.current.readModelStatus).toBe('queued');
+    expect(result.current.majorsError).toBeNull();
+    expect(result.current.migrationError).toBeNull();
+    expect(result.current.forecastsError).toBeNull();
+  });
+
+  test('treats queued active dataset status as processing', async () => {
+    const queuedDataset = {
+      datasetId: 'dataset-queued',
+      name: 'queued-upload.csv',
+      status: 'queued',
+      isActive: true,
+      createdAt: '2026-02-13T00:00:00Z',
+      sourceSubmissionId: 'sub-queued',
+    } as unknown as ActiveDataset;
+
+    mockGetActiveDataset.mockResolvedValue(queuedDataset);
+    mockGetDatasetById.mockResolvedValue(queuedDataset);
+    mockGetDatasetOverview.mockRejectedValue(
+      new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+        retryable: false,
+        status: 409,
+        details: {
+          datasetId: 'dataset-queued',
+          status: 'queued',
+          requiredStatus: 'ready',
+        },
+      })
+    );
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-queued',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-queued',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-queued',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.readModelState).toBe('processing');
+      expect(result.current.readModelStatus).toBe('queued');
+    });
+  });
+
+  test('stops automatic processing-status polling after timeout', async () => {
+    jest.useFakeTimers();
+    try {
+      const buildingDataset = {
+        datasetId: 'dataset-1',
+        name: 'building-upload.csv',
+        status: 'building',
+        isActive: true,
+        createdAt: '2026-02-14T00:00:00Z',
+        sourceSubmissionId: 'sub-building',
+      } as ActiveDataset;
+
+      mockGetActiveDataset.mockResolvedValue({
+        datasetId: 'dataset-1',
+        name: 'ready-upload.csv',
+        status: 'ready',
+        isActive: true,
+        createdAt: '2026-02-14T00:00:00Z',
+        sourceSubmissionId: 'sub-building',
+      });
+      mockGetDatasetById.mockResolvedValue(buildingDataset);
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'building',
+            requiredStatus: 'ready',
+          },
+        })
+      );
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('processing');
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(
+          DATASET_STATUS_POLL_MAX_DURATION_MS + DATASET_STATUS_POLL_INTERVAL_MS
+        );
+      });
+
+      await waitFor(() => {
+        expect(result.current.readModelPollingTimedOut).toBe(true);
+      });
+
+      const callsAfterTimeout = mockGetDatasetById.mock.calls.length;
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(DATASET_STATUS_POLL_INTERVAL_MS * 3);
+      });
+
+      expect(mockGetDatasetById).toHaveBeenCalledTimes(callsAfterTimeout);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('polling transitions processing state to failed when dataset status becomes failed', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'building',
+            requiredStatus: 'ready',
+          },
+        })
+      );
+      mockGetDatasetById.mockResolvedValue(makeActiveDataset('dataset-1', 'failed'));
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('failed');
+      });
+      expect(result.current.readModelError).toMatchObject({
+        code: 'DATASET_FAILED',
+        retryable: false,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('retryReadModelState no-ops when there is no active dataset id', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.retryReadModelState();
+    });
+
+    expect(mockGetDatasetById).not.toHaveBeenCalled();
+  });
+
+  test('retryReadModelState swallows REQUEST_ABORTED status refresh failures', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+    mockGetDatasetById.mockRejectedValue(
+      new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.activeDataset?.datasetId).toBe('dataset-1');
+    });
+
+    await act(async () => {
+      await result.current.retryReadModelState();
+    });
+
+    expect(mockGetDatasetById).toHaveBeenCalledWith('dataset-1', {
+      signal: undefined,
+    });
+    expect(result.current.readModelState).toBe('ready');
+  });
+
+  test('processing polling ignores REQUEST_ABORTED dataset-status responses', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'building',
+            requiredStatus: 'ready',
+          },
+        })
+      );
+      mockGetDatasetById.mockRejectedValue(
+        new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+      );
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('processing');
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(DATASET_STATUS_POLL_INTERVAL_MS);
+      });
+
+      expect(result.current.readModelState).toBe('processing');
+      expect(result.current.readModelPollingTimedOut).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('retryReadModelState uses read-model dataset id when current state is processing', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockGetDatasetOverview.mockRejectedValue(
+      new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+        retryable: false,
+        status: 409,
+        details: {
+          datasetId: 'dataset-1',
+          status: 'building',
+          requiredStatus: 'ready',
+        },
+      })
+    );
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+    mockGetDatasetById.mockResolvedValue(makeActiveDataset('dataset-1', 'building'));
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.readModelState).toBe('processing');
+    });
+
+    await act(async () => {
+      await result.current.retryReadModelState();
+    });
+
+    expect(mockGetDatasetById).toHaveBeenCalledWith('dataset-1', {
+      signal: undefined,
+    });
+  });
+
+  test('processing polling avoids overlapping status requests and times out after an in-flight tick completes', async () => {
+    jest.useFakeTimers();
+    let now = 0;
+    const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'building',
+            requiredStatus: 'ready',
+          },
+        })
+      );
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      let resolveStatusRequest: ((dataset: ActiveDataset) => void) | undefined;
+      const pendingStatusRequest = new Promise<ActiveDataset>((resolve) => {
+        resolveStatusRequest = resolve;
+      });
+      mockGetDatasetById.mockReturnValue(pendingStatusRequest);
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('processing');
+      });
+      expect(mockGetDatasetById).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(DATASET_STATUS_POLL_INTERVAL_MS * 2);
+      });
+      expect(mockGetDatasetById).toHaveBeenCalledTimes(1);
+
+      now = DATASET_STATUS_POLL_MAX_DURATION_MS + 1;
+      await act(async () => {
+        resolveStatusRequest?.(makeActiveDataset('dataset-1', 'building'));
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(result.current.readModelPollingTimedOut).toBe(true);
+      });
+    } finally {
+      dateNowSpy.mockRestore();
+      jest.useRealTimers();
+    }
   });
 
   test('tracks upload errors without fabricating submission state', async () => {
