@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { filterQueryParams } from '@/lib/api/queryGuardrails';
 import type {
   BulkSubmissionCreateResponse,
   BulkSubmissionStatusResponse,
@@ -10,14 +11,27 @@ import type {
 } from '@/lib/api/types';
 
 const API_PREFIX = '/api/v1';
+const SUBMISSIONS_ENDPOINT = `${API_PREFIX}/submissions`;
+const LIST_SUBMISSIONS_QUERY_ALLOWLIST = [
+  'page',
+  'pageSize',
+  'status',
+  'createdAfter',
+  'createdBefore',
+] as const;
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+
+type PaginationParams = {
+  page?: number;
+  pageSize?: number;
+};
 
 interface RequestOptions {
   signal?: AbortSignal;
 }
 
-interface ListSubmissionsOptions extends RequestOptions {
-  page?: number;
-  pageSize?: number;
+interface ListSubmissionsOptions extends RequestOptions, PaginationParams {
   status?: SubmissionStatus;
   createdAfter?: string;
   createdBefore?: string;
@@ -28,6 +42,66 @@ interface CreateBulkSubmissionRequest extends RequestOptions {
   activateLatest?: boolean;
   continueOnError?: boolean;
   dryRun?: boolean;
+}
+
+function warnPaginationNormalization(
+  endpoint: string,
+  key: 'page' | 'pageSize',
+  value: number,
+  fallback: number
+) {
+  if (process.env.NODE_ENV === 'production') {
+    return;
+  }
+
+  console.warn(
+    `[api-query-guardrail] Normalized invalid ${key} for ${endpoint}: ${value} -> ${fallback}`
+  );
+}
+
+function normalizePaginationValue(
+  endpoint: string,
+  key: 'page' | 'pageSize',
+  value: number | undefined,
+  fallback: number
+) {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  if (!Number.isFinite(value) || value < 1) {
+    warnPaginationNormalization(endpoint, key, value, fallback);
+    return fallback;
+  }
+
+  return value;
+}
+
+function buildListSubmissionsQuery(options: ListSubmissionsOptions) {
+  const page = normalizePaginationValue(
+    SUBMISSIONS_ENDPOINT,
+    'page',
+    options.page,
+    DEFAULT_PAGE
+  );
+  const pageSize = normalizePaginationValue(
+    SUBMISSIONS_ENDPOINT,
+    'pageSize',
+    options.pageSize,
+    DEFAULT_PAGE_SIZE
+  );
+
+  return filterQueryParams({
+    endpoint: SUBMISSIONS_ENDPOINT,
+    params: {
+      page,
+      pageSize,
+      status: options.status,
+      createdAfter: options.createdAfter,
+      createdBefore: options.createdBefore,
+    },
+    allowedKeys: LIST_SUBMISSIONS_QUERY_ALLOWLIST,
+  });
 }
 
 function mapToDatasetSubmission(
@@ -56,7 +130,7 @@ export async function createDatasetSubmission(
   formData.append('file', request.file);
 
   const response = await apiClient.postForm<DatasetSubmission>(
-    `${API_PREFIX}/submissions`,
+    SUBMISSIONS_ENDPOINT,
     formData,
     {
       query: {
@@ -75,7 +149,7 @@ export async function getDatasetSubmissionStatus(
 ): Promise<DatasetSubmission> {
   const encodedSubmissionId = encodeURIComponent(submissionId);
   const response = await apiClient.get<SubmissionStatusResponse>(
-    `${API_PREFIX}/submissions/${encodedSubmissionId}`,
+    `${SUBMISSIONS_ENDPOINT}/${encodedSubmissionId}`,
     {
       signal: options.signal,
     }
@@ -88,15 +162,9 @@ export async function listSubmissions(
   options: ListSubmissionsOptions = {}
 ): Promise<SubmissionHistoryListResponse> {
   return apiClient.get<SubmissionHistoryListResponse>(
-    `${API_PREFIX}/submissions`,
+    SUBMISSIONS_ENDPOINT,
     {
-      query: {
-        page: options.page ?? 1,
-        pageSize: options.pageSize ?? 20,
-        status: options.status,
-        createdAfter: options.createdAfter,
-        createdBefore: options.createdBefore,
-      },
+      query: buildListSubmissionsQuery(options),
       signal: options.signal,
     }
   );
