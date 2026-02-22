@@ -17,6 +17,7 @@ import {
   createDatasetSubmission,
   getDatasetSubmissionStatus,
 } from '@/features/submissions/api/submissionsService';
+import type { DatasetStatus } from '@/lib/api/types';
 
 jest.mock('@/features/datasets/api/datasetsService', () => ({
   getActiveDataset: jest.fn(),
@@ -70,7 +71,10 @@ const mockGetDatasetSubmissionStatus =
   >;
 type ActiveDataset = NonNullable<Awaited<ReturnType<typeof getActiveDataset>>>;
 
-function makeActiveDataset(datasetId: string, status: string): ActiveDataset {
+function makeActiveDataset(
+  datasetId: string,
+  status: DatasetStatus
+): ActiveDataset {
   return {
     datasetId,
     name: `${datasetId}.csv`,
@@ -78,7 +82,7 @@ function makeActiveDataset(datasetId: string, status: string): ActiveDataset {
     isActive: true,
     createdAt: '2026-02-11T00:00:00Z',
     sourceSubmissionId: `sub-${datasetId}`,
-  } as ActiveDataset;
+  };
 }
 
 function withApiBaseUrlOverride(
@@ -442,6 +446,118 @@ describe('useDashboardMetricsModel', () => {
     }
   });
 
+  test('processing to ready triggers analytics refresh and renders (no abort race)', async () => {
+    jest.useFakeTimers();
+    try {
+      const readyOverview = {
+        datasetId: 'dataset-1',
+        snapshotTotals: {
+          total: 1000,
+          undergrad: 900,
+          ftic: 400,
+          transfer: 200,
+          international: 120,
+        },
+        activeMajors: 12,
+        activeSchools: 6,
+        studentTypeDistribution: [{ type: 'FTIC', count: 400 }],
+        schoolDistribution: [{ school: 'School of Business', count: 250 }],
+        trend: [{ period: 'Fall 2025', year: 2025, semester: 'Fall', total: 950 }],
+      };
+      let refreshOverviewAborted = false;
+
+      mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+      mockGetDatasetById
+        .mockResolvedValueOnce(makeActiveDataset('dataset-1', 'building'))
+        .mockResolvedValueOnce(makeActiveDataset('dataset-1', 'ready'));
+
+      mockGetDatasetOverview
+        .mockRejectedValueOnce(
+          new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+            retryable: false,
+            status: 409,
+            details: {
+              datasetId: 'dataset-1',
+              status: 'building',
+              requiredStatus: 'ready',
+            },
+          })
+        )
+        .mockImplementationOnce((_datasetId, options) => {
+          return new Promise((resolve, reject) => {
+            const signal = options?.signal;
+            const timeoutId = window.setTimeout(() => {
+              signal?.removeEventListener('abort', onAbort);
+              resolve(readyOverview);
+            }, 10);
+
+            const onAbort = () => {
+              refreshOverviewAborted = true;
+              window.clearTimeout(timeoutId);
+              signal?.removeEventListener('abort', onAbort);
+              reject(
+                new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+              );
+            };
+
+            if (signal?.aborted) {
+              onAbort();
+              return;
+            }
+
+            signal?.addEventListener('abort', onAbort);
+          });
+        });
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('processing');
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(DATASET_STATUS_POLL_INTERVAL_MS);
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(10);
+      });
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('ready');
+        expect(result.current.overviewData?.datasetId).toBe('dataset-1');
+      });
+
+      expect(result.current.overviewLoading).toBe(false);
+      expect(refreshOverviewAborted).toBe(false);
+      expect(mockGetDatasetOverview).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('maps DATASET_FAILED to terminal failed state and does not poll status indefinitely', async () => {
     jest.useFakeTimers();
     try {
@@ -688,14 +804,7 @@ describe('useDashboardMetricsModel', () => {
   });
 
   test('allows failed read-model state to transition to processing when active dataset changes', async () => {
-    const queuedDataset = {
-      datasetId: 'dataset-2',
-      name: 'next-upload.csv',
-      status: 'queued',
-      isActive: true,
-      createdAt: '2026-02-12T00:00:00Z',
-      sourceSubmissionId: 'sub-2',
-    } as unknown as ActiveDataset;
+    const queuedDataset = makeActiveDataset('dataset-2', 'queued');
 
     mockGetActiveDataset
       .mockResolvedValueOnce({
@@ -973,14 +1082,7 @@ describe('useDashboardMetricsModel', () => {
   });
 
   test('treats queued active dataset status as processing', async () => {
-    const queuedDataset = {
-      datasetId: 'dataset-queued',
-      name: 'queued-upload.csv',
-      status: 'queued',
-      isActive: true,
-      createdAt: '2026-02-13T00:00:00Z',
-      sourceSubmissionId: 'sub-queued',
-    } as unknown as ActiveDataset;
+    const queuedDataset = makeActiveDataset('dataset-queued', 'queued');
 
     mockGetActiveDataset.mockResolvedValue(queuedDataset);
     mockGetDatasetById.mockResolvedValue(queuedDataset);
@@ -1029,14 +1131,7 @@ describe('useDashboardMetricsModel', () => {
   test('stops automatic processing-status polling after timeout', async () => {
     jest.useFakeTimers();
     try {
-      const buildingDataset = {
-        datasetId: 'dataset-1',
-        name: 'building-upload.csv',
-        status: 'building',
-        isActive: true,
-        createdAt: '2026-02-14T00:00:00Z',
-        sourceSubmissionId: 'sub-building',
-      } as ActiveDataset;
+      const buildingDataset = makeActiveDataset('dataset-1', 'building');
 
       mockGetActiveDataset.mockResolvedValue({
         datasetId: 'dataset-1',

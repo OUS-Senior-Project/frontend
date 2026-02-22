@@ -695,7 +695,9 @@ export function useDashboardMetricsModel() {
         applyReadModelState({
           kind: 'ready',
         });
-        await refreshAnalyticsResources(latestDataset.datasetId, signal);
+        // Polling cleanup runs when readModelState flips to "ready"; don't let it abort
+        // the one-time analytics refresh that hydrates the panels for the ready state.
+        await refreshAnalyticsResources(latestDataset.datasetId);
         return;
       }
 

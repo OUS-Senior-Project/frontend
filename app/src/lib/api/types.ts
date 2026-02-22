@@ -15,7 +15,12 @@ export interface UIError {
   status?: number;
 }
 
-export type DatasetStatus = 'building' | 'ready' | 'failed';
+export type DatasetStatus =
+  | 'queued'
+  | 'building'
+  | 'processing'
+  | 'ready'
+  | 'failed';
 
 export interface DatasetSummary {
   datasetId: string;
