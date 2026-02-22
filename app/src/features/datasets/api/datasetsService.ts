@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api/client';
+import { apiClient, clearDatasetResponseCache } from '@/lib/api/client';
 import { ServiceError } from '@/lib/api/errors';
 import { filterQueryParams } from '@/lib/api/queryGuardrails';
 import type {
@@ -140,11 +140,16 @@ export async function activateDataset(
   options: RequestOptions = {}
 ): Promise<DatasetSummary> {
   const encodedDatasetId = encodeURIComponent(datasetId);
-  return apiClient.put<DatasetSummary>(
+  const activated = await apiClient.put<DatasetSummary>(
     `${API_PREFIX}/datasets/${encodedDatasetId}/active`,
     undefined,
     {
       signal: options.signal,
     }
   );
+
+  // Active dataset changes can invalidate any dataset-scoped GET cache entries.
+  clearDatasetResponseCache();
+
+  return activated;
 }

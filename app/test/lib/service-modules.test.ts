@@ -15,7 +15,7 @@ import {
   listSubmissions,
 } from '@/features/submissions/api/submissionsService';
 import { ApiError, ServiceError } from '@/lib/api/errors';
-import { apiClient } from '@/lib/api/client';
+import { apiClient, clearDatasetResponseCache } from '@/lib/api/client';
 import { filterQueryParams } from '@/lib/api/queryGuardrails';
 import { installFetchMock, jsonResponse } from '../utils/http';
 
@@ -26,9 +26,14 @@ jest.mock('@/lib/api/client', () => ({
     put: jest.fn(),
     postForm: jest.fn(),
   },
+  clearDatasetResponseCache: jest.fn(),
 }));
 
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockClearDatasetResponseCache =
+  clearDatasetResponseCache as jest.MockedFunction<
+    typeof clearDatasetResponseCache
+  >;
 
 function withNodeEnv(
   value: string,
@@ -364,6 +369,7 @@ describe('service modules', () => {
       undefined,
       { signal: undefined }
     );
+    expect(mockClearDatasetResponseCache).toHaveBeenCalledTimes(1);
   });
 
   test('listDatasets normalizes invalid pagination values and warns in non-production environments', async () => {
@@ -764,6 +770,7 @@ describe('service modules', () => {
       '/api/v1/submissions/bulk/job%2F1',
       { signal: undefined }
     );
+    expect(mockClearDatasetResponseCache).toHaveBeenCalledTimes(2);
   });
 
   test('submissionsService applies default query and form flags when optional fields are omitted', async () => {

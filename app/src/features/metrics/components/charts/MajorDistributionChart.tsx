@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import {
   BarChart,
@@ -26,11 +27,11 @@ interface MajorDistributionChartProps {
   title?: string;
 }
 
-export function MajorDistributionChart({
+function MajorDistributionChartComponent({
   data,
   title = 'Students by Major',
 }: MajorDistributionChartProps) {
-  const top10 = data.slice(0, 10);
+  const top10 = useMemo(() => data.slice(0, 10), [data]);
 
   return (
     <Card className="bg-card border-border">
@@ -95,3 +96,5 @@ export function MajorDistributionChart({
     </Card>
   );
 }
+
+export const MajorDistributionChart = memo(MajorDistributionChartComponent);

@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useMemo } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import {
@@ -13,12 +14,18 @@ interface MigrationTopFlowsTableProps {
   selectedSemester?: string;
 }
 
-export function MigrationTopFlowsTable({
+function MigrationTopFlowsTableComponent({
   data,
   selectedSemester,
 }: MigrationTopFlowsTableProps) {
-  const sortedMigrations = getTopMigrationFlows(data, selectedSemester, 10);
-  const periodLabel = getMigrationPeriodLabel(selectedSemester);
+  const sortedMigrations = useMemo(
+    () => getTopMigrationFlows(data, selectedSemester, 10),
+    [data, selectedSemester]
+  );
+  const periodLabel = useMemo(
+    () => getMigrationPeriodLabel(selectedSemester),
+    [selectedSemester]
+  );
 
   return (
     <Card className="border-border bg-card">
@@ -60,3 +67,5 @@ export function MigrationTopFlowsTable({
     </Card>
   );
 }
+
+export const MigrationTopFlowsTable = memo(MigrationTopFlowsTableComponent);

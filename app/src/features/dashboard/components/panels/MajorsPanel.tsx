@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Building, GraduationCap, Users } from 'lucide-react';
 import { CohortSummaryTable } from '@/features/metrics/components/CohortSummaryTable';
 import { MajorDistributionChart } from '@/features/metrics/components/charts/MajorDistributionChart';
@@ -31,7 +32,7 @@ interface MajorsPanelProps {
   onReadModelRetry: () => void;
 }
 
-export function MajorsPanel({
+function MajorsPanelComponent({
   data,
   loading,
   error,
@@ -42,14 +43,21 @@ export function MajorsPanel({
   readModelPollingTimedOut,
   onReadModelRetry,
 }: MajorsPanelProps) {
-  const majorData = data?.majorDistribution ?? [];
-  const cohortData = data?.cohortRecords ?? [];
-  const totalMajors = majorData.length;
-  const averagePerMajor = Math.round(
-    totalMajors === 0
-      ? 0
-      : majorData.reduce((sum, major) => sum + major.count, 0) / totalMajors
-  );
+  const majorData = useMemo(() => data?.majorDistribution ?? [], [data]);
+  const cohortData = useMemo(() => data?.cohortRecords ?? [], [data]);
+  const { totalMajors, averagePerMajor } = useMemo(() => {
+    const total = majorData.length;
+    const average = Math.round(
+      total === 0
+        ? 0
+        : majorData.reduce((sum, major) => sum + major.count, 0) / total
+    );
+
+    return {
+      totalMajors: total,
+      averagePerMajor: average,
+    };
+  }, [majorData]);
 
   return (
     <TabsContent value="majors" className="space-y-6">
@@ -138,3 +146,5 @@ export function MajorsPanel({
     </TabsContent>
   );
 }
+
+export const MajorsPanel = memo(MajorsPanelComponent);

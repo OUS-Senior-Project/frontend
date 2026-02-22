@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api/client';
+import { apiClient, clearDatasetResponseCache } from '@/lib/api/client';
 import { filterQueryParams } from '@/lib/api/queryGuardrails';
 import type {
   BulkSubmissionCreateResponse,
@@ -140,6 +140,9 @@ export async function createDatasetSubmission(
     }
   );
 
+  // Upload submissions can eventually mutate active dataset reads.
+  clearDatasetResponseCache();
+
   return mapToDatasetSubmission(response);
 }
 
@@ -180,13 +183,17 @@ export async function createBulkSubmissionJob(
     formData.append('files[]', file);
   });
 
-  return apiClient.postForm<BulkSubmissionCreateResponse>(
+  const response = await apiClient.postForm<BulkSubmissionCreateResponse>(
     `${API_PREFIX}/submissions/bulk`,
     formData,
     {
       signal: request.signal,
     }
   );
+
+  clearDatasetResponseCache();
+
+  return response;
 }
 
 export async function getBulkSubmissionJobStatus(

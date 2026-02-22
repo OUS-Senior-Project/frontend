@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import {
   Area,
   CartesianGrid,
@@ -16,11 +17,14 @@ import {
   trendTooltipStyle,
 } from './metrics-trend-chart.theme';
 
-export function MetricsTrendChartPlot({
+function MetricsTrendChartPlotComponent({
   data,
   forecastData,
 }: MetricsTrendChartProps) {
-  const combinedData = [...data, ...(forecastData || [])];
+  const combinedData = useMemo(
+    () => [...data, ...(forecastData || [])],
+    [data, forecastData]
+  );
   const lastHistoricalIndex = data.length - 1;
 
   return (
@@ -93,3 +97,5 @@ export function MetricsTrendChartPlot({
     </ResponsiveContainer>
   );
 }
+
+export const MetricsTrendChartPlot = memo(MetricsTrendChartPlotComponent);

@@ -2275,6 +2275,255 @@ describe('useDashboardMetricsModel', () => {
     });
   });
 
+  test('does not re-fetch overview when only selectedDate changes', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 10,
+        undergrad: 8,
+        ftic: 4,
+        transfer: 2,
+        international: 1,
+      },
+      activeMajors: 3,
+      activeSchools: 2,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(mockGetDatasetOverview).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      result.current.setSelectedDate(new Date('2026-03-01'));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockGetDatasetOverview).toHaveBeenCalledTimes(1);
+  });
+
+  test('processing polling keeps interval cadence when status changes', async () => {
+    jest.useFakeTimers();
+    try {
+      mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'building',
+            requiredStatus: 'ready',
+          },
+        })
+      );
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+      mockGetDatasetById.mockResolvedValue(
+        makeActiveDataset('dataset-1', 'processing')
+      );
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('processing');
+      });
+      expect(mockGetDatasetById).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(mockGetDatasetById).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(DATASET_STATUS_POLL_INTERVAL_MS);
+      });
+      expect(mockGetDatasetById).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('records development-only performance marks for dashboard bootstrap/load', async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const perf = window.performance as Performance & {
+      mark?: (markName: string) => void;
+      measure?: (measureName: string, startMark?: string, endMark?: string) => void;
+      clearMarks?: (markName?: string) => void;
+    };
+    const originalMark = perf.mark;
+    const originalMeasure = perf.measure;
+    const originalClearMarks = perf.clearMarks;
+
+    const markSpy = jest.fn();
+    const measureSpy = jest.fn();
+    const clearMarksSpy = jest.fn();
+    perf.mark = markSpy;
+    perf.measure = measureSpy;
+    perf.clearMarks = clearMarksSpy;
+
+    process.env.NODE_ENV = 'development';
+    mockGetActiveDataset.mockResolvedValue(null);
+
+    try {
+      const { result } = renderHook(() => useDashboardMetricsModel());
+      await waitFor(() => {
+        expect(result.current.datasetLoading).toBe(false);
+      });
+
+      const markCalls = markSpy.mock.calls.map((call) => String(call[0]));
+      expect(
+        markCalls.some((call) =>
+          call.startsWith('dashboard:bootstrap:start:')
+        )
+      ).toBe(true);
+      expect(
+        markCalls.some((call) =>
+          call.startsWith('dashboard:bootstrap:end:')
+        )
+      ).toBe(true);
+      expect(
+        markCalls.some((call) =>
+          call.startsWith('dashboard:dataset:active:load:start:')
+        )
+      ).toBe(true);
+      expect(
+        markCalls.some((call) =>
+          call.startsWith('dashboard:dataset:active:load:end:')
+        )
+      ).toBe(true);
+
+      expect(measureSpy).toHaveBeenCalledWith(
+        'dashboard:bootstrap',
+        expect.stringMatching(/^dashboard:bootstrap:start:/),
+        expect.stringMatching(/^dashboard:bootstrap:end:/)
+      );
+      expect(measureSpy).toHaveBeenCalledWith(
+        'dashboard:dataset:active:load',
+        expect.stringMatching(/^dashboard:dataset:active:load:start:/),
+        expect.stringMatching(/^dashboard:dataset:active:load:end:/)
+      );
+      expect(clearMarksSpy).toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+      perf.mark = originalMark;
+      perf.measure = originalMeasure;
+      perf.clearMarks = originalClearMarks;
+    }
+  });
+
+  test('processing polling ignores a late scheduled tick after cleanup', async () => {
+    jest.useFakeTimers();
+    const clearTimeoutSpy = jest
+      .spyOn(window, 'clearTimeout')
+      .mockImplementation(() => {});
+
+    try {
+      mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+      mockGetDatasetOverview.mockRejectedValue(
+        new ServiceError('DATASET_NOT_READY', 'Dataset is not ready.', {
+          retryable: false,
+          status: 409,
+          details: {
+            datasetId: 'dataset-1',
+            status: 'building',
+            requiredStatus: 'ready',
+          },
+        })
+      );
+      mockGetMajorsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+      mockGetMigrationAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      });
+      mockGetForecastsAnalytics.mockResolvedValue({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+      mockGetDatasetById.mockResolvedValue(
+        makeActiveDataset('dataset-1', 'processing')
+      );
+
+      const { result, unmount } = renderHook(() => useDashboardMetricsModel());
+      await waitFor(() => {
+        expect(result.current.readModelState).toBe('processing');
+      });
+      expect(mockGetDatasetById).toHaveBeenCalledTimes(1);
+
+      unmount();
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(DATASET_STATUS_POLL_INTERVAL_MS);
+      });
+
+      expect(mockGetDatasetById).toHaveBeenCalledTimes(1);
+    } finally {
+      clearTimeoutSpy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
   test('handles uploads aborted before delay wait begins', async () => {
     jest.useFakeTimers();
     try {

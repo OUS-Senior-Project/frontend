@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Building, GraduationCap, Users } from 'lucide-react';
 import { AnalyticsBreakdownModal } from '@/features/metrics/components/AnalyticsBreakdownModal';
 import { MetricsTrendChart } from '@/features/metrics/components/charts/MetricsTrendChart';
@@ -36,7 +37,7 @@ interface OverviewPanelProps {
   onReadModelRetry: () => void;
 }
 
-export function OverviewPanel({
+function OverviewPanelComponent({
   selectedDate,
   onDateChange,
   onDatasetUpload,
@@ -54,11 +55,15 @@ export function OverviewPanel({
   readModelPollingTimedOut,
   onReadModelRetry,
 }: OverviewPanelProps) {
-  const dateLabel = selectedDate.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const dateLabel = useMemo(
+    () =>
+      selectedDate.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    [selectedDate]
+  );
 
   return (
     <TabsContent value="overview" className="space-y-6">
@@ -163,3 +168,5 @@ export function OverviewPanel({
     </TabsContent>
   );
 }
+
+export const OverviewPanel = memo(OverviewPanelComponent);

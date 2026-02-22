@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs';
 import type {
   DatasetOverviewResponse,
@@ -46,9 +47,29 @@ interface DashboardTabsProps {
   onForecastsRetry: () => void;
 }
 
+const DASHBOARD_TAB_VALUES = [
+  'overview',
+  'majors',
+  'migration',
+  'forecasts',
+] as const;
+
+type DashboardTabValue = (typeof DASHBOARD_TAB_VALUES)[number];
+
+function isDashboardTabValue(value: string): value is DashboardTabValue {
+  return DASHBOARD_TAB_VALUES.includes(value as DashboardTabValue);
+}
+
 export function DashboardTabs(props: DashboardTabsProps) {
+  const [activeTab, setActiveTab] = useState<DashboardTabValue>('overview');
+  const onTabChange = useCallback((nextValue: string) => {
+    if (isDashboardTabValue(nextValue)) {
+      setActiveTab(nextValue);
+    }
+  }, []);
+
   return (
-    <Tabs defaultValue="overview" className="space-y-6">
+    <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-6">
       <TabsList className="bg-secondary">
         <TabsTrigger
           value="overview"
@@ -76,61 +97,69 @@ export function DashboardTabs(props: DashboardTabsProps) {
         </TabsTrigger>
       </TabsList>
 
-      <OverviewPanel
-        selectedDate={props.selectedDate}
-        onDateChange={props.onDateChange}
-        onDatasetUpload={props.onDatasetUpload}
-        uploadLoading={props.uploadLoading}
-        uploadError={props.uploadError}
-        breakdownOpen={props.breakdownOpen}
-        onBreakdownOpenChange={props.onBreakdownOpenChange}
-        data={props.overviewData}
-        loading={props.overviewLoading}
-        error={props.overviewError}
-        onRetry={props.onOverviewRetry}
-        readModelState={props.readModelState}
-        readModelStatus={props.readModelStatus}
-        readModelError={props.readModelError}
-        readModelPollingTimedOut={props.readModelPollingTimedOut}
-        onReadModelRetry={props.onReadModelRetry}
-      />
-      <MajorsPanel
-        data={props.majorsData}
-        loading={props.majorsLoading}
-        error={props.majorsError}
-        onRetry={props.onMajorsRetry}
-        readModelState={props.readModelState}
-        readModelStatus={props.readModelStatus}
-        readModelError={props.readModelError}
-        readModelPollingTimedOut={props.readModelPollingTimedOut}
-        onReadModelRetry={props.onReadModelRetry}
-      />
-      <MigrationPanel
-        data={props.migrationData}
-        loading={props.migrationLoading}
-        error={props.migrationError}
-        migrationSemester={props.migrationSemester}
-        onSemesterChange={props.onMigrationSemesterChange}
-        onRetry={props.onMigrationRetry}
-        readModelState={props.readModelState}
-        readModelStatus={props.readModelStatus}
-        readModelError={props.readModelError}
-        readModelPollingTimedOut={props.readModelPollingTimedOut}
-        onReadModelRetry={props.onReadModelRetry}
-      />
-      <ForecastsPanel
-        data={props.forecastsData}
-        loading={props.forecastsLoading}
-        error={props.forecastsError}
-        horizon={props.forecastHorizon}
-        onHorizonChange={props.onForecastHorizonChange}
-        onRetry={props.onForecastsRetry}
-        readModelState={props.readModelState}
-        readModelStatus={props.readModelStatus}
-        readModelError={props.readModelError}
-        readModelPollingTimedOut={props.readModelPollingTimedOut}
-        onReadModelRetry={props.onReadModelRetry}
-      />
+      {activeTab === 'overview' && (
+        <OverviewPanel
+          selectedDate={props.selectedDate}
+          onDateChange={props.onDateChange}
+          onDatasetUpload={props.onDatasetUpload}
+          uploadLoading={props.uploadLoading}
+          uploadError={props.uploadError}
+          breakdownOpen={props.breakdownOpen}
+          onBreakdownOpenChange={props.onBreakdownOpenChange}
+          data={props.overviewData}
+          loading={props.overviewLoading}
+          error={props.overviewError}
+          onRetry={props.onOverviewRetry}
+          readModelState={props.readModelState}
+          readModelStatus={props.readModelStatus}
+          readModelError={props.readModelError}
+          readModelPollingTimedOut={props.readModelPollingTimedOut}
+          onReadModelRetry={props.onReadModelRetry}
+        />
+      )}
+      {activeTab === 'majors' && (
+        <MajorsPanel
+          data={props.majorsData}
+          loading={props.majorsLoading}
+          error={props.majorsError}
+          onRetry={props.onMajorsRetry}
+          readModelState={props.readModelState}
+          readModelStatus={props.readModelStatus}
+          readModelError={props.readModelError}
+          readModelPollingTimedOut={props.readModelPollingTimedOut}
+          onReadModelRetry={props.onReadModelRetry}
+        />
+      )}
+      {activeTab === 'migration' && (
+        <MigrationPanel
+          data={props.migrationData}
+          loading={props.migrationLoading}
+          error={props.migrationError}
+          migrationSemester={props.migrationSemester}
+          onSemesterChange={props.onMigrationSemesterChange}
+          onRetry={props.onMigrationRetry}
+          readModelState={props.readModelState}
+          readModelStatus={props.readModelStatus}
+          readModelError={props.readModelError}
+          readModelPollingTimedOut={props.readModelPollingTimedOut}
+          onReadModelRetry={props.onReadModelRetry}
+        />
+      )}
+      {activeTab === 'forecasts' && (
+        <ForecastsPanel
+          data={props.forecastsData}
+          loading={props.forecastsLoading}
+          error={props.forecastsError}
+          horizon={props.forecastHorizon}
+          onHorizonChange={props.onForecastHorizonChange}
+          onRetry={props.onForecastsRetry}
+          readModelState={props.readModelState}
+          readModelStatus={props.readModelStatus}
+          readModelError={props.readModelError}
+          readModelPollingTimedOut={props.readModelPollingTimedOut}
+          onReadModelRetry={props.onReadModelRetry}
+        />
+      )}
     </Tabs>
   );
 }

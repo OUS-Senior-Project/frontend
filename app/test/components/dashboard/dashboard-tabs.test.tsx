@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { DashboardTabs } from '@/features/dashboard/components/DashboardTabs';
 
 const overviewPanelMock = jest.fn(() => <div>Overview Panel Mock</div>);
@@ -27,7 +28,7 @@ describe('DashboardTabs', () => {
     jest.clearAllMocks();
   });
 
-  test('renders tab triggers and forwards state props to each panel', () => {
+  test('renders tab triggers and only mounts the active panel', async () => {
     const props = {
       selectedDate: new Date('2026-02-11'),
       onDateChange: jest.fn(),
@@ -81,6 +82,12 @@ describe('DashboardTabs', () => {
         readModelPollingTimedOut: props.readModelPollingTimedOut,
       })
     );
+    expect(majorsPanelMock).not.toHaveBeenCalled();
+    expect(migrationPanelMock).not.toHaveBeenCalled();
+    expect(forecastsPanelMock).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: 'Majors' }));
 
     expect(majorsPanelMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -90,7 +97,9 @@ describe('DashboardTabs', () => {
         readModelStatus: props.readModelStatus,
       })
     );
+    expect(overviewPanelMock).toHaveBeenCalledTimes(1);
 
+    await user.click(screen.getByRole('tab', { name: 'Migration' }));
     expect(migrationPanelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: props.migrationData,
@@ -99,6 +108,7 @@ describe('DashboardTabs', () => {
       })
     );
 
+    await user.click(screen.getByRole('tab', { name: 'Forecasts' }));
     expect(forecastsPanelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: props.forecastsData,

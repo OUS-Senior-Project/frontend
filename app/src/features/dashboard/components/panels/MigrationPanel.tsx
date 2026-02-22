@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { MigrationFlowChart } from '@/features/metrics/components/charts/MigrationFlowChart';
 import { MigrationTopFlowsTable } from '@/features/metrics/components/MigrationTopFlowsTable';
 import { SemesterFilterSelect } from '@/features/filters/components/SemesterFilterSelect';
@@ -25,7 +26,7 @@ interface MigrationPanelProps {
   onReadModelRetry: () => void;
 }
 
-export function MigrationPanel({
+function MigrationPanelComponent({
   data,
   loading,
   error,
@@ -38,8 +39,8 @@ export function MigrationPanel({
   readModelPollingTimedOut,
   onReadModelRetry,
 }: MigrationPanelProps) {
-  const semesterOptions = data?.semesters ?? [];
-  const migrationData = data?.records ?? [];
+  const semesterOptions = useMemo(() => data?.semesters ?? [], [data]);
+  const migrationData = useMemo(() => data?.records ?? [], [data]);
   const hasMigrationRecords = migrationData.length > 0;
 
   return (
@@ -131,3 +132,5 @@ export function MigrationPanel({
     </TabsContent>
   );
 }
+
+export const MigrationPanel = memo(MigrationPanelComponent);

@@ -219,6 +219,42 @@ function delay(ms: number, signal?: AbortSignal) {
   });
 }
 
+function canUsePerformanceApi() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.performance !== 'undefined' &&
+    typeof window.performance.mark === 'function' &&
+    typeof window.performance.measure === 'function'
+  );
+}
+
+function isDashboardPerfMarksEnabled() {
+  return process.env.NODE_ENV === 'development';
+}
+
+function startPerformanceMeasurement(metricName: string) {
+  if (!isDashboardPerfMarksEnabled() || !canUsePerformanceApi()) {
+    return () => {};
+  }
+
+  const nonce = `${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+  const startMark = `${metricName}:start:${nonce}`;
+  const endMark = `${metricName}:end:${nonce}`;
+
+  window.performance.mark(startMark);
+
+  return () => {
+    if (!canUsePerformanceApi()) {
+      return;
+    }
+
+    window.performance.mark(endMark);
+    window.performance.measure(metricName, startMark, endMark);
+    window.performance.clearMarks(startMark);
+    window.performance.clearMarks(endMark);
+  };
+}
+
 export function useDashboardMetricsModel() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [breakdownOpen, setBreakdownOpen] = useState(false);
@@ -266,6 +302,8 @@ export function useDashboardMetricsModel() {
 
   const inFlightByKeyRef = useRef(new Map<string, Promise<unknown>>());
   const uploadControllerRef = useRef<AbortController | null>(null);
+  const bootstrapMeasureStopRef = useRef<(() => void) | null>(null);
+  const bootstrapMeasuredRef = useRef(false);
 
   const runDeduped = useCallback(
     async <T>(key: string, request: () => Promise<T>): Promise<T> => {
@@ -366,6 +404,9 @@ export function useDashboardMetricsModel() {
 
   const loadDataset = useCallback(
     async (signal?: AbortSignal): Promise<DatasetSummary | null> => {
+      const stopMeasure = startPerformanceMeasurement(
+        'dashboard:dataset:active:load'
+      );
       setDatasetState((previous) => ({
         ...previous,
         loading: true,
@@ -417,6 +458,8 @@ export function useDashboardMetricsModel() {
           kind: 'ready',
         });
         return null;
+      } finally {
+        stopMeasure();
       }
     },
     [applyReadModelState, runDeduped]
@@ -429,14 +472,16 @@ export function useDashboardMetricsModel() {
         return;
       }
 
+      const stopMeasure = startPerformanceMeasurement(
+        'dashboard:panel:overview:load'
+      );
       setOverviewState((previous) => ({
         ...previous,
         loading: true,
         error: null,
       }));
 
-      const dateKey = selectedDate.toISOString().slice(0, 10);
-      const requestKey = `overview:${datasetId}:${dateKey}`;
+      const requestKey = `overview:${datasetId}`;
 
       try {
         const data = await runDeduped(requestKey, () =>
@@ -472,9 +517,11 @@ export function useDashboardMetricsModel() {
           loading: false,
           error: toUIError(error, 'Unable to load overview metrics.'),
         });
+      } finally {
+        stopMeasure();
       }
     },
-    [applyReadModelState, runDeduped, selectedDate]
+    [applyReadModelState, runDeduped]
   );
 
   const loadMajors = useCallback(
@@ -484,6 +531,9 @@ export function useDashboardMetricsModel() {
         return;
       }
 
+      const stopMeasure = startPerformanceMeasurement(
+        'dashboard:panel:majors:load'
+      );
       setMajorsState((previous) => ({
         ...previous,
         loading: true,
@@ -526,6 +576,8 @@ export function useDashboardMetricsModel() {
           loading: false,
           error: toUIError(error, 'Unable to load majors analytics.'),
         });
+      } finally {
+        stopMeasure();
       }
     },
     [applyReadModelState, runDeduped]
@@ -542,6 +594,9 @@ export function useDashboardMetricsModel() {
         return;
       }
 
+      const stopMeasure = startPerformanceMeasurement(
+        'dashboard:panel:migration:load'
+      );
       setMigrationState((previous) => ({
         ...previous,
         loading: true,
@@ -587,6 +642,8 @@ export function useDashboardMetricsModel() {
           loading: false,
           error: toUIError(error, 'Unable to load migration analytics.'),
         });
+      } finally {
+        stopMeasure();
       }
     },
     [applyReadModelState, runDeduped]
@@ -603,6 +660,9 @@ export function useDashboardMetricsModel() {
         return;
       }
 
+      const stopMeasure = startPerformanceMeasurement(
+        'dashboard:panel:forecasts:load'
+      );
       setForecastsState((previous) => ({
         ...previous,
         loading: true,
@@ -658,6 +718,8 @@ export function useDashboardMetricsModel() {
           loading: false,
           error: normalizedForecastError,
         });
+      } finally {
+        stopMeasure();
       }
     },
     [applyReadModelState, runDeduped]
@@ -825,6 +887,26 @@ export function useDashboardMetricsModel() {
   );
 
   useEffect(() => {
+    bootstrapMeasureStopRef.current = startPerformanceMeasurement(
+      'dashboard:bootstrap'
+    );
+
+    return () => {
+      bootstrapMeasureStopRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (datasetState.loading || bootstrapMeasuredRef.current) {
+      return;
+    }
+
+    bootstrapMeasuredRef.current = true;
+    bootstrapMeasureStopRef.current?.();
+    bootstrapMeasureStopRef.current = null;
+  }, [datasetState.loading]);
+
+  useEffect(() => {
     const controller = new AbortController();
     void loadDataset(controller.signal);
 
@@ -833,17 +915,19 @@ export function useDashboardMetricsModel() {
     };
   }, [loadDataset]);
 
+  const processingDatasetId =
+    readModelState.kind === 'processing' ? readModelState.datasetId : null;
+
   useEffect(() => {
-    if (readModelState.kind !== 'processing') {
+    if (!processingDatasetId) {
       return;
     }
 
     setReadModelPollingTimedOut(false);
     const controller = new AbortController();
-    let inFlight = false;
     let stopped = false;
     const startedAtMs = Date.now();
-    let intervalId: number | null = null;
+    let timeoutId: number | null = null;
 
     const stopPolling = (reason: 'timeout' | 'cleanup') => {
       if (stopped) {
@@ -851,8 +935,9 @@ export function useDashboardMetricsModel() {
       }
 
       stopped = true;
-      if (intervalId !== null) {
-        window.clearInterval(intervalId);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
       }
       controller.abort();
       if (reason === 'timeout') {
@@ -861,45 +946,42 @@ export function useDashboardMetricsModel() {
     };
 
     const pollDatasetStatus = async () => {
-      if (stopped || inFlight) {
+      const elapsedMs = Date.now() - startedAtMs;
+      if (stopped || elapsedMs >= DATASET_STATUS_POLL_MAX_DURATION_MS) {
+        if (!stopped && elapsedMs >= DATASET_STATUS_POLL_MAX_DURATION_MS) {
+          stopPolling('timeout');
+        }
         return;
       }
 
-      if (Date.now() - startedAtMs >= DATASET_STATUS_POLL_MAX_DURATION_MS) {
-        stopPolling('timeout');
-        return;
-      }
-
-      inFlight = true;
       try {
-        await refreshReadModelStatus(
-          readModelState.datasetId,
-          controller.signal
-        );
+        await refreshReadModelStatus(processingDatasetId, controller.signal);
       } catch (error) {
         if (isAbortedRequest(error)) {
           return;
         }
       } finally {
-        inFlight = false;
-        if (
-          !stopped &&
-          Date.now() - startedAtMs >= DATASET_STATUS_POLL_MAX_DURATION_MS
-        ) {
-          stopPolling('timeout');
+        if (stopped) {
+          return;
         }
+
+        if (Date.now() - startedAtMs >= DATASET_STATUS_POLL_MAX_DURATION_MS) {
+          stopPolling('timeout');
+          return;
+        }
+
+        timeoutId = window.setTimeout(() => {
+          void pollDatasetStatus();
+        }, DATASET_STATUS_POLL_INTERVAL_MS);
       }
     };
 
     void pollDatasetStatus();
-    intervalId = window.setInterval(() => {
-      void pollDatasetStatus();
-    }, DATASET_STATUS_POLL_INTERVAL_MS);
 
     return () => {
       stopPolling('cleanup');
     };
-  }, [readModelState, refreshReadModelStatus]);
+  }, [processingDatasetId, refreshReadModelStatus]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -908,7 +990,7 @@ export function useDashboardMetricsModel() {
     return () => {
       controller.abort();
     };
-  }, [activeDatasetId, loadOverview, selectedDate]);
+  }, [activeDatasetId, loadOverview]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -966,6 +1048,23 @@ export function useDashboardMetricsModel() {
     readModelState.kind === 'failed' ? readModelState.error : null;
   const readModelStatus =
     readModelState.kind === 'ready' ? null : readModelState.status;
+  const retryDataset = useCallback(() => loadDataset(), [loadDataset]);
+  const retryOverview = useCallback(
+    () => loadOverview(activeDatasetId),
+    [activeDatasetId, loadOverview]
+  );
+  const retryMajors = useCallback(
+    () => loadMajors(activeDatasetId),
+    [activeDatasetId, loadMajors]
+  );
+  const retryMigration = useCallback(
+    () => loadMigration(activeDatasetId, migrationSemester),
+    [activeDatasetId, loadMigration, migrationSemester]
+  );
+  const retryForecasts = useCallback(
+    () => loadForecasts(activeDatasetId, forecastHorizon),
+    [activeDatasetId, forecastHorizon, loadForecasts]
+  );
 
   return {
     selectedDate,
@@ -989,22 +1088,22 @@ export function useDashboardMetricsModel() {
     readModelError,
     readModelPollingTimedOut,
     retryReadModelState,
-    retryDataset: () => loadDataset(),
+    retryDataset,
     overviewData: overviewState.data,
     overviewLoading: overviewState.loading,
     overviewError: overviewState.error,
-    retryOverview: () => loadOverview(activeDatasetId),
+    retryOverview,
     majorsData: majorsState.data,
     majorsLoading: majorsState.loading,
     majorsError: majorsState.error,
-    retryMajors: () => loadMajors(activeDatasetId),
+    retryMajors,
     migrationData: migrationState.data,
     migrationLoading: migrationState.loading,
     migrationError: migrationState.error,
-    retryMigration: () => loadMigration(activeDatasetId, migrationSemester),
+    retryMigration,
     forecastsData: forecastsState.data,
     forecastsLoading: forecastsState.loading,
     forecastsError: forecastsState.error,
-    retryForecasts: () => loadForecasts(activeDatasetId, forecastHorizon),
+    retryForecasts,
   };
 }
