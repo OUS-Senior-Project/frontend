@@ -12,6 +12,9 @@ export BROWSERSLIST_IGNORE_OLD_DATA=true
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/app"
 
+echo "Checking formatting..."
+npm run format:check
+
 echo "Running lint..."
 npm run lint
 
