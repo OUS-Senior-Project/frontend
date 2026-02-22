@@ -631,7 +631,12 @@ describe('dashboard panel states', () => {
       <MigrationPanel
         data={null}
         loading={false}
-        error={{ code: 'UNKNOWN', message: 'Migration failed', retryable: true }}
+        error={{
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Migration failed',
+          retryable: false,
+          status: 500,
+        }}
         migrationSemester={undefined}
         onSemesterChange={onSemesterChange}
         onRetry={onRetry}
@@ -745,6 +750,31 @@ describe('dashboard panel states', () => {
       />
     );
     expect(screen.getByText('No migration analytics available')).toBeInTheDocument();
+
+    rerender(
+      <MigrationPanel
+        data={{
+          datasetId: 'dataset-1',
+          semesters: ['Fall 2025'],
+          records: [],
+        }}
+        loading={false}
+        error={null}
+        migrationSemester="Fall 2025"
+        onSemesterChange={onSemesterChange}
+        onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(
+      screen.getByText('No migration detected for selected period')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Migration flow rows: 0')).not.toBeInTheDocument();
+    expect(screen.queryByText('Migration table rows: 0')).not.toBeInTheDocument();
 
     rerender(
       <MigrationPanel

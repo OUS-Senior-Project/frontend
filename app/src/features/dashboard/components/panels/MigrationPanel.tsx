@@ -40,6 +40,7 @@ export function MigrationPanel({
 }: MigrationPanelProps) {
   const semesterOptions = data?.semesters ?? [];
   const migrationData = data?.records ?? [];
+  const hasMigrationRecords = migrationData.length > 0;
 
   return (
     <TabsContent value="migration" className="space-y-6">
@@ -99,20 +100,34 @@ export function MigrationPanel({
           description="Migration flows will appear here once records are available."
         />
       )}
-      {readModelState === 'ready' && !loading && !error && data && (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <MigrationFlowChart
+      {readModelState === 'ready' &&
+        !loading &&
+        !error &&
+        data &&
+        !hasMigrationRecords && (
+          <PanelEmptyState
+            title="No migration detected for selected period"
+            description="No major transitions were reported for the current migration selection."
+          />
+        )}
+      {readModelState === 'ready' &&
+        !loading &&
+        !error &&
+        data &&
+        hasMigrationRecords && (
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <MigrationFlowChart
+                data={migrationData}
+                selectedSemester={migrationSemester}
+              />
+            </div>
+            <MigrationTopFlowsTable
               data={migrationData}
               selectedSemester={migrationSemester}
             />
           </div>
-          <MigrationTopFlowsTable
-            data={migrationData}
-            selectedSemester={migrationSemester}
-          />
-        </div>
-      )}
+        )}
     </TabsContent>
   );
 }

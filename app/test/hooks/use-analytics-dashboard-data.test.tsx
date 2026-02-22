@@ -1609,6 +1609,64 @@ describe('useDashboardMetricsModel', () => {
     });
   });
 
+  test('keeps migration 500 errors in panel error state with retry metadata', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockRejectedValue(
+      new ApiError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Migration endpoint failed',
+        status: 500,
+        retryable: false,
+      })
+    );
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.migrationError?.status).toBe(500);
+    });
+
+    expect(result.current.readModelState).toBe('ready');
+    expect(result.current.migrationError).toEqual({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Migration endpoint failed',
+      retryable: false,
+      status: 500,
+    });
+  });
+
   test('maps NEEDS_REBUILD forecast errors to a panel-specific message', async () => {
     mockGetActiveDataset.mockResolvedValue({
       datasetId: 'dataset-1',
