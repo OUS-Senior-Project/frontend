@@ -83,8 +83,9 @@ export function MajorsPanel({
           }}
         />
       )}
-      {readModelState === 'ready' &&
-        loading && <PanelLoadingState message="Loading majors analytics..." />}
+      {readModelState === 'ready' && loading && (
+        <PanelLoadingState message="Loading majors analytics..." />
+      )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
           message={error.message}

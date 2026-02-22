@@ -106,8 +106,9 @@ export function OverviewPanel({
           }}
         />
       )}
-      {readModelState === 'ready' &&
-        loading && <PanelLoadingState message="Loading overview metrics..." />}
+      {readModelState === 'ready' && loading && (
+        <PanelLoadingState message="Loading overview metrics..." />
+      )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
           message={error.message}

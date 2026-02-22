@@ -248,10 +248,11 @@ export function useDashboardMetricsModel() {
   const [forecastsState, setForecastsState] = useState<
     AsyncResourceState<ForecastsAnalyticsResponse>
   >(initialAsyncResourceState);
-  const [readModelState, setReadModelState] =
-    useState<DashboardReadModelState>({
+  const [readModelState, setReadModelState] = useState<DashboardReadModelState>(
+    {
       kind: 'ready',
-    });
+    }
+  );
 
   const [uploadState, setUploadState] = useState<{
     loading: boolean;
@@ -287,43 +288,46 @@ export function useDashboardMetricsModel() {
     []
   );
 
-  const applyReadModelState = useCallback((nextState: DashboardReadModelState) => {
-    setReadModelState((currentState) => {
-      if (
-        currentState.kind === 'failed' &&
-        nextState.kind === 'processing' &&
-        currentState.datasetId === nextState.datasetId
-      ) {
-        return currentState;
-      }
+  const applyReadModelState = useCallback(
+    (nextState: DashboardReadModelState) => {
+      setReadModelState((currentState) => {
+        if (
+          currentState.kind === 'failed' &&
+          nextState.kind === 'processing' &&
+          currentState.datasetId === nextState.datasetId
+        ) {
+          return currentState;
+        }
 
-      if (currentState.kind === 'ready' && nextState.kind === 'ready') {
-        return currentState;
-      }
+        if (currentState.kind === 'ready' && nextState.kind === 'ready') {
+          return currentState;
+        }
 
-      if (
-        currentState.kind === 'processing' &&
-        nextState.kind === 'processing' &&
-        currentState.datasetId === nextState.datasetId &&
-        currentState.status === nextState.status
-      ) {
-        return currentState;
-      }
+        if (
+          currentState.kind === 'processing' &&
+          nextState.kind === 'processing' &&
+          currentState.datasetId === nextState.datasetId &&
+          currentState.status === nextState.status
+        ) {
+          return currentState;
+        }
 
-      if (
-        currentState.kind === 'failed' &&
-        nextState.kind === 'failed' &&
-        currentState.datasetId === nextState.datasetId &&
-        currentState.status === nextState.status &&
-        currentState.error.code === nextState.error.code &&
-        currentState.error.message === nextState.error.message
-      ) {
-        return currentState;
-      }
+        if (
+          currentState.kind === 'failed' &&
+          nextState.kind === 'failed' &&
+          currentState.datasetId === nextState.datasetId &&
+          currentState.status === nextState.status &&
+          currentState.error.code === nextState.error.code &&
+          currentState.error.message === nextState.error.message
+        ) {
+          return currentState;
+        }
 
-      return nextState;
-    });
-  }, []);
+        return nextState;
+      });
+    },
+    []
+  );
 
   const pollSubmissionUntilTerminal = useCallback(
     async (
@@ -680,8 +684,9 @@ export function useDashboardMetricsModel() {
 
   const refreshReadModelStatus = useCallback(
     async (datasetId: string, signal?: AbortSignal) => {
-      const latestDataset = await runDeduped(`dataset:detail:${datasetId}`, () =>
-        getDatasetById(datasetId, { signal })
+      const latestDataset = await runDeduped(
+        `dataset:detail:${datasetId}`,
+        () => getDatasetById(datasetId, { signal })
       );
 
       setDatasetState((previous) => ({
@@ -792,7 +797,10 @@ export function useDashboardMetricsModel() {
         const refreshedDatasetId =
           refreshedDataset?.datasetId ?? terminalSubmission.datasetId;
 
-        await refreshAnalyticsResources(refreshedDatasetId, uploadController.signal);
+        await refreshAnalyticsResources(
+          refreshedDatasetId,
+          uploadController.signal
+        );
 
         setUploadState({
           loading: false,
@@ -813,11 +821,7 @@ export function useDashboardMetricsModel() {
         }
       }
     },
-    [
-      loadDataset,
-      pollSubmissionUntilTerminal,
-      refreshAnalyticsResources,
-    ]
+    [loadDataset, pollSubmissionUntilTerminal, refreshAnalyticsResources]
   );
 
   useEffect(() => {
@@ -868,7 +872,10 @@ export function useDashboardMetricsModel() {
 
       inFlight = true;
       try {
-        await refreshReadModelStatus(readModelState.datasetId, controller.signal);
+        await refreshReadModelStatus(
+          readModelState.datasetId,
+          controller.signal
+        );
       } catch (error) {
         if (isAbortedRequest(error)) {
           return;

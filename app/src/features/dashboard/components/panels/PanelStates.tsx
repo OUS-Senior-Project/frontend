@@ -40,7 +40,9 @@ export function PanelProcessingState({
           <Spinner className="h-4 w-4" />
           {message}
         </p>
-        {statusLabel && <p className="text-xs text-muted-foreground">{statusLabel}</p>}
+        {statusLabel && (
+          <p className="text-xs text-muted-foreground">{statusLabel}</p>
+        )}
         <Button
           variant="outline"
           className="cursor-pointer bg-transparent"
@@ -83,7 +85,10 @@ interface PanelFailedStateProps {
   onRefresh: () => void;
 }
 
-export function PanelFailedState({ message, onRefresh }: PanelFailedStateProps) {
+export function PanelFailedState({
+  message,
+  onRefresh,
+}: PanelFailedStateProps) {
   return (
     <Card className="border-border bg-card">
       <CardContent className="flex h-[320px] flex-col items-center justify-center gap-3 text-center">

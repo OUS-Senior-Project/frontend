@@ -102,8 +102,9 @@ export function ForecastsPanel({
           }}
         />
       )}
-      {readModelState === 'ready' &&
-        loading && <PanelLoadingState message="Loading forecast analytics..." />}
+      {readModelState === 'ready' && loading && (
+        <PanelLoadingState message="Loading forecast analytics..." />
+      )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
           message={error.message}
