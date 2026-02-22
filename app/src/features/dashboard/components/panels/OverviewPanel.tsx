@@ -12,7 +12,9 @@ import { TabsContent } from '@/shared/ui/tabs';
 import {
   PanelEmptyState,
   PanelErrorState,
+  PanelFailedState,
   PanelLoadingState,
+  PanelProcessingState,
 } from './PanelStates';
 
 interface OverviewPanelProps {
@@ -27,6 +29,11 @@ interface OverviewPanelProps {
   loading: boolean;
   error: UIError | null;
   onRetry: () => void;
+  readModelState: 'ready' | 'processing' | 'failed';
+  readModelStatus: string | null;
+  readModelError: UIError | null;
+  readModelPollingTimedOut: boolean;
+  onReadModelRetry: () => void;
 }
 
 export function OverviewPanel({
@@ -41,6 +48,11 @@ export function OverviewPanel({
   loading,
   error,
   onRetry,
+  readModelState,
+  readModelStatus,
+  readModelError,
+  readModelPollingTimedOut,
+  onReadModelRetry,
 }: OverviewPanelProps) {
   const dateLabel = selectedDate.toLocaleDateString('en-US', {
     month: 'long',
@@ -70,8 +82,34 @@ export function OverviewPanel({
         <p className="text-sm text-destructive">{uploadError.message}</p>
       )}
 
-      {loading && <PanelLoadingState message="Loading overview metrics..." />}
-      {!loading && error && (
+      {readModelState === 'processing' && (
+        <PanelProcessingState
+          status={readModelStatus}
+          message={
+            readModelPollingTimedOut
+              ? 'Dataset is still processing. Automatic status checks are paused. Use Refresh status to check again.'
+              : 'Dataset processing is in progress. Overview metrics will refresh automatically when ready.'
+          }
+          onRefresh={() => {
+            void onReadModelRetry();
+          }}
+        />
+      )}
+      {readModelState === 'failed' && (
+        <PanelFailedState
+          message={
+            readModelError?.message ??
+            'Dataset processing failed. Upload a new dataset to continue.'
+          }
+          onRefresh={() => {
+            void onReadModelRetry();
+          }}
+        />
+      )}
+      {readModelState === 'ready' && loading && (
+        <PanelLoadingState message="Loading overview metrics..." />
+      )}
+      {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
           message={error.message}
           onRetry={() => {
@@ -79,13 +117,13 @@ export function OverviewPanel({
           }}
         />
       )}
-      {!loading && !error && !data && (
+      {readModelState === 'ready' && !loading && !error && !data && (
         <PanelEmptyState
           title="No overview metrics available"
           description="Upload and process a dataset to populate this tab."
         />
       )}
-      {!loading && !error && data && (
+      {readModelState === 'ready' && !loading && !error && data && (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <MetricsSummaryCard

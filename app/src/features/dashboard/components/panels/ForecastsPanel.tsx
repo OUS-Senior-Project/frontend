@@ -13,7 +13,9 @@ import { TabsContent } from '@/shared/ui/tabs';
 import {
   PanelEmptyState,
   PanelErrorState,
+  PanelFailedState,
   PanelLoadingState,
+  PanelProcessingState,
 } from './PanelStates';
 
 interface ForecastsPanelProps {
@@ -23,6 +25,11 @@ interface ForecastsPanelProps {
   horizon: number;
   onHorizonChange: (horizon: number) => void;
   onRetry: () => void;
+  readModelState: 'ready' | 'processing' | 'failed';
+  readModelStatus: string | null;
+  readModelError: UIError | null;
+  readModelPollingTimedOut: boolean;
+  onReadModelRetry: () => void;
 }
 
 export function ForecastsPanel({
@@ -32,6 +39,11 @@ export function ForecastsPanel({
   horizon,
   onHorizonChange,
   onRetry,
+  readModelState,
+  readModelStatus,
+  readModelError,
+  readModelPollingTimedOut,
+  onReadModelRetry,
 }: ForecastsPanelProps) {
   const horizonOptions = [2, 4, 6, 8, 12];
 
@@ -66,8 +78,34 @@ export function ForecastsPanel({
           </Select>
         </div>
       </div>
-      {loading && <PanelLoadingState message="Loading forecast analytics..." />}
-      {!loading && error && (
+      {readModelState === 'processing' && (
+        <PanelProcessingState
+          status={readModelStatus}
+          message={
+            readModelPollingTimedOut
+              ? 'Dataset is still processing. Automatic status checks are paused. Use Refresh status to check again.'
+              : 'Dataset processing is in progress. Forecast analytics will refresh automatically when ready.'
+          }
+          onRefresh={() => {
+            void onReadModelRetry();
+          }}
+        />
+      )}
+      {readModelState === 'failed' && (
+        <PanelFailedState
+          message={
+            readModelError?.message ??
+            'Dataset processing failed. Upload a new dataset to continue.'
+          }
+          onRefresh={() => {
+            void onReadModelRetry();
+          }}
+        />
+      )}
+      {readModelState === 'ready' && loading && (
+        <PanelLoadingState message="Loading forecast analytics..." />
+      )}
+      {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
           message={error.message}
           onRetry={() => {
@@ -75,13 +113,13 @@ export function ForecastsPanel({
           }}
         />
       )}
-      {!loading && !error && !data && (
+      {readModelState === 'ready' && !loading && !error && !data && (
         <PanelEmptyState
           title="No forecast analytics available"
           description="Forecast metrics will appear here when historical data is ready."
         />
       )}
-      {!loading && !error && data && (
+      {readModelState === 'ready' && !loading && !error && data && (
         <>
           <MetricsSummaryCard
             title="5-Year Growth"

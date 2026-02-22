@@ -6,7 +6,9 @@ import { OverviewPanel } from '@/features/dashboard/components/panels/OverviewPa
 import {
   PanelEmptyState,
   PanelErrorState,
+  PanelFailedState,
   PanelLoadingState,
+  PanelProcessingState,
 } from '@/features/dashboard/components/panels/PanelStates';
 
 jest.mock('@/shared/ui/tabs', () => ({
@@ -187,13 +189,39 @@ jest.mock('@/features/metrics/components/ForecastSection', () => ({
 }));
 
 describe('dashboard panel states', () => {
-  test('PanelLoadingState, PanelErrorState, and PanelEmptyState render', () => {
+  test('PanelLoadingState, PanelProcessingState, PanelFailedState, PanelErrorState, and PanelEmptyState render', () => {
     const retry = jest.fn();
+    const refresh = jest.fn();
 
     const { rerender } = render(
       <PanelLoadingState message="Loading dashboard segment..." />
     );
     expect(screen.getByText('Loading dashboard segment...')).toBeInTheDocument();
+
+    rerender(
+      <PanelProcessingState
+        message="Processing dataset..."
+        status="building"
+        onRefresh={refresh}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Current status: building.')).toBeInTheDocument();
+
+    rerender(<PanelProcessingState message="Processing dataset..." onRefresh={refresh} />);
+    expect(screen.queryByText(/Current status:/)).not.toBeInTheDocument();
+
+    rerender(<PanelProcessingState onRefresh={refresh} />);
+    expect(
+      screen.getByText(
+        'Dataset processing is in progress. Analytics will refresh automatically when ready.'
+      )
+    ).toBeInTheDocument();
+
+    rerender(<PanelFailedState message="Processing failed" onRefresh={refresh} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(refresh).toHaveBeenCalledTimes(2);
 
     rerender(<PanelErrorState message="Segment failed" onRetry={retry} />);
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -211,6 +239,7 @@ describe('dashboard panel states', () => {
 
   test('OverviewPanel handles loading, error, empty, and populated states', () => {
     const onRetry = jest.fn();
+    const onReadModelRetry = jest.fn();
     const onDatasetUpload = jest.fn();
     const onDateChange = jest.fn();
     const onBreakdownOpenChange = jest.fn();
@@ -224,6 +253,11 @@ describe('dashboard panel states', () => {
       breakdownOpen: false,
       onBreakdownOpenChange,
       onRetry,
+      readModelState: 'ready' as const,
+      readModelStatus: null,
+      readModelError: null,
+      readModelPollingTimedOut: false,
+      onReadModelRetry,
     };
 
     const { rerender } = render(
@@ -246,6 +280,81 @@ describe('dashboard panel states', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <OverviewPanel
+        {...baseProps}
+        data={null}
+        loading={false}
+        error={null}
+        readModelState="processing"
+        readModelStatus="building"
+        readModelPollingTimedOut={false}
+      />
+    );
+    expect(
+      screen.getByText(
+        'Dataset processing is in progress. Overview metrics will refresh automatically when ready.'
+      )
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <OverviewPanel
+        {...baseProps}
+        data={null}
+        loading={false}
+        error={null}
+        readModelState="processing"
+        readModelStatus="building"
+        readModelPollingTimedOut={true}
+      />
+    );
+    expect(
+      screen.getByText(/Dataset is still processing/)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <OverviewPanel
+        {...baseProps}
+        data={null}
+        loading={false}
+        error={null}
+        readModelState="failed"
+        readModelStatus="failed"
+        readModelPollingTimedOut={false}
+        readModelError={{
+          code: 'DATASET_FAILED',
+          message: 'Dataset processing failed.',
+          retryable: false,
+          status: 409,
+        }}
+      />
+    );
+    expect(screen.getByText('Dataset processing failed.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Upload Dataset' }));
+    expect(onDatasetUpload).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <OverviewPanel
+        {...baseProps}
+        data={null}
+        loading={false}
+        error={null}
+        readModelState="failed"
+        readModelStatus="failed"
+        readModelPollingTimedOut={false}
+        readModelError={null}
+      />
+    );
+    expect(
+      screen.getByText('Dataset processing failed. Upload a new dataset to continue.')
+    ).toBeInTheDocument();
 
     rerender(
       <OverviewPanel
@@ -304,7 +413,7 @@ describe('dashboard panel states', () => {
     expect(onBreakdownOpenChange).toHaveBeenCalledWith(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Upload Dataset' }));
-    expect(onDatasetUpload).toHaveBeenCalledTimes(1);
+    expect(onDatasetUpload).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Change Date' }));
     expect(onDateChange).toHaveBeenCalledWith(new Date('2026-02-10'));
@@ -312,9 +421,20 @@ describe('dashboard panel states', () => {
 
   test('MajorsPanel handles loading/error/empty and renders populated data', () => {
     const onRetry = jest.fn();
+    const onReadModelRetry = jest.fn();
 
     const { rerender } = render(
-      <MajorsPanel data={null} loading={true} error={null} onRetry={onRetry} />
+      <MajorsPanel
+        data={null}
+        loading={true}
+        error={null}
+        onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
     );
     expect(screen.getByText('Loading majors analytics...')).toBeInTheDocument();
 
@@ -324,13 +444,107 @@ describe('dashboard panel states', () => {
         loading={false}
         error={{ code: 'UNKNOWN', message: 'Majors failed', retryable: true }}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
 
     rerender(
-      <MajorsPanel data={null} loading={false} error={null} onRetry={onRetry} />
+      <MajorsPanel
+        data={null}
+        loading={false}
+        error={null}
+        onRetry={onRetry}
+        readModelState="processing"
+        readModelStatus="building"
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(
+      screen.getByText(
+        'Dataset processing is in progress. Majors analytics will refresh automatically when ready.'
+      )
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <MajorsPanel
+        data={null}
+        loading={false}
+        error={null}
+        onRetry={onRetry}
+        readModelState="processing"
+        readModelStatus="building"
+        readModelError={null}
+        readModelPollingTimedOut={true}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(screen.getByText(/Dataset is still processing/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <MajorsPanel
+        data={null}
+        loading={false}
+        error={null}
+        onRetry={onRetry}
+        readModelState="failed"
+        readModelStatus="failed"
+        readModelError={{
+          code: 'DATASET_FAILED',
+          message: 'Dataset processing failed.',
+          retryable: false,
+          status: 409,
+        }}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(screen.getByText('Dataset processing failed.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(3);
+
+    rerender(
+      <MajorsPanel
+        data={null}
+        loading={false}
+        error={null}
+        onRetry={onRetry}
+        readModelState="failed"
+        readModelStatus="failed"
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(
+      screen.getByText('Dataset processing failed. Upload a new dataset to continue.')
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(4);
+
+    rerender(
+      <MajorsPanel
+        data={null}
+        loading={false}
+        error={null}
+        onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
     );
     expect(screen.getByText('No majors analytics available')).toBeInTheDocument();
 
@@ -356,6 +570,11 @@ describe('dashboard panel states', () => {
         loading={false}
         error={null}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     expect(screen.getByText('Top Major: Biology')).toBeInTheDocument();
@@ -375,6 +594,11 @@ describe('dashboard panel states', () => {
         loading={false}
         error={null}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     expect(screen.getByText('Top Major: N/A')).toBeInTheDocument();
@@ -383,6 +607,7 @@ describe('dashboard panel states', () => {
 
   test('MigrationPanel handles states and semester change callback', () => {
     const onRetry = jest.fn();
+    const onReadModelRetry = jest.fn();
     const onSemesterChange = jest.fn();
 
     const { rerender } = render(
@@ -393,6 +618,11 @@ describe('dashboard panel states', () => {
         migrationSemester={undefined}
         onSemesterChange={onSemesterChange}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     expect(screen.getByText('Loading migration analytics...')).toBeInTheDocument();
@@ -405,6 +635,11 @@ describe('dashboard panel states', () => {
         migrationSemester={undefined}
         onSemesterChange={onSemesterChange}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -418,6 +653,95 @@ describe('dashboard panel states', () => {
         migrationSemester={undefined}
         onSemesterChange={onSemesterChange}
         onRetry={onRetry}
+        readModelState="processing"
+        readModelStatus="building"
+        readModelError={null}
+        readModelPollingTimedOut={true}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(screen.getByText(/Dataset is still processing/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <MigrationPanel
+        data={null}
+        loading={false}
+        error={null}
+        migrationSemester={undefined}
+        onSemesterChange={onSemesterChange}
+        onRetry={onRetry}
+        readModelState="processing"
+        readModelStatus="building"
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(
+      screen.getByText(
+        'Dataset processing is in progress. Migration analytics will refresh automatically when ready.'
+      )
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <MigrationPanel
+        data={null}
+        loading={false}
+        error={null}
+        migrationSemester={undefined}
+        onSemesterChange={onSemesterChange}
+        onRetry={onRetry}
+        readModelState="failed"
+        readModelStatus="failed"
+        readModelError={{
+          code: 'DATASET_FAILED',
+          message: 'Dataset processing failed.',
+          retryable: false,
+          status: 409,
+        }}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(3);
+
+    rerender(
+      <MigrationPanel
+        data={null}
+        loading={false}
+        error={null}
+        migrationSemester={undefined}
+        onSemesterChange={onSemesterChange}
+        onRetry={onRetry}
+        readModelState="failed"
+        readModelStatus="failed"
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(
+      screen.getByText('Dataset processing failed. Upload a new dataset to continue.')
+    ).toBeInTheDocument();
+
+    rerender(
+      <MigrationPanel
+        data={null}
+        loading={false}
+        error={null}
+        migrationSemester={undefined}
+        onSemesterChange={onSemesterChange}
+        onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     expect(screen.getByText('No migration analytics available')).toBeInTheDocument();
@@ -441,6 +765,11 @@ describe('dashboard panel states', () => {
         migrationSemester="Fall 2025"
         onSemesterChange={onSemesterChange}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
 
@@ -453,6 +782,7 @@ describe('dashboard panel states', () => {
 
   test('ForecastsPanel handles states and both growth sign branches', () => {
     const onRetry = jest.fn();
+    const onReadModelRetry = jest.fn();
     const onHorizonChange = jest.fn();
 
     const { rerender } = render(
@@ -463,6 +793,11 @@ describe('dashboard panel states', () => {
         horizon={4}
         onHorizonChange={onHorizonChange}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     expect(screen.getByText('Loading forecast analytics...')).toBeInTheDocument();
@@ -475,6 +810,11 @@ describe('dashboard panel states', () => {
         horizon={4}
         onHorizonChange={onHorizonChange}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -488,6 +828,98 @@ describe('dashboard panel states', () => {
         horizon={4}
         onHorizonChange={onHorizonChange}
         onRetry={onRetry}
+        readModelState="processing"
+        readModelStatus="building"
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(
+      screen.getByText(
+        'Dataset processing is in progress. Forecast analytics will refresh automatically when ready.'
+      )
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ForecastsPanel
+        data={null}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
+        onRetry={onRetry}
+        readModelState="processing"
+        readModelStatus="building"
+        readModelError={null}
+        readModelPollingTimedOut={true}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(screen.getByText(/Dataset is still processing/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <ForecastsPanel
+        data={null}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
+        onRetry={onRetry}
+        readModelState="failed"
+        readModelStatus="failed"
+        readModelError={{
+          code: 'DATASET_FAILED',
+          message: 'Dataset processing failed.',
+          retryable: false,
+          status: 409,
+        }}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(screen.getByText('Dataset processing failed.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(3);
+
+    rerender(
+      <ForecastsPanel
+        data={null}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
+        onRetry={onRetry}
+        readModelState="failed"
+        readModelStatus="failed"
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+    expect(
+      screen.getByText('Dataset processing failed. Upload a new dataset to continue.')
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
+    expect(onReadModelRetry).toHaveBeenCalledTimes(4);
+
+    rerender(
+      <ForecastsPanel
+        data={null}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={onHorizonChange}
+        onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     expect(screen.getByText('No forecast analytics available')).toBeInTheDocument();
@@ -520,6 +952,11 @@ describe('dashboard panel states', () => {
         horizon={4}
         onHorizonChange={onHorizonChange}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     expect(screen.getByText('5-Year Growth: +8%')).toBeInTheDocument();
@@ -543,6 +980,11 @@ describe('dashboard panel states', () => {
         horizon={4}
         onHorizonChange={onHorizonChange}
         onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
       />
     );
     expect(screen.getByText('5-Year Growth: -3%')).toBeInTheDocument();

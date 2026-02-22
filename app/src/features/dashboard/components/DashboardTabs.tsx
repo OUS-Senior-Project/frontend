@@ -17,6 +17,11 @@ interface DashboardTabsProps {
   onDatasetUpload: (file: File) => void;
   uploadLoading: boolean;
   uploadError: UIError | null;
+  readModelState: 'ready' | 'processing' | 'failed';
+  readModelStatus: string | null;
+  readModelError: UIError | null;
+  readModelPollingTimedOut: boolean;
+  onReadModelRetry: () => void;
   breakdownOpen: boolean;
   onBreakdownOpenChange: (isOpen: boolean) => void;
   overviewData: DatasetOverviewResponse | null;
@@ -83,12 +88,22 @@ export function DashboardTabs(props: DashboardTabsProps) {
         loading={props.overviewLoading}
         error={props.overviewError}
         onRetry={props.onOverviewRetry}
+        readModelState={props.readModelState}
+        readModelStatus={props.readModelStatus}
+        readModelError={props.readModelError}
+        readModelPollingTimedOut={props.readModelPollingTimedOut}
+        onReadModelRetry={props.onReadModelRetry}
       />
       <MajorsPanel
         data={props.majorsData}
         loading={props.majorsLoading}
         error={props.majorsError}
         onRetry={props.onMajorsRetry}
+        readModelState={props.readModelState}
+        readModelStatus={props.readModelStatus}
+        readModelError={props.readModelError}
+        readModelPollingTimedOut={props.readModelPollingTimedOut}
+        onReadModelRetry={props.onReadModelRetry}
       />
       <MigrationPanel
         data={props.migrationData}
@@ -97,6 +112,11 @@ export function DashboardTabs(props: DashboardTabsProps) {
         migrationSemester={props.migrationSemester}
         onSemesterChange={props.onMigrationSemesterChange}
         onRetry={props.onMigrationRetry}
+        readModelState={props.readModelState}
+        readModelStatus={props.readModelStatus}
+        readModelError={props.readModelError}
+        readModelPollingTimedOut={props.readModelPollingTimedOut}
+        onReadModelRetry={props.onReadModelRetry}
       />
       <ForecastsPanel
         data={props.forecastsData}
@@ -105,6 +125,11 @@ export function DashboardTabs(props: DashboardTabsProps) {
         horizon={props.forecastHorizon}
         onHorizonChange={props.onForecastHorizonChange}
         onRetry={props.onForecastsRetry}
+        readModelState={props.readModelState}
+        readModelStatus={props.readModelStatus}
+        readModelError={props.readModelError}
+        readModelPollingTimedOut={props.readModelPollingTimedOut}
+        onReadModelRetry={props.onReadModelRetry}
       />
     </Tabs>
   );

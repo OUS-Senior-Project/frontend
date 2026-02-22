@@ -560,6 +560,67 @@ describe('api boundaries', () => {
     });
   });
 
+  test('createApiClient preserves 409 DATASET_NOT_READY and DATASET_FAILED envelopes for dataset reads', async () => {
+    installFetchMock()
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: 'DATASET_NOT_READY',
+              message: 'Dataset is still building.',
+              details: {
+                datasetId: 'dataset-1',
+                status: 'building',
+                requiredStatus: 'ready',
+              },
+            },
+          },
+          { status: 409, headers: { 'x-request-id': 'req-409-ready' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: 'DATASET_FAILED',
+              message: 'Dataset processing failed.',
+              details: {
+                datasetId: 'dataset-1',
+                status: 'failed',
+              },
+            },
+          },
+          { status: 409, headers: { 'x-request-id': 'req-409-failed' } }
+        )
+      );
+
+    const client = createApiClient('http://localhost:8000');
+
+    await expect(
+      client.get('/api/v1/datasets/dataset-1/overview')
+    ).rejects.toMatchObject({
+      code: 'DATASET_NOT_READY',
+      status: 409,
+      requestId: 'req-409-ready',
+      details: {
+        datasetId: 'dataset-1',
+        status: 'building',
+        requiredStatus: 'ready',
+      },
+    });
+    await expect(
+      client.get('/api/v1/datasets/dataset-1/overview')
+    ).rejects.toMatchObject({
+      code: 'DATASET_FAILED',
+      status: 409,
+      requestId: 'req-409-failed',
+      details: {
+        datasetId: 'dataset-1',
+        status: 'failed',
+      },
+    });
+  });
+
   test('getActiveDataset maps ACTIVE_DATASET_NOT_FOUND to null', async () => {
     installFetchMock().mockResolvedValueOnce(
       jsonResponse(

@@ -14,7 +14,9 @@ import { selectTopMajorLabel } from '@/features/metrics/utils/metrics-summary-ut
 import {
   PanelEmptyState,
   PanelErrorState,
+  PanelFailedState,
   PanelLoadingState,
+  PanelProcessingState,
 } from './PanelStates';
 
 interface MajorsPanelProps {
@@ -22,6 +24,11 @@ interface MajorsPanelProps {
   loading: boolean;
   error: UIError | null;
   onRetry: () => void;
+  readModelState: 'ready' | 'processing' | 'failed';
+  readModelStatus: string | null;
+  readModelError: UIError | null;
+  readModelPollingTimedOut: boolean;
+  onReadModelRetry: () => void;
 }
 
 export function MajorsPanel({
@@ -29,6 +36,11 @@ export function MajorsPanel({
   loading,
   error,
   onRetry,
+  readModelState,
+  readModelStatus,
+  readModelError,
+  readModelPollingTimedOut,
+  onReadModelRetry,
 }: MajorsPanelProps) {
   const majorData = data?.majorDistribution ?? [];
   const cohortData = data?.cohortRecords ?? [];
@@ -47,8 +59,34 @@ export function MajorsPanel({
           Major-level analytics and cohort breakdowns
         </p>
       </div>
-      {loading && <PanelLoadingState message="Loading majors analytics..." />}
-      {!loading && error && (
+      {readModelState === 'processing' && (
+        <PanelProcessingState
+          status={readModelStatus}
+          message={
+            readModelPollingTimedOut
+              ? 'Dataset is still processing. Automatic status checks are paused. Use Refresh status to check again.'
+              : 'Dataset processing is in progress. Majors analytics will refresh automatically when ready.'
+          }
+          onRefresh={() => {
+            void onReadModelRetry();
+          }}
+        />
+      )}
+      {readModelState === 'failed' && (
+        <PanelFailedState
+          message={
+            readModelError?.message ??
+            'Dataset processing failed. Upload a new dataset to continue.'
+          }
+          onRefresh={() => {
+            void onReadModelRetry();
+          }}
+        />
+      )}
+      {readModelState === 'ready' && loading && (
+        <PanelLoadingState message="Loading majors analytics..." />
+      )}
+      {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
           message={error.message}
           onRetry={() => {
@@ -56,13 +94,13 @@ export function MajorsPanel({
           }}
         />
       )}
-      {!loading && !error && !data && (
+      {readModelState === 'ready' && !loading && !error && !data && (
         <PanelEmptyState
           title="No majors analytics available"
           description="Majors metrics will appear here after dataset processing."
         />
       )}
-      {!loading && !error && data && (
+      {readModelState === 'ready' && !loading && !error && data && (
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <MetricsSummaryCard

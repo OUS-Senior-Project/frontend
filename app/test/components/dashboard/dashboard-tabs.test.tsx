@@ -34,6 +34,11 @@ describe('DashboardTabs', () => {
       onDatasetUpload: jest.fn(),
       uploadLoading: false,
       uploadError: null,
+      readModelState: 'ready',
+      readModelStatus: null,
+      readModelError: null,
+      readModelPollingTimedOut: false,
+      onReadModelRetry: jest.fn(),
       breakdownOpen: false,
       onBreakdownOpenChange: jest.fn(),
       overviewData: null,
@@ -53,6 +58,8 @@ describe('DashboardTabs', () => {
       forecastsData: null,
       forecastsLoading: false,
       forecastsError: null,
+      forecastHorizon: 4,
+      onForecastHorizonChange: jest.fn(),
       onForecastsRetry: jest.fn(),
     } as const;
 
@@ -70,6 +77,8 @@ describe('DashboardTabs', () => {
         onDatasetUpload: props.onDatasetUpload,
         uploadLoading: props.uploadLoading,
         data: props.overviewData,
+        readModelState: props.readModelState,
+        readModelPollingTimedOut: props.readModelPollingTimedOut,
       })
     );
 
@@ -78,6 +87,7 @@ describe('DashboardTabs', () => {
         data: props.majorsData,
         loading: props.majorsLoading,
         error: props.majorsError,
+        readModelStatus: props.readModelStatus,
       })
     );
 
@@ -94,6 +104,7 @@ describe('DashboardTabs', () => {
         data: props.forecastsData,
         loading: props.forecastsLoading,
         error: props.forecastsError,
+        onReadModelRetry: props.onReadModelRetry,
       })
     );
   });
