@@ -103,11 +103,18 @@ export async function getActiveDataset(
       }
     );
   } catch (error) {
-    if (
-      error instanceof ServiceError &&
-      error.code === 'ACTIVE_DATASET_NOT_FOUND'
-    ) {
-      return null;
+    if (error instanceof ServiceError) {
+      if (error.status === 404) {
+        // Expected on first run: no active dataset yet. Treat 404 as empty-state.
+        return null;
+      }
+
+      if (
+        error.code === 'ACTIVE_DATASET_NOT_FOUND' &&
+        error.status === undefined
+      ) {
+        return null;
+      }
     }
 
     throw error;
