@@ -1,10 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
 import * as hooksToast from '@/shared/hooks/useToast';
-import * as uiToast from '@/shared/ui/use-toast';
+import * as hooksIndex from '@/shared/hooks';
 
 const runToastSuite = (
   label: string,
-  mod: typeof hooksToast | typeof uiToast
+  mod: typeof hooksToast | typeof hooksIndex
 ) => {
   describe(label, () => {
     test('adds, updates, dismisses, and removes toasts', () => {
@@ -165,4 +165,4 @@ const runToastSuite = (
 };
 
 runToastSuite('hooks/use-toast', hooksToast);
-runToastSuite('components/ui/use-toast', uiToast);
+runToastSuite('shared/hooks index', hooksIndex);

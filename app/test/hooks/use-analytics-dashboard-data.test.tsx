@@ -3,45 +3,45 @@ import {
   DATASET_STATUS_POLL_INTERVAL_MS,
   DATASET_STATUS_POLL_MAX_DURATION_MS,
   useDashboardMetricsModel,
-} from '@/features/dashboard/hooks/useDashboardMetricsModel';
+} from '@/features/dashboard/hooks';
 import { ApiError, ServiceError } from '@/lib/api/errors';
 import {
   getActiveDataset,
   getDatasetById,
-} from '@/features/datasets/api/datasetsService';
-import { getDatasetOverview } from '@/features/overview/api/overviewService';
-import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
-import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
-import { getForecastsAnalytics } from '@/features/forecasts/api/forecastsService';
+} from '@/features/datasets/api';
+import { getDatasetOverview } from '@/features/overview/api';
+import { getMajorsAnalytics } from '@/features/majors/api';
+import { getMigrationAnalytics } from '@/features/migration/api';
+import { getForecastsAnalytics } from '@/features/forecasts/api';
 import {
   createDatasetSubmission,
   getDatasetSubmissionStatus,
-} from '@/features/submissions/api/submissionsService';
+} from '@/features/submissions/api';
 import type { DatasetStatus } from '@/lib/api/types';
 import { mockNow } from '../utils/time';
 
-jest.mock('@/features/datasets/api/datasetsService', () => ({
+jest.mock('@/features/datasets/api', () => ({
   getActiveDataset: jest.fn(),
   getDatasetById: jest.fn(),
 }));
 
-jest.mock('@/features/overview/api/overviewService', () => ({
+jest.mock('@/features/overview/api', () => ({
   getDatasetOverview: jest.fn(),
 }));
 
-jest.mock('@/features/majors/api/majorsService', () => ({
+jest.mock('@/features/majors/api', () => ({
   getMajorsAnalytics: jest.fn(),
 }));
 
-jest.mock('@/features/migration/api/migrationService', () => ({
+jest.mock('@/features/migration/api', () => ({
   getMigrationAnalytics: jest.fn(),
 }));
 
-jest.mock('@/features/forecasts/api/forecastsService', () => ({
+jest.mock('@/features/forecasts/api', () => ({
   getForecastsAnalytics: jest.fn(),
 }));
 
-jest.mock('@/features/submissions/api/submissionsService', () => ({
+jest.mock('@/features/submissions/api', () => ({
   createDatasetSubmission: jest.fn(),
   getDatasetSubmissionStatus: jest.fn(),
 }));

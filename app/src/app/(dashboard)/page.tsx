@@ -4,7 +4,7 @@ import { AlertCircle } from 'lucide-react';
 import { DashboardHeader } from '@/features/dashboard/components/DashboardHeader';
 import { DashboardNoDatasetState } from '@/features/dashboard/components/DashboardNoDatasetState';
 import { DashboardTabs } from '@/features/dashboard/components/DashboardTabs';
-import { useDashboardMetricsModel } from '@/features/dashboard/hooks/useDashboardMetricsModel';
+import { useDashboardMetricsModel } from '@/features/dashboard/hooks';
 import { formatUIErrorMessage } from '@/lib/api/errors';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';

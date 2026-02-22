@@ -176,14 +176,6 @@ export interface ErrorDetail {
 
 export type SubmissionStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
-export interface SubmissionCreateResponse {
-  submissionId: string;
-  datasetId: string;
-  status: SubmissionStatus;
-  fileName: string;
-  createdAt: string;
-}
-
 export interface SubmissionStatusResponse {
   submissionId: string;
   datasetId: string;

@@ -1,8 +1,8 @@
 import { fireEvent, screen } from '@testing-library/react';
-import { useDashboardMetricsModel } from '@/features/dashboard/hooks/useDashboardMetricsModel';
+import { useDashboardMetricsModel } from '@/features/dashboard/hooks';
 import { renderDashboard } from '../utils/dashboardPage';
 
-jest.mock('@/features/dashboard/hooks/useDashboardMetricsModel', () => ({
+jest.mock('@/features/dashboard/hooks', () => ({
   useDashboardMetricsModel: jest.fn(),
 }));
 

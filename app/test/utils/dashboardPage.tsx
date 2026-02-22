@@ -1,5 +1,5 @@
 import DashboardPage from '@/app/(dashboard)/page';
-import type { useDashboardMetricsModel } from '@/features/dashboard/hooks/useDashboardMetricsModel';
+import type { useDashboardMetricsModel } from '@/features/dashboard/hooks';
 import { renderWithProviders } from './render';
 
 type DashboardModel = ReturnType<typeof useDashboardMetricsModel>;

@@ -8,18 +8,15 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import {
-  getActiveDataset,
-  getDatasetById,
-} from '@/features/datasets/api/datasetsService';
-import { getForecastsAnalytics } from '@/features/forecasts/api/forecastsService';
-import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
-import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
-import { getDatasetOverview } from '@/features/overview/api/overviewService';
+import { getActiveDataset, getDatasetById } from '@/features/datasets/api';
+import { getForecastsAnalytics } from '@/features/forecasts/api';
+import { getMajorsAnalytics } from '@/features/majors/api';
+import { getMigrationAnalytics } from '@/features/migration/api';
+import { getDatasetOverview } from '@/features/overview/api';
 import {
   createDatasetSubmission,
   getDatasetSubmissionStatus,
-} from '@/features/submissions/api/submissionsService';
+} from '@/features/submissions/api';
 import { ServiceError, toUIError } from '@/lib/api/errors';
 import type {
   DatasetOverviewResponse,

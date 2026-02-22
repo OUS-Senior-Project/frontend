@@ -1,0 +1,1 @@
+export { getForecastsAnalytics } from './forecastsService';
