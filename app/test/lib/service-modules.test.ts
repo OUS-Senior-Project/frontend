@@ -14,7 +14,7 @@ import {
   getDatasetSubmissionStatus,
   listSubmissions,
 } from '@/features/submissions/api/submissionsService';
-import { ServiceError } from '@/lib/api/errors';
+import { ApiError, ServiceError } from '@/lib/api/errors';
 import { apiClient } from '@/lib/api/client';
 import { filterQueryParams } from '@/lib/api/queryGuardrails';
 
@@ -507,6 +507,19 @@ describe('service modules', () => {
     await expect(getActiveDataset()).rejects.toMatchObject({
       code: 'NETWORK_ERROR',
     });
+  });
+
+  test('getActiveDataset treats a generic 404 response as empty first-run state', async () => {
+    mockApiClient.get.mockRejectedValueOnce(
+      new ApiError({
+        code: 'HTTP_ERROR',
+        message: 'Request failed with status 404.',
+        status: 404,
+        retryable: false,
+      })
+    );
+
+    await expect(getActiveDataset()).resolves.toBeNull();
   });
 
   test('getMajorsAnalytics aggregates and normalizes cohort records', async () => {
