@@ -7,6 +7,7 @@ import {
 import { getForecastsAnalytics } from '@/features/forecasts/api/forecastsService';
 import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
 import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
+import { getDatasetOverview } from '@/features/overview/api/overviewService';
 import {
   createBulkSubmissionJob,
   createDatasetSubmission,
@@ -619,7 +620,7 @@ describe('service modules', () => {
       2,
       '/api/v1/datasets/dataset-1/migration-records',
       {
-        query: { semester: undefined },
+        query: {},
         signal: undefined,
         datasetCache: { datasetId: 'dataset-1' },
       }
@@ -658,6 +659,31 @@ describe('service modules', () => {
         datasetCache: { datasetId: 'dataset-1' },
       }
     );
+  });
+
+  test('getDatasetOverview rejects malformed response payloads', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      datasetId: 'dataset-1',
+      trend: 'not-an-array',
+    });
+
+    await expect(getDatasetOverview('dataset-1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE_SHAPE',
+      retryable: false,
+    });
+  });
+
+  test('getForecastsAnalytics rejects malformed response payloads', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [{ period: 'x', year: 2024, semester: 'Fall', total: 1 }],
+    });
+
+    await expect(getForecastsAnalytics('dataset-1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE_SHAPE',
+      retryable: false,
+    });
   });
 
   test('submissionsService handles single submission, status, list, and bulk endpoints', async () => {

@@ -7,6 +7,7 @@ import { SchoolDistributionChart } from '@/features/metrics/components/charts/Sc
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
 import { StudentTypeDistributionChart } from '@/features/metrics/components/charts/StudentTypeDistributionChart';
 import { UploadDatasetButton } from '@/features/upload/components/UploadDatasetButton';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { DatasetOverviewResponse, UIError } from '@/lib/api/types';
 import { Spinner } from '@/shared/ui/spinner';
 import { TabsContent } from '@/shared/ui/tabs';
@@ -84,7 +85,9 @@ function OverviewPanelComponent({
         </p>
       )}
       {uploadError && (
-        <p className="text-sm text-destructive">{uploadError.message}</p>
+        <p className="text-sm text-destructive">
+          {formatUIErrorMessage(uploadError)}
+        </p>
       )}
 
       {readModelState === 'processing' && (
@@ -102,10 +105,10 @@ function OverviewPanelComponent({
       )}
       {readModelState === 'failed' && (
         <PanelFailedState
-          message={
-            readModelError?.message ??
+          message={formatUIErrorMessage(
+            readModelError,
             'Dataset processing failed. Upload a new dataset to continue.'
-          }
+          )}
           onRefresh={() => {
             void onReadModelRetry();
           }}
@@ -116,7 +119,7 @@ function OverviewPanelComponent({
       )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
-          message={error.message}
+          message={formatUIErrorMessage(error)}
           onRetry={() => {
             onRetry();
           }}

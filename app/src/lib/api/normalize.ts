@@ -4,6 +4,7 @@ import type {
   DatasetOverviewResponse,
   DatasetTrendPoint,
 } from './types';
+import { normalizeSemesterLabel } from '@/lib/format/semester';
 
 export type RawDatasetTrendPoint = Omit<DatasetTrendPoint, 'semester'> & {
   semester?: string | number | null;
@@ -28,19 +29,66 @@ export type RawDatasetForecastResponse = Omit<
   forecast: RawDatasetForecastPoint[];
 };
 
-function normalizeSemester(
-  semester: string | number | null | undefined
-): string {
-  if (typeof semester === 'string') {
-    return semester;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isRawDatasetTrendPoint(value: unknown): value is RawDatasetTrendPoint {
+  if (!isRecord(value)) {
+    return false;
   }
 
-  if (typeof semester === 'number') {
-    // TODO(campaign-3): Backend contract defines semester as string labels; remove this coercion once numeric anomalies are fixed upstream.
-    return String(semester);
+  return (
+    typeof value.period === 'string' &&
+    isFiniteNumber(value.year) &&
+    isFiniteNumber(value.total) &&
+    (value.semester === undefined ||
+      value.semester === null ||
+      typeof value.semester === 'string' ||
+      isFiniteNumber(value.semester))
+  );
+}
+
+function isRawDatasetForecastPoint(
+  value: unknown
+): value is RawDatasetForecastPoint {
+  if (!isRawDatasetTrendPoint(value)) {
+    return false;
   }
 
-  return 'Unknown';
+  const maybeForecastPoint = value as RawDatasetForecastPoint;
+  return maybeForecastPoint.isForecasted === true;
+}
+
+export function isRawDatasetOverviewResponse(
+  value: unknown
+): value is RawDatasetOverviewResponse {
+  if (!isRecord(value) || !Array.isArray(value.trend)) {
+    return false;
+  }
+
+  return value.trend.every(isRawDatasetTrendPoint);
+}
+
+export function isRawDatasetForecastResponse(
+  value: unknown
+): value is RawDatasetForecastResponse {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.historical) ||
+    !Array.isArray(value.forecast)
+  ) {
+    return false;
+  }
+
+  return (
+    value.historical.every(isRawDatasetTrendPoint) &&
+    value.forecast.every(isRawDatasetForecastPoint)
+  );
 }
 
 export function normalizeDatasetTrendPoint(
@@ -48,7 +96,7 @@ export function normalizeDatasetTrendPoint(
 ): DatasetTrendPoint {
   return {
     ...point,
-    semester: normalizeSemester(point.semester),
+    semester: normalizeSemesterLabel(point.semester),
   };
 }
 
@@ -57,7 +105,7 @@ export function normalizeDatasetForecastPoint(
 ): DatasetForecastPoint {
   return {
     ...point,
-    semester: normalizeSemester(point.semester),
+    semester: normalizeSemesterLabel(point.semester),
   };
 }
 

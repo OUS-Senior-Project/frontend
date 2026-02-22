@@ -8,6 +8,7 @@ import {
   AvgGPAByCohortChart,
   AvgGPAByMajorChart,
 } from '@/features/metrics/components/major-analytics-charts';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
 import type { MajorsAnalyticsResponse, UIError } from '@/lib/api/types';
 import { TabsContent } from '@/shared/ui/tabs';
@@ -82,10 +83,10 @@ function MajorsPanelComponent({
       )}
       {readModelState === 'failed' && (
         <PanelFailedState
-          message={
-            readModelError?.message ??
+          message={formatUIErrorMessage(
+            readModelError,
             'Dataset processing failed. Upload a new dataset to continue.'
-          }
+          )}
           onRefresh={() => {
             void onReadModelRetry();
           }}
@@ -96,7 +97,7 @@ function MajorsPanelComponent({
       )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
-          message={error.message}
+          message={formatUIErrorMessage(error)}
           onRetry={() => {
             onRetry();
           }}

@@ -1,12 +1,15 @@
 import { apiClient } from '@/lib/api/client';
+import {
+  encodePathSegment,
+  toApiPath,
+  withDatasetCache,
+} from '@/lib/api/service-helpers';
 import type {
   AnalyticsRecord,
   AnalyticsRecordsResponse,
   MajorCohortRecordsResponse,
   MajorsAnalyticsResponse,
 } from '@/lib/api/types';
-
-const API_PREFIX = '/api/v1';
 
 interface GetMajorsAnalyticsOptions {
   signal?: AbortSignal;
@@ -30,21 +33,19 @@ export async function getMajorsAnalytics(
   datasetId: string,
   options: GetMajorsAnalyticsOptions = {}
 ): Promise<MajorsAnalyticsResponse> {
-  const encodedDatasetId = encodeURIComponent(datasetId);
+  const encodedDatasetId = encodePathSegment(datasetId);
   const [analyticsRecordsResponse, majorCohortResponse] = await Promise.all([
     apiClient.get<AnalyticsRecordsResponse>(
-      `${API_PREFIX}/datasets/${encodedDatasetId}/analytics-records`,
-      {
+      toApiPath(`/datasets/${encodedDatasetId}/analytics-records`),
+      withDatasetCache(datasetId, {
         signal: options.signal,
-        datasetCache: { datasetId },
-      }
+      })
     ),
     apiClient.get<MajorCohortRecordsResponse>(
-      `${API_PREFIX}/datasets/${encodedDatasetId}/major-cohort-records`,
-      {
+      toApiPath(`/datasets/${encodedDatasetId}/major-cohort-records`),
+      withDatasetCache(datasetId, {
         signal: options.signal,
-        datasetCache: { datasetId },
-      }
+      })
     ),
   ]);
 

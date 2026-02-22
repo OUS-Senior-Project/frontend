@@ -16,6 +16,10 @@ interface ForecastTrendChartPlotProps {
   lastHistoricalPeriod?: string;
 }
 
+interface TooltipFormatterContext {
+  payload?: ForecastData;
+}
+
 const tooltipStyle = {
   backgroundColor: 'oklch(0.18 0.01 260)',
   border: '1px solid oklch(0.28 0.01 260)',
@@ -66,8 +70,12 @@ export function ForecastTrendChartPlot({
         />
         <Tooltip
           contentStyle={tooltipStyle}
-          formatter={(value: number, _name, props: any) => [
-            `${value.toLocaleString()} ${props.payload.isForecasted ? '(Projected)' : ''}`,
+          formatter={(
+            value: number,
+            _name,
+            context: TooltipFormatterContext
+          ) => [
+            `${value.toLocaleString()} ${context.payload?.isForecasted ? '(Projected)' : ''}`,
             'Students',
           ]}
         />

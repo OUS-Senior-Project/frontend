@@ -1,4 +1,6 @@
 import {
+  isRawDatasetForecastResponse,
+  isRawDatasetOverviewResponse,
   normalizeDatasetForecastPoint,
   normalizeDatasetForecastResponse,
   normalizeDatasetOverviewResponse,
@@ -115,5 +117,73 @@ describe('api normalization', () => {
     expect(normalized.forecast.map((point) => point.semester)).toEqual([
       'Unknown',
     ]);
+  });
+
+  test('isRawDatasetOverviewResponse validates required trend shape', () => {
+    expect(
+      isRawDatasetOverviewResponse({
+        datasetId: 'dataset-1',
+        trend: [{ period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 }],
+      })
+    ).toBe(true);
+
+    expect(
+      isRawDatasetOverviewResponse({
+        datasetId: 'dataset-1',
+        trend: [{ period: 'Fall 2024', year: '2024', semester: 'Fall', total: 10 }],
+      })
+    ).toBe(false);
+    expect(isRawDatasetOverviewResponse({ trend: [123] })).toBe(false);
+    expect(isRawDatasetOverviewResponse({ trend: 'bad' })).toBe(false);
+  });
+
+  test('isRawDatasetForecastResponse validates historical and forecast point shapes', () => {
+    expect(
+      isRawDatasetForecastResponse({
+        datasetId: 'dataset-1',
+        historical: [{ period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 }],
+        forecast: [
+          {
+            period: 'Spring 2025',
+            year: 2025,
+            semester: 'Spring',
+            total: 12,
+            isForecasted: true,
+          },
+        ],
+      })
+    ).toBe(true);
+
+    expect(
+      isRawDatasetForecastResponse({
+        datasetId: 'dataset-1',
+        historical: [{ period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 }],
+        forecast: [
+          {
+            period: 'Spring 2025',
+            year: 2025,
+            semester: 'Spring',
+            total: 12,
+          },
+        ],
+      })
+    ).toBe(false);
+    expect(
+      isRawDatasetForecastResponse({
+        datasetId: 'dataset-1',
+        historical: [123],
+        forecast: [],
+      })
+    ).toBe(false);
+    expect(
+      isRawDatasetForecastResponse({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [123],
+      })
+    ).toBe(false);
+    expect(isRawDatasetForecastResponse({ historical: [], forecast: 'bad' })).toBe(
+      false
+    );
   });
 });

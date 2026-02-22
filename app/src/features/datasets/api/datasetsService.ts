@@ -1,17 +1,20 @@
 import { apiClient, clearDatasetResponseCache } from '@/lib/api/client';
 import { ServiceError } from '@/lib/api/errors';
-import { filterQueryParams } from '@/lib/api/queryGuardrails';
+import {
+  buildPaginationQuery,
+  encodePathSegment,
+  toApiPath,
+  withDatasetCache,
+} from '@/lib/api/service-helpers';
 import type {
   DatasetDetail,
   DatasetListResponse,
   DatasetSummary,
 } from '@/lib/api/types';
 
-const API_PREFIX = '/api/v1';
-const DATASETS_ENDPOINT = `${API_PREFIX}/datasets`;
+const DATASETS_ENDPOINT = toApiPath('/datasets');
+const ACTIVE_DATASET_ENDPOINT = `${DATASETS_ENDPOINT}/active`;
 const LIST_DATASETS_QUERY_ALLOWLIST = ['page', 'pageSize'] as const;
-const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 20;
 
 type PaginationParams = {
   page?: number;
@@ -26,59 +29,12 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-function warnPaginationNormalization(
-  endpoint: string,
-  key: 'page' | 'pageSize',
-  value: number,
-  fallback: number
-) {
-  if (process.env.NODE_ENV === 'production') {
-    return;
-  }
-
-  console.warn(
-    `[api-query-guardrail] Normalized invalid ${key} for ${endpoint}: ${value} -> ${fallback}`
-  );
-}
-
-function normalizePaginationValue(
-  endpoint: string,
-  key: 'page' | 'pageSize',
-  value: number | undefined,
-  fallback: number
-) {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (!Number.isFinite(value) || value < 1) {
-    warnPaginationNormalization(endpoint, key, value, fallback);
-    return fallback;
-  }
-
-  return value;
-}
-
 function buildListDatasetsQuery(options: ListDatasetsOptions) {
-  const page = normalizePaginationValue(
-    DATASETS_ENDPOINT,
-    'page',
-    options.page,
-    DEFAULT_PAGE
-  );
-  const pageSize = normalizePaginationValue(
-    DATASETS_ENDPOINT,
-    'pageSize',
-    options.pageSize,
-    DEFAULT_PAGE_SIZE
-  );
-
-  return filterQueryParams({
+  return buildPaginationQuery({
     endpoint: DATASETS_ENDPOINT,
-    params: {
-      page,
-      pageSize,
-    },
+    page: options.page,
+    pageSize: options.pageSize,
+    params: {},
     allowedKeys: LIST_DATASETS_QUERY_ALLOWLIST,
   });
 }
@@ -96,12 +52,9 @@ export async function getActiveDataset(
   options: RequestOptions = {}
 ): Promise<DatasetSummary | null> {
   try {
-    return await apiClient.get<DatasetSummary>(
-      `${API_PREFIX}/datasets/active`,
-      {
-        signal: options.signal,
-      }
-    );
+    return await apiClient.get<DatasetSummary>(ACTIVE_DATASET_ENDPOINT, {
+      signal: options.signal,
+    });
   } catch (error) {
     if (error instanceof ServiceError) {
       if (error.status === 404) {
@@ -125,13 +78,11 @@ export async function getDatasetById(
   datasetId: string,
   options: RequestOptions = {}
 ): Promise<DatasetDetail> {
-  const encodedDatasetId = encodeURIComponent(datasetId);
   return apiClient.get<DatasetDetail>(
-    `${API_PREFIX}/datasets/${encodedDatasetId}`,
-    {
+    toApiPath(`/datasets/${encodePathSegment(datasetId)}`),
+    withDatasetCache(datasetId, {
       signal: options.signal,
-      datasetCache: { datasetId },
-    }
+    })
   );
 }
 
@@ -139,9 +90,8 @@ export async function activateDataset(
   datasetId: string,
   options: RequestOptions = {}
 ): Promise<DatasetSummary> {
-  const encodedDatasetId = encodeURIComponent(datasetId);
   const activated = await apiClient.put<DatasetSummary>(
-    `${API_PREFIX}/datasets/${encodedDatasetId}/active`,
+    toApiPath(`/datasets/${encodePathSegment(datasetId)}/active`),
     undefined,
     {
       signal: options.signal,

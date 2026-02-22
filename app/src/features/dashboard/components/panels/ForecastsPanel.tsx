@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { ForecastSection } from '@/features/metrics/components/ForecastSection';
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { ForecastsAnalyticsResponse, UIError } from '@/lib/api/types';
 import {
   Select,
@@ -94,10 +95,10 @@ function ForecastsPanelComponent({
       )}
       {readModelState === 'failed' && (
         <PanelFailedState
-          message={
-            readModelError?.message ??
+          message={formatUIErrorMessage(
+            readModelError,
             'Dataset processing failed. Upload a new dataset to continue.'
-          }
+          )}
           onRefresh={() => {
             void onReadModelRetry();
           }}
@@ -108,7 +109,7 @@ function ForecastsPanelComponent({
       )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
-          message={error.message}
+          message={formatUIErrorMessage(error)}
           onRetry={() => {
             onRetry();
           }}

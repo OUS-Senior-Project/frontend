@@ -8,7 +8,12 @@ import {
   clearDatasetResponseCache,
   createApiClient,
 } from '@/lib/api/client';
-import { ApiError, ServiceError, toUIError } from '@/lib/api/errors';
+import {
+  ApiError,
+  ServiceError,
+  formatUIErrorMessage,
+  toUIError,
+} from '@/lib/api/errors';
 import {
   emptyResponse,
   installFetchMock,
@@ -146,6 +151,47 @@ describe('api boundaries', () => {
       retryable: false,
       requestId: 'req-123',
     });
+  });
+
+  test('formatUIErrorMessage appends request id consistently when available', () => {
+    expect(
+      formatUIErrorMessage({
+        code: 'NETWORK_ERROR',
+        message: 'Unable to reach backend.',
+        retryable: true,
+      })
+    ).toBe('Unable to reach backend.');
+
+    expect(
+      formatUIErrorMessage({
+        code: 'NETWORK_ERROR',
+        message: 'Unable to reach backend.',
+        retryable: true,
+        requestId: 'req-1',
+      })
+    ).toBe('Unable to reach backend. (Request ID: req-1)');
+
+    expect(
+      formatUIErrorMessage({
+        code: 'NETWORK_ERROR',
+        message: 'Unable to reach backend. (Request ID: req-1)',
+        retryable: true,
+        requestId: 'req-1',
+      })
+    ).toBe('Unable to reach backend. (Request ID: req-1)');
+
+    expect(
+      formatUIErrorMessage(
+        {
+          code: 'NETWORK_ERROR',
+          message: '   ',
+          retryable: true,
+        },
+        'Fallback'
+      )
+    ).toBe('Fallback');
+
+    expect(formatUIErrorMessage(null, 'Fallback')).toBe('Fallback');
   });
 
   test('toUIError adds CORS guidance for cross-origin network errors', async () => {
@@ -287,6 +333,24 @@ describe('api boundaries', () => {
     expect(url).toContain('ids=3');
     expect(url).toContain('includeArchived=false');
     expect(url).toContain('z=2');
+  });
+
+  test('createApiClient omits null and undefined query values', async () => {
+    const fetchSpy = installFetchMock();
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const client = createApiClient('http://localhost:8000');
+    await client.get('/api/v1/example', {
+      query: {
+        page: 1,
+        status: undefined,
+        cursor: null,
+      },
+    });
+
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://localhost:8000/api/v1/example?page=1'
+    );
   });
 
   test('createApiClient canonical query serialization is deterministic for key and array ordering', async () => {

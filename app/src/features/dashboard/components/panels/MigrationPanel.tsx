@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import { MigrationFlowChart } from '@/features/metrics/components/charts/MigrationFlowChart';
 import { MigrationTopFlowsTable } from '@/features/metrics/components/MigrationTopFlowsTable';
 import { SemesterFilterSelect } from '@/features/filters/components/SemesterFilterSelect';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { MigrationAnalyticsResponse, UIError } from '@/lib/api/types';
 import { TabsContent } from '@/shared/ui/tabs';
 import {
@@ -75,10 +76,10 @@ function MigrationPanelComponent({
       )}
       {readModelState === 'failed' && (
         <PanelFailedState
-          message={
-            readModelError?.message ??
+          message={formatUIErrorMessage(
+            readModelError,
             'Dataset processing failed. Upload a new dataset to continue.'
-          }
+          )}
           onRefresh={() => {
             void onReadModelRetry();
           }}
@@ -89,7 +90,7 @@ function MigrationPanelComponent({
       )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
-          message={error.message}
+          message={formatUIErrorMessage(error)}
           onRetry={() => {
             onRetry();
           }}

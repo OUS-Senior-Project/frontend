@@ -141,6 +141,41 @@ describe('analytics selectors', () => {
     });
   });
 
+  test('selectTrendSeries aggregates duplicate semester keys and defaults unknown semesters to Spring order', () => {
+    const sample = [
+      {
+        year: 2024,
+        semester: 'Fall',
+        major: 'Biology',
+        school: 'Science',
+        studentType: 'FTIC',
+        count: 10,
+      },
+      {
+        year: 2024,
+        semester: 'Fall',
+        major: 'Biology',
+        school: 'Science',
+        studentType: 'Transfer',
+        count: 5,
+      },
+      {
+        year: 2024,
+        semester: 'Winter',
+        major: 'Biology',
+        school: 'Science',
+        studentType: 'Transfer',
+        count: 7,
+      },
+    ] as unknown as AnalyticsRecord[];
+
+    const trend = selectTrendSeries(sample);
+    expect(trend).toEqual([
+      { period: 'Fall 2024', year: 2024, semester: 1, total: 15 },
+      { period: 'Spring 2024', year: 2024, semester: 2, total: 7 },
+    ]);
+  });
+
   test('selectForecastSeries builds 4 forecast points', () => {
     const historical = [
       { period: 'Fall 2023', year: 2023, semester: 1, total: 100 },
