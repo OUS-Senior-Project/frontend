@@ -17,6 +17,7 @@ import {
 import { ApiError, ServiceError } from '@/lib/api/errors';
 import { apiClient } from '@/lib/api/client';
 import { filterQueryParams } from '@/lib/api/queryGuardrails';
+import { installFetchMock, jsonResponse } from '../utils/http';
 
 jest.mock('@/lib/api/client', () => ({
   apiClient: {
@@ -55,40 +56,6 @@ function withNodeEnv(
     cleanup();
     throw error;
   }
-}
-
-function createHeaderBag(headers: Record<string, string> = {}) {
-  const table = new Map<string, string>();
-  Object.entries(headers).forEach(([key, value]) => {
-    table.set(key.toLowerCase(), value);
-  });
-
-  return {
-    get(name: string) {
-      return table.get(name.toLowerCase()) ?? null;
-    },
-  };
-}
-
-function jsonResponse(body: unknown) {
-  return {
-    status: 200,
-    ok: true,
-    headers: createHeaderBag({
-      'content-type': 'application/json',
-    }),
-    text: async () => JSON.stringify(body),
-  } as unknown as Response;
-}
-
-function installFetchMock() {
-  const fetchMock = jest.fn() as jest.MockedFunction<typeof fetch>;
-  Object.defineProperty(globalThis, 'fetch', {
-    writable: true,
-    value: fetchMock,
-  });
-
-  return fetchMock;
 }
 
 describe('query guardrails', () => {

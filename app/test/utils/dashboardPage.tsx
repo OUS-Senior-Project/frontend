@@ -1,0 +1,68 @@
+import DashboardPage from '@/app/(dashboard)/page';
+import type { useDashboardMetricsModel } from '@/features/dashboard/hooks/useDashboardMetricsModel';
+import { renderWithProviders } from './render';
+
+type DashboardModel = ReturnType<typeof useDashboardMetricsModel>;
+
+export function buildDashboardModel(
+  overrides: Partial<DashboardModel> = {}
+): DashboardModel {
+  const noop = jest.fn();
+
+  return {
+    selectedDate: new Date('2026-02-11'),
+    setSelectedDate: noop,
+    breakdownOpen: false,
+    setBreakdownOpen: noop,
+    migrationSemester: undefined,
+    setMigrationSemester: noop,
+    forecastHorizon: 4,
+    setForecastHorizon: noop,
+    handleDatasetUpload: noop,
+    uploadLoading: false,
+    uploadError: null,
+    readModelState: 'ready',
+    readModelStatus: null,
+    readModelError: null,
+    readModelPollingTimedOut: false,
+    retryReadModelState: noop,
+    activeDataset: null,
+    datasetLoading: false,
+    datasetError: null,
+    dashboardViewState: 'ready',
+    noDataset: false,
+    retryDataset: noop,
+    overviewData: null,
+    overviewLoading: false,
+    overviewError: null,
+    retryOverview: noop,
+    majorsData: null,
+    majorsLoading: false,
+    majorsError: null,
+    retryMajors: noop,
+    migrationData: null,
+    migrationLoading: false,
+    migrationError: null,
+    retryMigration: noop,
+    forecastsData: null,
+    forecastsLoading: false,
+    forecastsError: null,
+    retryForecasts: noop,
+    ...overrides,
+  } as DashboardModel;
+}
+
+export function renderDashboard(
+  mockUseDashboardMetricsModel: jest.MockedFunction<
+    typeof useDashboardMetricsModel
+  >,
+  overrides: Partial<DashboardModel> = {}
+) {
+  const model = buildDashboardModel(overrides);
+  mockUseDashboardMetricsModel.mockReturnValue(model);
+
+  return {
+    model,
+    ...renderWithProviders(<DashboardPage />),
+  };
+}

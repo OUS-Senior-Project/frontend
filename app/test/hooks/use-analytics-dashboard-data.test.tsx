@@ -18,6 +18,7 @@ import {
   getDatasetSubmissionStatus,
 } from '@/features/submissions/api/submissionsService';
 import type { DatasetStatus } from '@/lib/api/types';
+import { mockNow } from '../utils/time';
 
 jest.mock('@/features/datasets/api/datasetsService', () => ({
   getActiveDataset: jest.fn(),
@@ -1441,8 +1442,7 @@ describe('useDashboardMetricsModel', () => {
 
   test('processing polling avoids overlapping status requests and times out after an in-flight tick completes', async () => {
     jest.useFakeTimers();
-    let now = 0;
-    const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const now = mockNow(0);
     try {
       mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
       mockGetDatasetOverview.mockRejectedValue(
@@ -1497,7 +1497,7 @@ describe('useDashboardMetricsModel', () => {
       });
       expect(mockGetDatasetById).toHaveBeenCalledTimes(1);
 
-      now = DATASET_STATUS_POLL_MAX_DURATION_MS + 1;
+      now.set(DATASET_STATUS_POLL_MAX_DURATION_MS + 1);
       await act(async () => {
         resolveStatusRequest?.(makeActiveDataset('dataset-1', 'building'));
         await Promise.resolve();
@@ -1507,7 +1507,7 @@ describe('useDashboardMetricsModel', () => {
         expect(result.current.readModelPollingTimedOut).toBe(true);
       });
     } finally {
-      dateNowSpy.mockRestore();
+      now.restore();
       jest.useRealTimers();
     }
   });
@@ -2037,8 +2037,7 @@ describe('useDashboardMetricsModel', () => {
 
   test('times out submission polling with bounded backoff', async () => {
     jest.useFakeTimers();
-    let now = 0;
-    const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const now = mockNow(0);
     try {
       mockGetActiveDataset.mockResolvedValue(null);
       mockCreateDatasetSubmission.mockResolvedValue({
@@ -2052,7 +2051,7 @@ describe('useDashboardMetricsModel', () => {
       mockGetDatasetSubmissionStatus.mockImplementation(async () => {
         statusCalls += 1;
         if (statusCalls >= 2) {
-          now = 181_000;
+          now.set(181_000);
         }
 
         return {
@@ -2082,7 +2081,7 @@ describe('useDashboardMetricsModel', () => {
       expect(result.current.uploadError?.code).toBe('SUBMISSION_POLL_TIMEOUT');
       expect(mockGetDatasetSubmissionStatus).toHaveBeenCalled();
     } finally {
-      dateNowSpy.mockRestore();
+      now.restore();
       jest.useRealTimers();
     }
   });
