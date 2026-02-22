@@ -105,6 +105,7 @@ export async function getActiveDataset(
   } catch (error) {
     if (error instanceof ServiceError) {
       if (error.status === 404) {
+        // Expected on first run: no active dataset yet. Treat 404 as empty-state.
         return null;
       }
 
