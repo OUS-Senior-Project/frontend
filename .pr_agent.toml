@@ -1,4 +1,24 @@
 [pr_reviewer]
+# Keep a single updated review comment instead of adding more noise
+persistent_comment = true
+final_update_message = false
+enable_help_text = false
+num_max_findings = 5
+
+# Reduce boilerplate sections
+require_estimate_effort_to_review = false
+require_tests_review = false
+require_security_review = false
+require_ticket_analysis_review = false
+require_score_review = false
+require_estimate_contribution_time_cost = false
+require_can_be_split_review = false
+require_todo_scan = false
+
+# Reduce auto labels noise
+enable_review_labels_effort = false
+enable_review_labels_security = false
+
 extra_instructions = """\
 You are a strict, production-grade PR reviewer for the OUS Analytics MVP1 remediation sprint.
 Review with a correctness-first, demo-stability-first mindset.
@@ -71,8 +91,12 @@ IMPORTANT LIMITATION HANDLING
 - Do NOT claim you ran build/tests/manual smoke checks unless explicit evidence is visible.
 - If runtime/gate verification is unavailable, say so clearly and assess based on diff/tests present.
 
+SEVERITY JUDGMENT PRINCIPLE
+- Do not treat any file type (including docs) as automatically blocking or automatically non-blocking.
+- Decide severity based on impact to correctness, demo readiness, operability, onboarding, and acceptance criteria.
+
 VERDICT RUBRIC (strict)
-Return REJECTED WITH CHANGES REQUIRED if ANY of:
+Return REQUEST_CHANGES if ANY of:
 - Acceptance criteria not fully met (when AC is available)
 - Broken UX state handling / obvious runtime error path
 - API/UI contract mismatch likely to break screens
@@ -80,29 +104,38 @@ Return REJECTED WITH CHANGES REQUIRED if ANY of:
 - Admin gating/security-sensitive UX issue
 - Significant regression risk or demo-breaking behavior
 
-Return APPROVED WITH NITS if:
+Return APPROVE WITH NITS if:
 - Core functionality is correct and sufficiently tested
 - Only small non-blocking improvements remain (naming, readability, polish, minor a11y/docs/test clarity)
 
-Return APPROVED only if:
+Return APPROVE only if:
 - AC appears fully satisfied (or reasonably evidenced in PR context)
 - Frontend behavior is correct and aligned with MVP1 UX/state expectations
 - Tests are robust/sufficient for changed paths
 - No blockers or meaningful non-blocking concerns
 
-OUTPUT FORMAT (required)
-- End with exactly one final line in this exact format:
-  Verdict: APPROVED
+STRICT OUTPUT SHAPE (very important)
+- Start the review body with exactly one verdict line in this exact format:
+  Verdict: APPROVE
   OR
-  Verdict: APPROVED WITH NITS
+  Verdict: APPROVE WITH NITS
   OR
-  Verdict: REJECTED WITH CHANGES REQUIRED
+  Verdict: REQUEST_CHANGES
+- After the verdict line, provide a short Markdown section titled:
+  Supporting comment
+- Under "Supporting comment", include:
+  - Blocking issues (only if verdict is REQUEST_CHANGES)
+  - Non-blocking nits (only if verdict is APPROVE WITH NITS)
+  - What was checked / evidence from diff (always)
+- Do not include extra summary headings beyond the verdict line and "Supporting comment".
+- Do not output multiple verdicts.
+- If evidence is limited (no runtime/CI execution proof visible), state that clearly in the supporting comment but still provide one verdict based on the PR diff/tests shown.
 
 COMMENT STYLE (required)
 - Be concise but specific.
 - Separate blocking issues from non-blocking suggestions.
 - Reference exact files/components/hooks/functions when possible.
-- For rejections, include a short "must-fix" checklist.
+- For REQUEST_CHANGES, include a short "must-fix" checklist.
 - Prefer concrete fixes over generic advice.
 """
 
