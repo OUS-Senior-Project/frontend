@@ -8,73 +8,18 @@ import {
   clearDatasetResponseCache,
   createApiClient,
 } from '@/lib/api/client';
-import { ApiError, ServiceError, toUIError } from '@/lib/api/errors';
-
-function createHeaderBag(headers: Record<string, string> = {}) {
-  const table = new Map<string, string>();
-  Object.entries(headers).forEach(([key, value]) => {
-    table.set(key.toLowerCase(), value);
-  });
-
-  return {
-    get(name: string) {
-      return table.get(name.toLowerCase()) ?? null;
-    },
-  };
-}
-
-function jsonResponse(
-  body: unknown,
-  init: { status?: number; headers?: Record<string, string> } = {}
-) {
-  const status = init.status ?? 200;
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    headers: createHeaderBag({
-      'content-type': 'application/json',
-      ...(init.headers ?? {}),
-    }),
-    text: async () => JSON.stringify(body),
-  } as unknown as Response;
-}
-
-function emptyResponse(
-  init: { status?: number; headers?: Record<string, string> } = {}
-) {
-  const status = init.status ?? 200;
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    headers: createHeaderBag(init.headers ?? {}),
-    text: async () => '',
-  } as unknown as Response;
-}
-
-function textResponse(
-  body: string,
-  init: { status?: number; headers?: Record<string, string> } = {}
-) {
-  const status = init.status ?? 200;
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    headers: createHeaderBag({
-      'content-type': 'text/plain',
-      ...(init.headers ?? {}),
-    }),
-    text: async () => body,
-  } as unknown as Response;
-}
-
-function installFetchMock() {
-  const fetchMock = jest.fn() as jest.MockedFunction<typeof fetch>;
-  Object.defineProperty(globalThis, 'fetch', {
-    writable: true,
-    value: fetchMock,
-  });
-  return fetchMock;
-}
+import {
+  ApiError,
+  ServiceError,
+  formatUIErrorMessage,
+  toUIError,
+} from '@/lib/api/errors';
+import {
+  emptyResponse,
+  installFetchMock,
+  jsonResponse,
+  textResponse,
+} from '../utils/http';
 
 function withApiBaseUrlOverride(value: string, testFn: () => Promise<void> | void) {
   const originalValue = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -206,6 +151,47 @@ describe('api boundaries', () => {
       retryable: false,
       requestId: 'req-123',
     });
+  });
+
+  test('formatUIErrorMessage appends request id consistently when available', () => {
+    expect(
+      formatUIErrorMessage({
+        code: 'NETWORK_ERROR',
+        message: 'Unable to reach backend.',
+        retryable: true,
+      })
+    ).toBe('Unable to reach backend.');
+
+    expect(
+      formatUIErrorMessage({
+        code: 'NETWORK_ERROR',
+        message: 'Unable to reach backend.',
+        retryable: true,
+        requestId: 'req-1',
+      })
+    ).toBe('Unable to reach backend. (Request ID: req-1)');
+
+    expect(
+      formatUIErrorMessage({
+        code: 'NETWORK_ERROR',
+        message: 'Unable to reach backend. (Request ID: req-1)',
+        retryable: true,
+        requestId: 'req-1',
+      })
+    ).toBe('Unable to reach backend. (Request ID: req-1)');
+
+    expect(
+      formatUIErrorMessage(
+        {
+          code: 'NETWORK_ERROR',
+          message: '   ',
+          retryable: true,
+        },
+        'Fallback'
+      )
+    ).toBe('Fallback');
+
+    expect(formatUIErrorMessage(null, 'Fallback')).toBe('Fallback');
   });
 
   test('toUIError adds CORS guidance for cross-origin network errors', async () => {
@@ -347,6 +333,42 @@ describe('api boundaries', () => {
     expect(url).toContain('ids=3');
     expect(url).toContain('includeArchived=false');
     expect(url).toContain('z=2');
+  });
+
+  test('createApiClient omits null and undefined query values', async () => {
+    const fetchSpy = installFetchMock();
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const client = createApiClient('http://localhost:8000');
+    await client.get('/api/v1/example', {
+      query: {
+        page: 1,
+        status: undefined,
+        cursor: null,
+      },
+    });
+
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://localhost:8000/api/v1/example?page=1'
+    );
+  });
+
+  test('createApiClient canonical query serialization is deterministic for key and array ordering', async () => {
+    const fetchSpy = installFetchMock();
+    fetchSpy.mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const client = createApiClient('http://localhost:8000');
+    await client.get('/api/v1/example', {
+      query: {
+        pageSize: 20,
+        page: 2,
+        status: ['processing', 'failed', 'queued'],
+      },
+    });
+
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://localhost:8000/api/v1/example?page=2&pageSize=20&status=failed&status=processing&status=queued'
+    );
   });
 
   test.each([
@@ -560,6 +582,37 @@ describe('api boundaries', () => {
     });
   });
 
+  test.each([
+    { status: 400, retryable: false },
+    { status: 408, retryable: true },
+    { status: 429, retryable: true },
+    { status: 500, retryable: true },
+  ])(
+    'createApiClient classifies retryability from status codes (status: $status)',
+    async ({ status, retryable }) => {
+      installFetchMock().mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: `HTTP_${status}`,
+              message: `Failed with ${status}`,
+            },
+          },
+          { status }
+        )
+      );
+
+      const client = createApiClient('http://localhost:8000');
+      await expect(client.get('/api/v1/retryable-matrix')).rejects.toMatchObject(
+        {
+          code: `HTTP_${status}`,
+          status,
+          retryable,
+        }
+      );
+    }
+  );
+
   test('createApiClient preserves 409 DATASET_NOT_READY and DATASET_FAILED envelopes for dataset reads', async () => {
     installFetchMock()
       .mockResolvedValueOnce(
@@ -676,6 +729,36 @@ describe('api boundaries', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     const secondHeaders = fetchSpy.mock.calls[1]?.[1]?.headers as Headers;
     expect(secondHeaders.get('If-None-Match')).toBe('"etag-1"');
+  });
+
+  test('dataset cache serves the original cached payload instance on a 304 response', async () => {
+    const fetchSpy = installFetchMock();
+    const payload = {
+      datasetId: 'dataset-1',
+      snapshotTotals: { total: 10 },
+    };
+
+    fetchSpy
+      .mockResolvedValueOnce(
+        jsonResponse(payload, { status: 200, headers: { etag: '"etag-1"' } })
+      )
+      .mockResolvedValueOnce(emptyResponse({ status: 304 }));
+
+    const client = createApiClient('http://localhost:8000');
+    const first = await client.get<typeof payload>(
+      '/api/v1/datasets/dataset-1/overview',
+      {
+        datasetCache: { datasetId: 'dataset-1' },
+      }
+    );
+    const second = await client.get<typeof payload>(
+      '/api/v1/datasets/dataset-1/overview',
+      {
+        datasetCache: { datasetId: 'dataset-1' },
+      }
+    );
+
+    expect(second).toBe(first);
   });
 
   test('dataset cache recovery throws CACHE_MISS when server repeatedly returns 304 without payload', async () => {

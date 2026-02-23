@@ -1,6 +1,8 @@
+import { memo } from 'react';
 import { TrendingUp } from 'lucide-react';
 import { ForecastSection } from '@/features/metrics/components/ForecastSection';
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { ForecastsAnalyticsResponse, UIError } from '@/lib/api/types';
 import {
   Select,
@@ -32,7 +34,9 @@ interface ForecastsPanelProps {
   onReadModelRetry: () => void;
 }
 
-export function ForecastsPanel({
+const FORECAST_HORIZON_OPTIONS = [2, 4, 6, 8, 12];
+
+function ForecastsPanelComponent({
   data,
   loading,
   error,
@@ -45,8 +49,6 @@ export function ForecastsPanel({
   readModelPollingTimedOut,
   onReadModelRetry,
 }: ForecastsPanelProps) {
-  const horizonOptions = [2, 4, 6, 8, 12];
-
   return (
     <TabsContent value="forecasts" className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -69,7 +71,7 @@ export function ForecastsPanel({
               <SelectValue placeholder="Forecast horizon" />
             </SelectTrigger>
             <SelectContent>
-              {horizonOptions.map((option) => (
+              {FORECAST_HORIZON_OPTIONS.map((option) => (
                 <SelectItem key={option} value={String(option)}>
                   {option} semesters
                 </SelectItem>
@@ -93,10 +95,10 @@ export function ForecastsPanel({
       )}
       {readModelState === 'failed' && (
         <PanelFailedState
-          message={
-            readModelError?.message ??
+          message={formatUIErrorMessage(
+            readModelError,
             'Dataset processing failed. Upload a new dataset to continue.'
-          }
+          )}
           onRefresh={() => {
             void onReadModelRetry();
           }}
@@ -107,7 +109,7 @@ export function ForecastsPanel({
       )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
-          message={error.message}
+          message={formatUIErrorMessage(error)}
           onRetry={() => {
             onRetry();
           }}
@@ -138,3 +140,5 @@ export function ForecastsPanel({
     </TabsContent>
   );
 }
+
+export const ForecastsPanel = memo(ForecastsPanelComponent);

@@ -1,5 +1,9 @@
-import { apiClient } from '@/lib/api/client';
-import { filterQueryParams } from '@/lib/api/queryGuardrails';
+import { apiClient, clearDatasetResponseCache } from '@/lib/api/client';
+import {
+  buildPaginationQuery,
+  encodePathSegment,
+  toApiPath,
+} from '@/lib/api/service-helpers';
 import type {
   BulkSubmissionCreateResponse,
   BulkSubmissionStatusResponse,
@@ -10,8 +14,8 @@ import type {
   SubmissionStatusResponse,
 } from '@/lib/api/types';
 
-const API_PREFIX = '/api/v1';
-const SUBMISSIONS_ENDPOINT = `${API_PREFIX}/submissions`;
+const SUBMISSIONS_ENDPOINT = toApiPath('/submissions');
+const BULK_SUBMISSIONS_ENDPOINT = `${SUBMISSIONS_ENDPOINT}/bulk`;
 const LIST_SUBMISSIONS_QUERY_ALLOWLIST = [
   'page',
   'pageSize',
@@ -19,8 +23,6 @@ const LIST_SUBMISSIONS_QUERY_ALLOWLIST = [
   'createdAfter',
   'createdBefore',
 ] as const;
-const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 20;
 
 type PaginationParams = {
   page?: number;
@@ -44,58 +46,12 @@ interface CreateBulkSubmissionRequest extends RequestOptions {
   dryRun?: boolean;
 }
 
-function warnPaginationNormalization(
-  endpoint: string,
-  key: 'page' | 'pageSize',
-  value: number,
-  fallback: number
-) {
-  if (process.env.NODE_ENV === 'production') {
-    return;
-  }
-
-  console.warn(
-    `[api-query-guardrail] Normalized invalid ${key} for ${endpoint}: ${value} -> ${fallback}`
-  );
-}
-
-function normalizePaginationValue(
-  endpoint: string,
-  key: 'page' | 'pageSize',
-  value: number | undefined,
-  fallback: number
-) {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (!Number.isFinite(value) || value < 1) {
-    warnPaginationNormalization(endpoint, key, value, fallback);
-    return fallback;
-  }
-
-  return value;
-}
-
 function buildListSubmissionsQuery(options: ListSubmissionsOptions) {
-  const page = normalizePaginationValue(
-    SUBMISSIONS_ENDPOINT,
-    'page',
-    options.page,
-    DEFAULT_PAGE
-  );
-  const pageSize = normalizePaginationValue(
-    SUBMISSIONS_ENDPOINT,
-    'pageSize',
-    options.pageSize,
-    DEFAULT_PAGE_SIZE
-  );
-
-  return filterQueryParams({
+  return buildPaginationQuery({
     endpoint: SUBMISSIONS_ENDPOINT,
+    page: options.page,
+    pageSize: options.pageSize,
     params: {
-      page,
-      pageSize,
       status: options.status,
       createdAfter: options.createdAfter,
       createdBefore: options.createdBefore,
@@ -140,6 +96,9 @@ export async function createDatasetSubmission(
     }
   );
 
+  // Upload submissions can eventually mutate active dataset reads.
+  clearDatasetResponseCache();
+
   return mapToDatasetSubmission(response);
 }
 
@@ -147,7 +106,7 @@ export async function getDatasetSubmissionStatus(
   submissionId: string,
   options: RequestOptions = {}
 ): Promise<DatasetSubmission> {
-  const encodedSubmissionId = encodeURIComponent(submissionId);
+  const encodedSubmissionId = encodePathSegment(submissionId);
   const response = await apiClient.get<SubmissionStatusResponse>(
     `${SUBMISSIONS_ENDPOINT}/${encodedSubmissionId}`,
     {
@@ -180,22 +139,26 @@ export async function createBulkSubmissionJob(
     formData.append('files[]', file);
   });
 
-  return apiClient.postForm<BulkSubmissionCreateResponse>(
-    `${API_PREFIX}/submissions/bulk`,
+  const response = await apiClient.postForm<BulkSubmissionCreateResponse>(
+    BULK_SUBMISSIONS_ENDPOINT,
     formData,
     {
       signal: request.signal,
     }
   );
+
+  clearDatasetResponseCache();
+
+  return response;
 }
 
 export async function getBulkSubmissionJobStatus(
   jobId: string,
   options: RequestOptions = {}
 ): Promise<BulkSubmissionStatusResponse> {
-  const encodedJobId = encodeURIComponent(jobId);
+  const encodedJobId = encodePathSegment(jobId);
   return apiClient.get<BulkSubmissionStatusResponse>(
-    `${API_PREFIX}/submissions/bulk/${encodedJobId}`,
+    `${BULK_SUBMISSIONS_ENDPOINT}/${encodedJobId}`,
     {
       signal: options.signal,
     }

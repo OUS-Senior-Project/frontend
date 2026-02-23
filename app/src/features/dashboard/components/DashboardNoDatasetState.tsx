@@ -2,6 +2,7 @@
 
 import { Database } from 'lucide-react';
 import { UploadDatasetButton } from '@/features/upload/components/UploadDatasetButton';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { UIError } from '@/lib/api/types';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
@@ -45,7 +46,9 @@ export function DashboardNoDatasetState({
           <Alert variant="destructive">
             <Database />
             <AlertTitle>Upload unavailable</AlertTitle>
-            <AlertDescription>{uploadError.message}</AlertDescription>
+            <AlertDescription>
+              {formatUIErrorMessage(uploadError)}
+            </AlertDescription>
           </Alert>
         )}
       </CardContent>

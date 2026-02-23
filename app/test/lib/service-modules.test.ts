@@ -7,6 +7,7 @@ import {
 import { getForecastsAnalytics } from '@/features/forecasts/api/forecastsService';
 import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
 import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
+import { getDatasetOverview } from '@/features/overview/api/overviewService';
 import {
   createBulkSubmissionJob,
   createDatasetSubmission,
@@ -15,8 +16,9 @@ import {
   listSubmissions,
 } from '@/features/submissions/api/submissionsService';
 import { ApiError, ServiceError } from '@/lib/api/errors';
-import { apiClient } from '@/lib/api/client';
+import { apiClient, clearDatasetResponseCache } from '@/lib/api/client';
 import { filterQueryParams } from '@/lib/api/queryGuardrails';
+import { installFetchMock, jsonResponse } from '../utils/http';
 
 jest.mock('@/lib/api/client', () => ({
   apiClient: {
@@ -25,9 +27,14 @@ jest.mock('@/lib/api/client', () => ({
     put: jest.fn(),
     postForm: jest.fn(),
   },
+  clearDatasetResponseCache: jest.fn(),
 }));
 
 const mockApiClient = apiClient as jest.Mocked<typeof apiClient>;
+const mockClearDatasetResponseCache =
+  clearDatasetResponseCache as jest.MockedFunction<
+    typeof clearDatasetResponseCache
+  >;
 
 function withNodeEnv(
   value: string,
@@ -55,40 +62,6 @@ function withNodeEnv(
     cleanup();
     throw error;
   }
-}
-
-function createHeaderBag(headers: Record<string, string> = {}) {
-  const table = new Map<string, string>();
-  Object.entries(headers).forEach(([key, value]) => {
-    table.set(key.toLowerCase(), value);
-  });
-
-  return {
-    get(name: string) {
-      return table.get(name.toLowerCase()) ?? null;
-    },
-  };
-}
-
-function jsonResponse(body: unknown) {
-  return {
-    status: 200,
-    ok: true,
-    headers: createHeaderBag({
-      'content-type': 'application/json',
-    }),
-    text: async () => JSON.stringify(body),
-  } as unknown as Response;
-}
-
-function installFetchMock() {
-  const fetchMock = jest.fn() as jest.MockedFunction<typeof fetch>;
-  Object.defineProperty(globalThis, 'fetch', {
-    writable: true,
-    value: fetchMock,
-  });
-
-  return fetchMock;
 }
 
 describe('query guardrails', () => {
@@ -397,6 +370,7 @@ describe('service modules', () => {
       undefined,
       { signal: undefined }
     );
+    expect(mockClearDatasetResponseCache).toHaveBeenCalledTimes(1);
   });
 
   test('listDatasets normalizes invalid pagination values and warns in non-production environments', async () => {
@@ -646,7 +620,7 @@ describe('service modules', () => {
       2,
       '/api/v1/datasets/dataset-1/migration-records',
       {
-        query: { semester: undefined },
+        query: {},
         signal: undefined,
         datasetCache: { datasetId: 'dataset-1' },
       }
@@ -685,6 +659,31 @@ describe('service modules', () => {
         datasetCache: { datasetId: 'dataset-1' },
       }
     );
+  });
+
+  test('getDatasetOverview rejects malformed response payloads', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      datasetId: 'dataset-1',
+      trend: 'not-an-array',
+    });
+
+    await expect(getDatasetOverview('dataset-1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE_SHAPE',
+      retryable: false,
+    });
+  });
+
+  test('getForecastsAnalytics rejects malformed response payloads', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [{ period: 'x', year: 2024, semester: 'Fall', total: 1 }],
+    });
+
+    await expect(getForecastsAnalytics('dataset-1')).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE_SHAPE',
+      retryable: false,
+    });
   });
 
   test('submissionsService handles single submission, status, list, and bulk endpoints', async () => {
@@ -797,6 +796,7 @@ describe('service modules', () => {
       '/api/v1/submissions/bulk/job%2F1',
       { signal: undefined }
     );
+    expect(mockClearDatasetResponseCache).toHaveBeenCalledTimes(2);
   });
 
   test('submissionsService applies default query and form flags when optional fields are omitted', async () => {

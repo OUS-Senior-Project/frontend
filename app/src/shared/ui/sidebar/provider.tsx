@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { useIsMobile } from '@/shared/hooks/useIsMobile';
+import { useIsMobile } from '@/shared/hooks';
 import { cn } from '@/shared/utils/cn';
 import { TooltipProvider } from '@/shared/ui/tooltip';
 

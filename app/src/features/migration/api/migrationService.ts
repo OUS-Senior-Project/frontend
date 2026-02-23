@@ -1,11 +1,17 @@
 import { apiClient } from '@/lib/api/client';
+import {
+  buildGuardedQuery,
+  encodePathSegment,
+  toApiPath,
+  withDatasetCache,
+} from '@/lib/api/service-helpers';
 import type {
   MigrationAnalyticsResponse,
   MigrationOptionsResponse,
   MigrationRecordsResponse,
 } from '@/lib/api/types';
 
-const API_PREFIX = '/api/v1';
+const MIGRATION_RECORDS_QUERY_ALLOWLIST = ['semester'] as const;
 
 interface GetMigrationAnalyticsOptions {
   semester?: string;
@@ -16,22 +22,31 @@ export async function getMigrationAnalytics(
   datasetId: string,
   options: GetMigrationAnalyticsOptions = {}
 ): Promise<MigrationAnalyticsResponse> {
-  const encodedDatasetId = encodeURIComponent(datasetId);
+  const encodedDatasetId = encodePathSegment(datasetId);
+  const optionsEndpoint = toApiPath(
+    `/datasets/${encodedDatasetId}/migration/options`
+  );
+  const recordsEndpoint = toApiPath(
+    `/datasets/${encodedDatasetId}/migration-records`
+  );
+
   const [optionsResponse, recordsResponse] = await Promise.all([
     apiClient.get<MigrationOptionsResponse>(
-      `${API_PREFIX}/datasets/${encodedDatasetId}/migration/options`,
-      {
+      optionsEndpoint,
+      withDatasetCache(datasetId, {
         signal: options.signal,
-        datasetCache: { datasetId },
-      }
+      })
     ),
     apiClient.get<MigrationRecordsResponse>(
-      `${API_PREFIX}/datasets/${encodedDatasetId}/migration-records`,
-      {
-        query: { semester: options.semester },
+      recordsEndpoint,
+      withDatasetCache(datasetId, {
+        query: buildGuardedQuery({
+          endpoint: recordsEndpoint,
+          params: { semester: options.semester },
+          allowedKeys: MIGRATION_RECORDS_QUERY_ALLOWLIST,
+        }),
         signal: options.signal,
-        datasetCache: { datasetId },
-      }
+      })
     ),
   ]);
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import {
   getMigrationPeriodLabel,
@@ -14,12 +15,18 @@ interface MigrationFlowChartProps {
   selectedSemester?: string;
 }
 
-export function MigrationFlowChart({
+function MigrationFlowChartComponent({
   data,
   selectedSemester,
 }: MigrationFlowChartProps) {
-  const sortedMigrations = getTopMigrationFlows(data, selectedSemester, 12);
-  const periodLabel = getMigrationPeriodLabel(selectedSemester);
+  const sortedMigrations = useMemo(
+    () => getTopMigrationFlows(data, selectedSemester, 12),
+    [data, selectedSemester]
+  );
+  const periodLabel = useMemo(
+    () => getMigrationPeriodLabel(selectedSemester),
+    [selectedSemester]
+  );
 
   if (sortedMigrations.length === 0) {
     return <MigrationFlowEmptyState />;
@@ -54,3 +61,5 @@ export function MigrationFlowChart({
     </Card>
   );
 }
+
+export const MigrationFlowChart = memo(MigrationFlowChartComponent);

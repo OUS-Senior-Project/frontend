@@ -50,6 +50,6 @@ const runUseMobileSuite = (label: string, useIsMobile: UseIsMobileHook) => {
 
 runUseMobileSuite('hooks/use-mobile', require('@/shared/hooks/useIsMobile').useIsMobile);
 runUseMobileSuite(
-  'components/ui/use-mobile',
-  require('@/shared/ui/use-mobile').useIsMobile
+  'shared/hooks index',
+  require('@/shared/hooks').useIsMobile
 );

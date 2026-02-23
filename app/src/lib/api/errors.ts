@@ -147,3 +147,19 @@ export function toUIError(
     retryable: true,
   };
 }
+
+export function formatUIErrorMessage(
+  error: UIError | null | undefined,
+  fallbackMessage = 'Something went wrong.'
+) {
+  if (!error) {
+    return fallbackMessage;
+  }
+
+  const baseMessage = error.message.trim() || fallbackMessage;
+  if (!error.requestId || baseMessage.includes(error.requestId)) {
+    return baseMessage;
+  }
+
+  return `${baseMessage} (Request ID: ${error.requestId})`;
+}

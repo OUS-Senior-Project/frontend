@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { DashboardTabs } from '@/features/dashboard/components/DashboardTabs';
 
 const overviewPanelMock = jest.fn(() => <div>Overview Panel Mock</div>);
@@ -27,43 +28,43 @@ describe('DashboardTabs', () => {
     jest.clearAllMocks();
   });
 
-  test('renders tab triggers and forwards state props to each panel', () => {
+  test('renders tab triggers and only mounts the active panel', async () => {
     const props = {
       selectedDate: new Date('2026-02-11'),
-      onDateChange: jest.fn(),
-      onDatasetUpload: jest.fn(),
+      setSelectedDate: jest.fn(),
+      handleDatasetUpload: jest.fn(),
       uploadLoading: false,
       uploadError: null,
       readModelState: 'ready',
       readModelStatus: null,
       readModelError: null,
       readModelPollingTimedOut: false,
-      onReadModelRetry: jest.fn(),
+      retryReadModelState: jest.fn(),
       breakdownOpen: false,
-      onBreakdownOpenChange: jest.fn(),
+      setBreakdownOpen: jest.fn(),
       overviewData: null,
       overviewLoading: true,
       overviewError: null,
-      onOverviewRetry: jest.fn(),
+      retryOverview: jest.fn(),
       majorsData: null,
       majorsLoading: false,
       majorsError: { code: 'UNKNOWN', message: 'majors err', retryable: true },
-      onMajorsRetry: jest.fn(),
+      retryMajors: jest.fn(),
       migrationData: null,
       migrationLoading: false,
       migrationError: null,
       migrationSemester: 'Fall 2025',
-      onMigrationSemesterChange: jest.fn(),
-      onMigrationRetry: jest.fn(),
+      setMigrationSemester: jest.fn(),
+      retryMigration: jest.fn(),
       forecastsData: null,
       forecastsLoading: false,
       forecastsError: null,
       forecastHorizon: 4,
-      onForecastHorizonChange: jest.fn(),
-      onForecastsRetry: jest.fn(),
+      setForecastHorizon: jest.fn(),
+      retryForecasts: jest.fn(),
     } as const;
 
-    render(<DashboardTabs {...props} />);
+    render(<DashboardTabs model={props} />);
 
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Majors' })).toBeInTheDocument();
@@ -73,14 +74,20 @@ describe('DashboardTabs', () => {
     expect(overviewPanelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         selectedDate: props.selectedDate,
-        onDateChange: props.onDateChange,
-        onDatasetUpload: props.onDatasetUpload,
+        onDateChange: props.setSelectedDate,
+        onDatasetUpload: props.handleDatasetUpload,
         uploadLoading: props.uploadLoading,
         data: props.overviewData,
         readModelState: props.readModelState,
         readModelPollingTimedOut: props.readModelPollingTimedOut,
       })
     );
+    expect(majorsPanelMock).not.toHaveBeenCalled();
+    expect(migrationPanelMock).not.toHaveBeenCalled();
+    expect(forecastsPanelMock).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: 'Majors' }));
 
     expect(majorsPanelMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -90,21 +97,24 @@ describe('DashboardTabs', () => {
         readModelStatus: props.readModelStatus,
       })
     );
+    expect(overviewPanelMock).toHaveBeenCalledTimes(1);
 
+    await user.click(screen.getByRole('tab', { name: 'Migration' }));
     expect(migrationPanelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: props.migrationData,
         migrationSemester: props.migrationSemester,
-        onSemesterChange: props.onMigrationSemesterChange,
+        onSemesterChange: props.setMigrationSemester,
       })
     );
 
+    await user.click(screen.getByRole('tab', { name: 'Forecasts' }));
     expect(forecastsPanelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: props.forecastsData,
         loading: props.forecastsLoading,
         error: props.forecastsError,
-        onReadModelRetry: props.onReadModelRetry,
+        onReadModelRetry: props.retryReadModelState,
       })
     );
   });

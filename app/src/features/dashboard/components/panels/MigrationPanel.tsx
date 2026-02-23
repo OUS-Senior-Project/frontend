@@ -1,6 +1,8 @@
+import { memo, useMemo } from 'react';
 import { MigrationFlowChart } from '@/features/metrics/components/charts/MigrationFlowChart';
 import { MigrationTopFlowsTable } from '@/features/metrics/components/MigrationTopFlowsTable';
 import { SemesterFilterSelect } from '@/features/filters/components/SemesterFilterSelect';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { MigrationAnalyticsResponse, UIError } from '@/lib/api/types';
 import { TabsContent } from '@/shared/ui/tabs';
 import {
@@ -25,7 +27,7 @@ interface MigrationPanelProps {
   onReadModelRetry: () => void;
 }
 
-export function MigrationPanel({
+function MigrationPanelComponent({
   data,
   loading,
   error,
@@ -38,8 +40,8 @@ export function MigrationPanel({
   readModelPollingTimedOut,
   onReadModelRetry,
 }: MigrationPanelProps) {
-  const semesterOptions = data?.semesters ?? [];
-  const migrationData = data?.records ?? [];
+  const semesterOptions = useMemo(() => data?.semesters ?? [], [data]);
+  const migrationData = useMemo(() => data?.records ?? [], [data]);
   const hasMigrationRecords = migrationData.length > 0;
 
   return (
@@ -74,10 +76,10 @@ export function MigrationPanel({
       )}
       {readModelState === 'failed' && (
         <PanelFailedState
-          message={
-            readModelError?.message ??
+          message={formatUIErrorMessage(
+            readModelError,
             'Dataset processing failed. Upload a new dataset to continue.'
-          }
+          )}
           onRefresh={() => {
             void onReadModelRetry();
           }}
@@ -88,7 +90,7 @@ export function MigrationPanel({
       )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
-          message={error.message}
+          message={formatUIErrorMessage(error)}
           onRetry={() => {
             onRetry();
           }}
@@ -131,3 +133,5 @@ export function MigrationPanel({
     </TabsContent>
   );
 }
+
+export const MigrationPanel = memo(MigrationPanelComponent);

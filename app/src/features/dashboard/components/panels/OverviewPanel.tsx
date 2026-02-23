@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Building, GraduationCap, Users } from 'lucide-react';
 import { AnalyticsBreakdownModal } from '@/features/metrics/components/AnalyticsBreakdownModal';
 import { MetricsTrendChart } from '@/features/metrics/components/charts/MetricsTrendChart';
@@ -6,6 +7,7 @@ import { SchoolDistributionChart } from '@/features/metrics/components/charts/Sc
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
 import { StudentTypeDistributionChart } from '@/features/metrics/components/charts/StudentTypeDistributionChart';
 import { UploadDatasetButton } from '@/features/upload/components/UploadDatasetButton';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { DatasetOverviewResponse, UIError } from '@/lib/api/types';
 import { Spinner } from '@/shared/ui/spinner';
 import { TabsContent } from '@/shared/ui/tabs';
@@ -36,7 +38,7 @@ interface OverviewPanelProps {
   onReadModelRetry: () => void;
 }
 
-export function OverviewPanel({
+function OverviewPanelComponent({
   selectedDate,
   onDateChange,
   onDatasetUpload,
@@ -54,11 +56,15 @@ export function OverviewPanel({
   readModelPollingTimedOut,
   onReadModelRetry,
 }: OverviewPanelProps) {
-  const dateLabel = selectedDate.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const dateLabel = useMemo(
+    () =>
+      selectedDate.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    [selectedDate]
+  );
 
   return (
     <TabsContent value="overview" className="space-y-6">
@@ -79,7 +85,9 @@ export function OverviewPanel({
         </p>
       )}
       {uploadError && (
-        <p className="text-sm text-destructive">{uploadError.message}</p>
+        <p className="text-sm text-destructive">
+          {formatUIErrorMessage(uploadError)}
+        </p>
       )}
 
       {readModelState === 'processing' && (
@@ -97,10 +105,10 @@ export function OverviewPanel({
       )}
       {readModelState === 'failed' && (
         <PanelFailedState
-          message={
-            readModelError?.message ??
+          message={formatUIErrorMessage(
+            readModelError,
             'Dataset processing failed. Upload a new dataset to continue.'
-          }
+          )}
           onRefresh={() => {
             void onReadModelRetry();
           }}
@@ -111,7 +119,7 @@ export function OverviewPanel({
       )}
       {readModelState === 'ready' && !loading && error && (
         <PanelErrorState
-          message={error.message}
+          message={formatUIErrorMessage(error)}
           onRetry={() => {
             onRetry();
           }}
@@ -163,3 +171,5 @@ export function OverviewPanel({
     </TabsContent>
   );
 }
+
+export const OverviewPanel = memo(OverviewPanelComponent);

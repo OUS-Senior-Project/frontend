@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { ForecastTrendChartCard } from './forecast/ForecastTrendChartCard';
 import { ForecastInsightsGrid } from './forecast/forecast-insights-grid';
 import { ForecastNumbersCard } from './forecast/forecast-numbers-card';
 import { buildForecastInsights } from './forecast/insights';
 import type { ForecastSectionProps } from './forecast/types';
 
-export function ForecastSection({
+function ForecastSectionComponent({
   historicalData,
   forecastData,
   insights: insightTexts,
@@ -53,3 +53,5 @@ export function ForecastSection({
     </div>
   );
 }
+
+export const ForecastSection = memo(ForecastSectionComponent);

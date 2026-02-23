@@ -4,7 +4,8 @@ import { AlertCircle } from 'lucide-react';
 import { DashboardHeader } from '@/features/dashboard/components/DashboardHeader';
 import { DashboardNoDatasetState } from '@/features/dashboard/components/DashboardNoDatasetState';
 import { DashboardTabs } from '@/features/dashboard/components/DashboardTabs';
-import { useDashboardMetricsModel } from '@/features/dashboard/hooks/useDashboardMetricsModel';
+import { useDashboardMetricsModel } from '@/features/dashboard/hooks';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
 import { Spinner } from '@/shared/ui/spinner';
@@ -30,7 +31,7 @@ export default function DashboardPage() {
             <AlertCircle />
             <AlertTitle>Unable to load dashboard</AlertTitle>
             <AlertDescription className="space-y-3">
-              <p>{dashboard.datasetError.message}</p>
+              <p>{formatUIErrorMessage(dashboard.datasetError)}</p>
               <Button
                 variant="outline"
                 className="cursor-pointer bg-transparent"
@@ -56,42 +57,7 @@ export default function DashboardPage() {
 
         {!dashboard.datasetLoading &&
           !dashboard.datasetError &&
-          !dashboard.noDataset && (
-            <DashboardTabs
-              selectedDate={dashboard.selectedDate}
-              onDateChange={dashboard.setSelectedDate}
-              onDatasetUpload={dashboard.handleDatasetUpload}
-              uploadLoading={dashboard.uploadLoading}
-              uploadError={dashboard.uploadError}
-              readModelState={dashboard.readModelState}
-              readModelStatus={dashboard.readModelStatus}
-              readModelError={dashboard.readModelError}
-              readModelPollingTimedOut={dashboard.readModelPollingTimedOut}
-              onReadModelRetry={dashboard.retryReadModelState}
-              breakdownOpen={dashboard.breakdownOpen}
-              onBreakdownOpenChange={dashboard.setBreakdownOpen}
-              overviewData={dashboard.overviewData}
-              overviewLoading={dashboard.overviewLoading}
-              overviewError={dashboard.overviewError}
-              onOverviewRetry={dashboard.retryOverview}
-              majorsData={dashboard.majorsData}
-              majorsLoading={dashboard.majorsLoading}
-              majorsError={dashboard.majorsError}
-              onMajorsRetry={dashboard.retryMajors}
-              migrationData={dashboard.migrationData}
-              migrationLoading={dashboard.migrationLoading}
-              migrationError={dashboard.migrationError}
-              migrationSemester={dashboard.migrationSemester}
-              onMigrationSemesterChange={dashboard.setMigrationSemester}
-              onMigrationRetry={dashboard.retryMigration}
-              forecastsData={dashboard.forecastsData}
-              forecastsLoading={dashboard.forecastsLoading}
-              forecastsError={dashboard.forecastsError}
-              forecastHorizon={dashboard.forecastHorizon}
-              onForecastHorizonChange={dashboard.setForecastHorizon}
-              onForecastsRetry={dashboard.retryForecasts}
-            />
-          )}
+          !dashboard.noDataset && <DashboardTabs model={dashboard} />}
       </main>
     </div>
   );

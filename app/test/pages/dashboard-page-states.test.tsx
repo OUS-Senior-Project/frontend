@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import DashboardPage from '@/app/(dashboard)/page';
-import { useDashboardMetricsModel } from '@/features/dashboard/hooks/useDashboardMetricsModel';
+import { fireEvent, screen } from '@testing-library/react';
+import { useDashboardMetricsModel } from '@/features/dashboard/hooks';
+import { renderDashboard } from '../utils/dashboardPage';
 
-jest.mock('@/features/dashboard/hooks/useDashboardMetricsModel', () => ({
+jest.mock('@/features/dashboard/hooks', () => ({
   useDashboardMetricsModel: jest.fn(),
 }));
 
@@ -21,82 +21,29 @@ const mockUseDashboardMetricsModel =
     typeof useDashboardMetricsModel
   >;
 
-function buildModel(overrides: Partial<ReturnType<typeof useDashboardMetricsModel>> = {}) {
-  const noop = jest.fn();
-  return {
-    selectedDate: new Date('2026-02-11'),
-    setSelectedDate: noop,
-    breakdownOpen: false,
-    setBreakdownOpen: noop,
-    migrationSemester: undefined,
-    setMigrationSemester: noop,
-    forecastHorizon: 4,
-    setForecastHorizon: noop,
-    handleDatasetUpload: noop,
-    uploadLoading: false,
-    uploadError: null,
-    readModelState: 'ready',
-    readModelStatus: null,
-    readModelError: null,
-    readModelPollingTimedOut: false,
-    retryReadModelState: noop,
-    activeDataset: null,
-    datasetLoading: false,
-    datasetError: null,
-    dashboardViewState: 'ready',
-    noDataset: false,
-    retryDataset: noop,
-    overviewData: null,
-    overviewLoading: false,
-    overviewError: null,
-    retryOverview: noop,
-    majorsData: null,
-    majorsLoading: false,
-    majorsError: null,
-    retryMajors: noop,
-    migrationData: null,
-    migrationLoading: false,
-    migrationError: null,
-    retryMigration: noop,
-    forecastsData: null,
-    forecastsLoading: false,
-    forecastsError: null,
-    retryForecasts: noop,
-    ...overrides,
-  } as ReturnType<typeof useDashboardMetricsModel>;
-}
-
 describe('DashboardPage states', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   test('renders loading state', () => {
-    mockUseDashboardMetricsModel.mockReturnValue(
-      buildModel({
-        datasetLoading: true,
-      })
-    );
-
-    render(<DashboardPage />);
+    renderDashboard(mockUseDashboardMetricsModel, {
+      datasetLoading: true,
+    });
 
     expect(screen.getByText('Loading dashboard...')).toBeInTheDocument();
   });
 
   test('renders error state and retries dataset load', () => {
     const retryDataset = jest.fn();
-    mockUseDashboardMetricsModel.mockReturnValue(
-      buildModel({
-        datasetError: {
-          code: 'UNKNOWN',
-          message: 'Unable to load dashboard data.',
-          retryable: true,
-        },
-        retryDataset,
-      })
-    );
-
-    render(<DashboardPage />);
+    renderDashboard(mockUseDashboardMetricsModel, {
+      datasetError: {
+        code: 'UNKNOWN',
+        message: 'Unable to load dashboard data.',
+        retryable: true,
+      },
+      retryDataset,
+    });
 
     expect(screen.getByText('Unable to load dashboard')).toBeInTheDocument();
     expect(screen.getByText('Unable to load dashboard data.')).toBeInTheDocument();
@@ -106,32 +53,26 @@ describe('DashboardPage states', () => {
   });
 
   test('renders no-dataset state', () => {
-    mockUseDashboardMetricsModel.mockReturnValue(
-      buildModel({
-        noDataset: true,
-      })
-    );
-
-    render(<DashboardPage />);
+    renderDashboard(mockUseDashboardMetricsModel, {
+      noDataset: true,
+    });
 
     expect(screen.getByTestId('dashboard-no-dataset')).toBeInTheDocument();
     expect(screen.queryByTestId('dashboard-tabs')).not.toBeInTheDocument();
   });
 
   test('renders dashboard tabs when dataset is present', () => {
-    mockUseDashboardMetricsModel.mockReturnValue(
-      buildModel({
-        activeDataset: {
-          id: 'dataset-1',
-          name: 'enrollment.csv',
-          uploadedAt: '2026-02-11T00:00:00Z',
-          status: 'ready',
-        },
-        noDataset: false,
-      })
-    );
-
-    render(<DashboardPage />);
+    renderDashboard(mockUseDashboardMetricsModel, {
+      activeDataset: {
+        datasetId: 'dataset-1',
+        name: 'enrollment.csv',
+        status: 'ready',
+        isActive: true,
+        createdAt: '2026-02-11T00:00:00Z',
+        sourceSubmissionId: 'sub-1',
+      },
+      noDataset: false,
+    });
 
     expect(screen.getByTestId('dashboard-tabs')).toBeInTheDocument();
     expect(screen.queryByText('Loading dashboard...')).not.toBeInTheDocument();

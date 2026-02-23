@@ -1,11 +1,12 @@
 'use client';
 
+import { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { TrendChartLegend } from './TrendChartLegend';
 import type { MetricsTrendChartProps } from './metrics-trend-chart.types';
 import { MetricsTrendChartPlot } from './MetricsTrendChartPlot';
 
-export function MetricsTrendChart({
+function MetricsTrendChartComponent({
   data,
   forecastData,
 }: MetricsTrendChartProps) {
@@ -28,3 +29,5 @@ export function MetricsTrendChart({
     </Card>
   );
 }
+
+export const MetricsTrendChart = memo(MetricsTrendChartComponent);

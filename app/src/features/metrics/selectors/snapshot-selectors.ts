@@ -1,10 +1,15 @@
 import type { AnalyticsRecord, SnapshotTotals } from '@/features/metrics/types';
+import {
+  FALL_SEMESTER_LABEL,
+  getSemesterLabelForDate,
+} from '@/lib/format/semester';
 import { sumBy } from './aggregate';
 
 function getLatestSemesterData(data: AnalyticsRecord[]) {
   const latestYear = Math.max(...data.map((record) => record.year));
   const fallData = data.filter(
-    (record) => record.year === latestYear && record.semester === 'Fall'
+    (record) =>
+      record.year === latestYear && record.semester === FALL_SEMESTER_LABEL
   );
   return fallData.length > 0
     ? fallData
@@ -12,7 +17,7 @@ function getLatestSemesterData(data: AnalyticsRecord[]) {
 }
 
 export function selectSnapshotForDate(data: AnalyticsRecord[], date: Date) {
-  const semester = date.getMonth() >= 7 ? 'Fall' : 'Spring';
+  const semester = getSemesterLabelForDate(date);
   const semesterData = data.filter(
     (record) =>
       record.year === date.getFullYear() && record.semester === semester

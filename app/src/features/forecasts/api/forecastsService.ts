@@ -1,11 +1,18 @@
 import { apiClient } from '@/lib/api/client';
+import { ServiceError } from '@/lib/api/errors';
 import {
+  isRawDatasetForecastResponse,
   normalizeDatasetForecastResponse,
-  type RawDatasetForecastResponse,
 } from '@/lib/api/normalize';
+import {
+  buildGuardedQuery,
+  encodePathSegment,
+  toApiPath,
+  withDatasetCache,
+} from '@/lib/api/service-helpers';
 import type { ForecastsAnalyticsResponse } from '@/lib/api/types';
 
-const API_PREFIX = '/api/v1';
+const FORECASTS_QUERY_ALLOWLIST = ['horizon'] as const;
 
 interface GetForecastsAnalyticsOptions {
   horizon?: number;
@@ -16,18 +23,34 @@ export async function getForecastsAnalytics(
   datasetId: string,
   options: GetForecastsAnalyticsOptions = {}
 ): Promise<ForecastsAnalyticsResponse> {
-  const encodedDatasetId = encodeURIComponent(datasetId);
-
-  const response = await apiClient.get<RawDatasetForecastResponse>(
-    `${API_PREFIX}/datasets/${encodedDatasetId}/forecasts`,
-    {
-      query: {
-        horizon: options.horizon ?? 4,
-      },
-      signal: options.signal,
-      datasetCache: { datasetId },
-    }
+  const endpoint = toApiPath(
+    `/datasets/${encodePathSegment(datasetId)}/forecasts`
   );
 
-  return normalizeDatasetForecastResponse(response);
+  const rawResponse = await apiClient.get<unknown>(
+    endpoint,
+    withDatasetCache(datasetId, {
+      query: buildGuardedQuery({
+        endpoint,
+        params: {
+          horizon: options.horizon ?? 4,
+        },
+        allowedKeys: FORECASTS_QUERY_ALLOWLIST,
+      }),
+      signal: options.signal,
+    })
+  );
+
+  if (!isRawDatasetForecastResponse(rawResponse)) {
+    throw new ServiceError(
+      'INVALID_RESPONSE_SHAPE',
+      'Forecast response was malformed.',
+      {
+        retryable: false,
+        details: { endpoint, datasetId },
+      }
+    );
+  }
+
+  return normalizeDatasetForecastResponse(rawResponse);
 }

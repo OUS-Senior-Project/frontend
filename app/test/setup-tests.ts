@@ -1,7 +1,20 @@
 import '@testing-library/jest-dom';
+import { resetMockNow } from './utils/time';
 
 process.env.NEXT_PUBLIC_API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+
+afterEach(() => {
+  const apiClientModule = require('@/lib/api/client') as Partial<
+    typeof import('@/lib/api/client')
+  >;
+  apiClientModule.clearDatasetResponseCache?.();
+  resetMockNow();
+  jest.clearAllTimers();
+  jest.useRealTimers();
+  jest.clearAllMocks();
+  jest.restoreAllMocks();
+});
 
 const matchMediaMock = (query: string) => {
   return {

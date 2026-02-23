@@ -1,0 +1,1 @@
+export { getMajorsAnalytics } from './majorsService';

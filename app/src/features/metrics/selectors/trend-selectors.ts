@@ -1,17 +1,23 @@
 import type { AnalyticsRecord, TrendPoint } from '@/features/metrics/types';
+import {
+  type SemesterOrder,
+  toSemesterLabel,
+  toSemesterOrder,
+} from '@/lib/format/semester';
 
 export function selectTrendSeries(data: AnalyticsRecord[]): TrendPoint[] {
   const grouped: Record<
     string,
-    { year: number; semester: number; total: number }
+    { year: number; semester: SemesterOrder; total: number }
   > = {};
 
   data.forEach((record) => {
+    const semesterOrder = toSemesterOrder(record.semester) ?? 2;
     const key = `${record.year}-${record.semester}`;
     if (!grouped[key]) {
       grouped[key] = {
         year: record.year,
-        semester: record.semester === 'Fall' ? 1 : 2,
+        semester: semesterOrder,
         total: 0,
       };
     }
@@ -20,7 +26,7 @@ export function selectTrendSeries(data: AnalyticsRecord[]): TrendPoint[] {
 
   return Object.values(grouped)
     .map((item) => ({
-      period: `${item.semester === 1 ? 'Fall' : 'Spring'} ${item.year}`,
+      period: `${toSemesterLabel(item.semester)} ${item.year}`,
       year: item.year,
       semester: item.semester,
       total: item.total,
