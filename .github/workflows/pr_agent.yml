@@ -38,7 +38,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
           # Use a documented/supported OpenAI model for PR-Agent
-          "config.model": "gpt-5"
+          "config.model": "gpt-5-nano"
           "config.fallback_models": "[\"gpt-5\"]"
 
           # We will publish our own normalized comment (reduce noise)
