@@ -1,27 +1,20 @@
 name: PR Agent
 
 on:
-  pull_request:
-    types: [opened, reopened, ready_for_review, synchronize]
   issue_comment:
     types: [created, edited]
 
 concurrency:
-  group: pr-agent-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  group: pr-agent-${{ github.event.issue.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   pr_agent_job:
+    # Only run when a human comments /review on a PR
     if: >-
       github.event.sender.type != 'Bot' &&
-      (
-        github.event_name == 'pull_request' ||
-        (
-          github.event_name == 'issue_comment' &&
-          github.event.issue.pull_request &&
-          startsWith(github.event.comment.body, '/review')
-        )
-      )
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/review')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -37,21 +30,21 @@ jobs:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # Use a documented/supported OpenAI model for PR-Agent
+          # Use a supported OpenAI model for PR-Agent
           "config.model": "gpt-5-nano"
           "config.fallback_models": "[\"gpt-5\"]"
 
-          # We will publish our own normalized comment (reduce noise)
+          # We publish our own normalized comment
           "config.publish_output": "false"
+          "config.publish_output_progress": "false"
 
-          # Keep review JSON output so we can format it ourselves
+          # Keep JSON output so we can format it ourselves
           "github_action_config.enable_output": "true"
 
-          # Only run review automatically (disable describe/improve noise)
-          "github_action_config.auto_review": "true"
+          # No automatic PR-open/sync reviews (manual /review only)
+          "github_action_config.auto_review": "false"
           "github_action_config.auto_describe": "false"
           "github_action_config.auto_improve": "false"
-          "github_action_config.pr_actions": "[\"opened\",\"reopened\",\"ready_for_review\",\"synchronize\"]"
 
       - name: Post normalized PR review comment
         if: >-
@@ -62,6 +55,7 @@ jobs:
         env:
           PR_REVIEW_JSON: ${{ steps.pragent.outputs.review }}
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const marker = '<!-- pr-agent-normalized-verdict -->';
 
@@ -87,9 +81,7 @@ jobs:
                 ('relevant_file' in node) ||
                 ('file' in node && ('title' in node || 'content' in node));
 
-              if (maybeFinding) {
-                acc.push(node);
-              }
+              if (maybeFinding) acc.push(node);
 
               for (const value of Object.values(node)) extractFindings(value, acc);
               return acc;
@@ -106,25 +98,19 @@ jobs:
             }
 
             function toFinding(obj) {
-              const title =
-                clean(obj.issue_header || obj.title || obj.header || obj.name || '');
-              const body =
-                clean(obj.issue_content || obj.content || obj.description || obj.details || '');
-              const file =
-                clean(obj.relevant_file || obj.file_path || obj.filename || obj.file || '');
+              const title = clean(obj.issue_header || obj.title || obj.header || obj.name || '');
+              const body  = clean(obj.issue_content || obj.content || obj.description || obj.details || '');
+              const file  = clean(obj.relevant_file || obj.file_path || obj.filename || obj.file || '');
 
               const joined = `${title}\n${body}`;
               let severity = 'NIT';
               if (/\[BLOCKER\]/i.test(joined)) severity = 'BLOCKER';
               else if (/\[NIT\]/i.test(joined)) severity = 'NIT';
 
-              const strippedTitle = title.replace(/\[(BLOCKER|NIT)\]\s*/ig, '').trim();
-              const strippedBody = body.replace(/\[(BLOCKER|NIT)\]\s*/ig, '').trim();
-
               return {
                 severity,
-                title: strippedTitle || 'Issue found',
-                body: strippedBody,
+                title: (title || 'Issue found').replace(/\[(BLOCKER|NIT)\]\s*/ig, '').trim(),
+                body: (body || '').replace(/\[(BLOCKER|NIT)\]\s*/ig, '').trim(),
                 file,
               };
             }
@@ -141,6 +127,18 @@ jobs:
               return out;
             }
 
+            function sanitizeForTextFence(s) {
+              // Prevent accidental closing of the fence if model returns triple backticks
+              return String(s || '').replace(/```/g, '```\\u200b');
+            }
+
+            function formatFindingBullet(f) {
+              const firstLine = f.file ? `- ${f.file} — ${f.title}` : `- ${f.title}`;
+              if (!f.body) return firstLine;
+              const indented = f.body.split('\n').map(line => `  ${line}`).join('\n');
+              return `${firstLine}\n${indented}`;
+            }
+
             const raw = process.env.PR_REVIEW_JSON;
             if (!raw || !raw.trim()) {
               core.notice('No PR-Agent review JSON output found.');
@@ -151,85 +149,82 @@ jobs:
             try {
               reviewObj = JSON.parse(raw);
             } catch (e) {
-              core.warning(`Failed to parse PR_AGENT review JSON: ${e.message}`);
+              core.warning(`Failed to parse PR review JSON: ${e.message}`);
               return;
             }
 
             const allText = collectStrings(reviewObj).join('\n');
-            const explicitVerdictMatch = allText.match(/\bVerdict:\s*(APPROVE WITH NITS|APPROVE|REQUEST_CHANGES)\b/i);
-            let verdict = explicitVerdictMatch ? explicitVerdictMatch[1].toUpperCase() : null;
 
-            let findings = uniqueFindings(extractFindings(reviewObj).map(toFinding));
+            // Try explicit verdict first (if model included one)
+            let verdict = null;
+            const m = allText.match(/\b(?:VERDICT|Verdict):\s*(APPROVE WITH NITS|APPROVE|REQUEST_CHANGES)\b/i);
+            if (m) verdict = m[1].toUpperCase();
 
-            // Keep only meaningful findings
-            findings = findings.filter(f => f.title || f.body || f.file);
+            let findings = uniqueFindings(extractFindings(reviewObj).map(toFinding))
+              .filter(f => f.title || f.body || f.file);
 
             const blockers = findings.filter(f => f.severity === 'BLOCKER');
             const nits = findings.filter(f => f.severity !== 'BLOCKER');
 
-            // Deterministic fallback if explicit verdict is absent:
-            // - BLOCKER tags => REQUEST_CHANGES
-            // - otherwise any findings => APPROVE WITH NITS
-            // - no findings => APPROVE
+            // Deterministic fallback verdict if explicit verdict is absent
             if (!verdict) {
               if (blockers.length > 0) verdict = 'REQUEST_CHANGES';
               else if (findings.length > 0) verdict = 'APPROVE WITH NITS';
               else verdict = 'APPROVE';
             }
 
-            function formatFindingBullet(f) {
-              const firstLine = f.file ? `**${f.file}** — ${f.title}` : f.title;
-              const details = f.body ? `\n  - ${f.body.replace(/\n/g, '\n  - ')}` : '';
-              return `- ${firstLine}${details}`;
-            }
+            // Build the copy/pasteable review comment content (inside ```text fence)
+            const commentLines = [];
 
-            const lines = [];
-            lines.push(`VERDICT: ${verdict}`);
-            lines.push(`COMMENT TO LEAVE:`);
-            lines.push('');
-
-            lines.push(`### Summary`);
             if (verdict === 'REQUEST_CHANGES') {
-              lines.push(`- Changes are required before approval based on the issues identified in the PR diff review.`);
+              commentLines.push('Changes required before approval.');
             } else if (verdict === 'APPROVE WITH NITS') {
-              lines.push(`- Core changes look acceptable, but there are non-blocking improvements worth addressing.`);
+              commentLines.push('Approved with nits (non-blocking improvements recommended).');
             } else {
-              lines.push(`- No significant issues were identified in the reviewed PR diff context.`);
+              commentLines.push('Approved based on the reviewed PR diff context.');
             }
-            lines.push('');
+
+            commentLines.push('');
 
             if (blockers.length > 0) {
-              lines.push(`### Blocking issues`);
-              blockers.forEach(f => lines.push(formatFindingBullet(f)));
-              lines.push('');
+              commentLines.push('Blocking issues:');
+              blockers.forEach(f => commentLines.push(formatFindingBullet(f)));
+              commentLines.push('');
             }
 
             if (nits.length > 0) {
-              lines.push(`### Non-blocking notes`);
-              nits.forEach(f => lines.push(formatFindingBullet(f)));
-              lines.push('');
+              commentLines.push('Non-blocking notes:');
+              nits.forEach(f => commentLines.push(formatFindingBullet(f)));
+              commentLines.push('');
             }
 
-            lines.push(`### What I checked`);
-            lines.push(`- PR-Agent review output for the current PR diff (JSON from \`steps.pragent.outputs.review\`).`);
-            lines.push(`- Findings were normalized into a single comment to reduce bot noise.`);
-            lines.push(`- Runtime/build/test execution is only referenced if present in the PR-Agent output context.`);
-            lines.push('');
-            lines.push(marker);
-            lines.push(`<!-- pr-agent-normalized-verdict:${verdict} -->`);
+            commentLines.push('What was checked / evidence from diff:');
+            commentLines.push('- PR-Agent review output for the current PR diff (normalized from steps.pragent.outputs.review).');
+            commentLines.push('- Runtime/build/test execution is only referenced if present in PR-Agent output context.');
 
-            const body = lines.join('\n');
+            const commentsToLeaveText = sanitizeForTextFence(commentLines.join('\n').trim());
+
+            const body = [
+              `VERDICT: **${verdict}**`,
+              `COMMENTS TO LEAVE:`,
+              '',
+              '```text',
+              commentsToLeaveText,
+              '```',
+              '',
+              marker,
+              `<!-- pr-agent-normalized-verdict:${verdict} -->`
+            ].join('\n');
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const issue_number = context.payload.pull_request?.number || context.payload.issue?.number;
+            const issue_number = context.payload.issue?.number;
 
             if (!issue_number) {
-              core.notice('No PR/issue number found; skipping comment.');
+              core.notice('No issue number found; skipping comment.');
               return;
             }
 
-            // Upsert a single normalized comment by github-actions bot
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner,
               repo,
