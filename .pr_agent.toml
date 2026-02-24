@@ -1,5 +1,16 @@
+[config]
+# Explicitly use a strong OpenAI model (PR-Agent docs: default is GPT-5, but we set it explicitly)
+model = "gpt-5"
+
+# IMPORTANT:
+# We will publish our own exact-format comment from the workflow step, so suppress PR-Agent's native review comment template.
+publish_output = false
+publish_output_progress = false
+add_repo_metadata = true
+
+ignore_pr_title = ["^\\[Auto\\]", "^Auto"]
+
 [pr_reviewer]
-# Keep a single updated review comment instead of adding more noise
 persistent_comment = true
 final_update_message = false
 enable_help_text = false
@@ -18,6 +29,9 @@ require_todo_scan = false
 # Reduce auto labels noise
 enable_review_labels_effort = false
 enable_review_labels_security = false
+
+# Optional: if no issues are found, avoid "no suggestions" publishing if you ever re-enable publish_output
+publish_output_no_suggestions = true
 
 extra_instructions = """\
 You are a strict, production-grade PR reviewer for the OUS Analytics MVP1 remediation sprint.
@@ -114,34 +128,21 @@ Return APPROVE only if:
 - Tests are robust/sufficient for changed paths
 - No blockers or meaningful non-blocking concerns
 
-STRICT OUTPUT SHAPE (very important)
-- Start the review body with exactly one verdict line in this exact format:
-  Verdict: APPROVE
-  OR
-  Verdict: APPROVE WITH NITS
-  OR
-  Verdict: REQUEST_CHANGES
-- After the verdict line, provide a short Markdown section titled:
-  Supporting comment
-- Under "Supporting comment", include:
-  - Blocking issues (only if verdict is REQUEST_CHANGES)
-  - Non-blocking nits (only if verdict is APPROVE WITH NITS)
+STRICT OUTPUT SHAPE (MANDATORY)
+Return text that includes these exact labels (uppercase) so automation can parse them:
+VERDICT: <APPROVE | APPROVE WITH NITS | REQUEST_CHANGES>
+COMMENT TO LEAVE: <copy-pasteable markdown comment for the PR author>
+
+Additional formatting rules:
+- Exactly one verdict.
+- Use the exact verdict tokens above (do not use APPROVED / REJECTED WITH CHANGES REQUIRED).
+- In COMMENT TO LEAVE, include:
+  - Blocking issues (only if VERDICT is REQUEST_CHANGES)
+  - Non-blocking nits (only if VERDICT is APPROVE WITH NITS)
   - What was checked / evidence from diff (always)
-- Do not include extra summary headings beyond the verdict line and "Supporting comment".
-- Do not output multiple verdicts.
-- If evidence is limited (no runtime/CI execution proof visible), state that clearly in the supporting comment but still provide one verdict based on the PR diff/tests shown.
-
-COMMENT STYLE (required)
-- Be concise but specific.
-- Separate blocking issues from non-blocking suggestions.
-- Reference exact files/components/hooks/functions when possible.
-- For REQUEST_CHANGES, include a short "must-fix" checklist.
-- Prefer concrete fixes over generic advice.
+- If evidence is limited (no runtime/CI execution proof visible), state that clearly but still provide one verdict.
+- Be concise but specific, and reference exact files/components/hooks/functions when possible.
 """
-
-[config]
-add_repo_metadata = true
-ignore_pr_title = ["^\\[Auto\\]", "^Auto"]
 
 [ignore]
 glob = [

@@ -14,6 +14,7 @@ jobs:
       issues: write
       pull-requests: write
       contents: write
+
     steps:
       - name: PR Agent action step
         id: pragent
@@ -22,13 +23,189 @@ jobs:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # Run only the review tool automatically (reduce noise)
+          # Use a strong OpenAI model explicitly
+          config.model: "gpt-5"
+
+          # IMPORTANT: do analysis, but don't let PR-Agent publish its default review comment template
+          config.publish_output: "false"
+          config.publish_output_progress: "false"
+
+          # Reduce noise: only run review automatically
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
+          github_action_config.pr_actions: '["opened","reopened","ready_for_review","synchronize"]'
 
-          # Match the pull_request events you trigger on above
-          github_action_config.pr_actions: '["opened", "reopened", "ready_for_review", "synchronize"]'
-
-          # Keep JSON output for later parsing in a custom workflow
+          # Expose structured review output so we can post our own exact comment format
           github_action_config.enable_output: "true"
+
+      - name: Publish normalized review verdict comment
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          PR_AGENT_REVIEW_OUTPUT: ${{ steps.pragent.outputs.review }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const raw = process.env.PR_AGENT_REVIEW_OUTPUT || "";
+
+            // If PR-Agent didn't produce a review output (e.g., non-/review issue_comment), skip quietly.
+            if (!raw.trim()) {
+              core.info("No PR-Agent review output found; skipping custom verdict comment.");
+              return;
+            }
+
+            // Resolve PR number for both pull_request and issue_comment events
+            const prNumber =
+              context.payload.pull_request?.number ||
+              (context.payload.issue?.pull_request ? context.payload.issue.number : null);
+
+            if (!prNumber) {
+              core.info("Event is not tied to a PR; skipping custom verdict comment.");
+              return;
+            }
+
+            // Helpers
+            function collectStrings(obj, out = []) {
+              if (obj == null) return out;
+              if (typeof obj === "string") out.push(obj);
+              else if (Array.isArray(obj)) obj.forEach(v => collectStrings(v, out));
+              else if (typeof obj === "object") Object.values(obj).forEach(v => collectStrings(v, out));
+              return out;
+            }
+
+            function normalizeVerdictToken(v) {
+              const s = (v || "").trim().toUpperCase();
+              if (s === "APPROVE" || s === "APPROVED") return "APPROVE";
+              if (s === "APPROVE WITH NITS" || s === "APPROVED WITH NITS") return "APPROVE WITH NITS";
+              if (s === "REQUEST_CHANGES" || s === "REJECTED WITH CHANGES REQUIRED") return "REQUEST_CHANGES";
+              return null;
+            }
+
+            let parsed = null;
+            try {
+              parsed = JSON.parse(raw);
+            } catch (_) {
+              // raw may not be JSON; that's okay
+            }
+
+            let text = raw;
+            if (parsed) {
+              // Prefer a review-like field if present; otherwise flatten all strings
+              if (typeof parsed.review === "string") {
+                text = parsed.review;
+              } else if (typeof parsed.markdown === "string") {
+                text = parsed.markdown;
+              } else {
+                text = collectStrings(parsed).join("\n");
+              }
+            }
+
+            // Try to extract exact verdict requested from your prompt
+            const verdictPatterns = [
+              /(?:^|\n)\s*VERDICT:\s*(APPROVE WITH NITS|APPROVE|REQUEST_CHANGES)\b/i,
+              /(?:^|\n)\s*Verdict:\s*(APPROVE WITH NITS|APPROVE|REQUEST_CHANGES)\b/i,
+              /(?:^|\n)\s*Verdict:\s*(APPROVED WITH NITS|APPROVED|REJECTED WITH CHANGES REQUIRED)\b/i
+            ];
+
+            let verdict = null;
+            for (const re of verdictPatterns) {
+              const m = text.match(re);
+              if (m) {
+                verdict = normalizeVerdictToken(m[1]);
+                if (verdict) break;
+              }
+            }
+
+            // Heuristic fallback if model did not follow exact verdict line
+            if (!verdict) {
+              const t = text.toLowerCase();
+              if (
+                t.includes("rejected with changes required") ||
+                t.includes("request_changes") ||
+                t.includes("changes required") ||
+                t.includes("blocking issue") ||
+                t.includes("blocking issues")
+              ) {
+                verdict = "REQUEST_CHANGES";
+              } else if (
+                t.includes("approved with nits") ||
+                t.includes("approve with nits") ||
+                t.includes("non-blocking")
+              ) {
+                verdict = "APPROVE WITH NITS";
+              } else {
+                verdict = "APPROVE";
+              }
+            }
+
+            // Try to extract the intended "comment to leave"
+            let commentToLeave = "";
+
+            // Preferred exact shape from prompt
+            let m = text.match(/(?:^|\n)\s*COMMENT TO LEAVE:\s*([\s\S]*)$/i);
+            if (m && m[1].trim()) {
+              commentToLeave = m[1].trim();
+            }
+
+            // Alternative section title fallback
+            if (!commentToLeave) {
+              m = text.match(/(?:^|\n)\s*Supporting comment\s*[:\n]+([\s\S]*)$/i);
+              if (m && m[1].trim()) commentToLeave = m[1].trim();
+            }
+
+            // Last resort: strip obvious wrapper/verdict lines and use remaining content
+            if (!commentToLeave) {
+              commentToLeave = text
+                .replace(/^\s*##\s*PR Reviewer Guide.*$/gim, "")
+                .replace(/^\s*####.*$/gim, "")
+                .replace(/^\s*Here are some key observations.*$/gim, "")
+                .replace(/^\s*VERDICT:\s*.*$/gim, "")
+                .replace(/^\s*Verdict:\s*.*$/gim, "")
+                .replace(/^\s*COMMENT TO LEAVE:\s*/gim, "")
+                .replace(/^\s*Supporting comment\s*$/gim, "")
+                .replace(/<\/?table>/gim, "")
+                .replace(/<\/?tr>/gim, "")
+                .replace(/<\/?td>/gim, "")
+                .trim();
+            }
+
+            // Safety fallback
+            if (!commentToLeave) {
+              commentToLeave = "Unable to extract detailed supporting comment from PR-Agent output. Please review the workflow logs and PR-Agent output payload.";
+            }
+
+            const marker = "<!-- pr-agent-normalized-verdict -->";
+            const body = `VERDICT: ${verdict}\nCOMMENT TO LEAVE: ${commentToLeave}\n\n${marker}`;
+
+            const { owner, repo } = context.repo;
+            const comments = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100
+            });
+
+            const existing = comments.data.find(c =>
+              c.user?.login === "github-actions[bot]" &&
+              typeof c.body === "string" &&
+              c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body
+              });
+              core.info(`Updated normalized verdict comment on PR #${prNumber}.`);
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body
+              });
+              core.info(`Created normalized verdict comment on PR #${prNumber}.`);
+            }
