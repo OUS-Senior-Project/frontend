@@ -41,7 +41,7 @@ jobs:
           # Keep JSON output so we can format it ourselves
           "github_action_config.enable_output": "true"
 
-          # No automatic PR-open/sync reviews (manual /review only)
+          # Manual /review only
           "github_action_config.auto_review": "false"
           "github_action_config.auto_describe": "false"
           "github_action_config.auto_improve": "false"
@@ -128,12 +128,12 @@ jobs:
             }
 
             function sanitizeForTextFence(s) {
-              // Prevent accidental closing of the fence if model returns triple backticks
+              // Prevent accidental fence breaks if model outputs triple backticks
               return String(s || '').replace(/```/g, '```\\u200b');
             }
 
             function formatFindingBullet(f) {
-              const firstLine = f.file ? `- ${f.file} — ${f.title}` : `- ${f.title}`;
+              const firstLine = f.file ? `- **${f.file}** — ${f.title}` : `- ${f.title}`;
               if (!f.body) return firstLine;
               const indented = f.body.split('\n').map(line => `  ${line}`).join('\n');
               return `${firstLine}\n${indented}`;
@@ -155,10 +155,14 @@ jobs:
 
             const allText = collectStrings(reviewObj).join('\n');
 
-            // Try explicit verdict first (if model included one)
+            // Accept explicit verdict with or without markdown bold:
+            // VERDICT: APPROVE
+            // VERDICT: **APPROVE**
             let verdict = null;
-            const m = allText.match(/\b(?:VERDICT|Verdict):\s*(APPROVE WITH NITS|APPROVE|REQUEST_CHANGES)\b/i);
-            if (m) verdict = m[1].toUpperCase();
+            const verdictMatch = allText.match(
+              /\b(?:VERDICT|Verdict):\s*(?:\*\*)?\s*(APPROVE WITH NITS|APPROVE|REQUEST_CHANGES)\s*(?:\*\*)?\b/i
+            );
+            if (verdictMatch) verdict = verdictMatch[1].toUpperCase();
 
             let findings = uniqueFindings(extractFindings(reviewObj).map(toFinding))
               .filter(f => f.title || f.body || f.file);
@@ -173,40 +177,41 @@ jobs:
               else verdict = 'APPROVE';
             }
 
-            // Build the copy/pasteable review comment content (inside ```text fence)
+            // Build the exact COMMENT TO LEAVE text (inside ```text fence)
             const commentLines = [];
 
+            commentLines.push('### Summary');
             if (verdict === 'REQUEST_CHANGES') {
-              commentLines.push('Changes required before approval.');
+              commentLines.push('- Changes are required before approval based on the issues identified in the PR diff review.');
             } else if (verdict === 'APPROVE WITH NITS') {
-              commentLines.push('Approved with nits (non-blocking improvements recommended).');
+              commentLines.push('- Core changes look acceptable, but there are non-blocking improvements worth addressing.');
             } else {
-              commentLines.push('Approved based on the reviewed PR diff context.');
+              commentLines.push('- No significant issues were identified in the reviewed PR diff context.');
             }
-
             commentLines.push('');
 
             if (blockers.length > 0) {
-              commentLines.push('Blocking issues:');
+              commentLines.push('### Blocking issues');
               blockers.forEach(f => commentLines.push(formatFindingBullet(f)));
               commentLines.push('');
             }
 
             if (nits.length > 0) {
-              commentLines.push('Non-blocking notes:');
+              commentLines.push('### Non-blocking notes');
               nits.forEach(f => commentLines.push(formatFindingBullet(f)));
               commentLines.push('');
             }
 
-            commentLines.push('What was checked / evidence from diff:');
-            commentLines.push('- PR-Agent review output for the current PR diff (normalized from steps.pragent.outputs.review).');
-            commentLines.push('- Runtime/build/test execution is only referenced if present in PR-Agent output context.');
+            commentLines.push('### What I checked');
+            commentLines.push('- PR-Agent review output for the current PR diff (normalized from `steps.pragent.outputs.review`).');
+            commentLines.push('- Runtime/build/test execution is only referenced if present in the PR-Agent output context.');
 
             const commentsToLeaveText = sanitizeForTextFence(commentLines.join('\n').trim());
 
+            // EXACT visible format requested
             const body = [
               `VERDICT: **${verdict}**`,
-              `COMMENTS TO LEAVE:`,
+              `COMMENT TO LEAVE:`,
               '',
               '```text',
               commentsToLeaveText,

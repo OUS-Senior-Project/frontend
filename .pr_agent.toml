@@ -69,12 +69,12 @@ SEVERITY TAGGING (important for downstream formatter)
 STRICT OUTPUT SHAPE (MANDATORY)
 Return text that includes these exact labels (uppercase) so automation can parse them:
 VERDICT: <APPROVE | APPROVE WITH NITS | REQUEST_CHANGES>
-COMMENTS TO LEAVE: <copy-pasteable markdown comment for the PR author>
+COMMENT TO LEAVE: <copy-pasteable markdown comment for the PR author>
 
 Additional formatting rules:
 - Exactly one verdict.
 - Use the exact verdict tokens above (do not use APPROVED / REJECTED WITH CHANGES REQUIRED).
-- In COMMENTS TO LEAVE, include:
+- In COMMENT TO LEAVE, include:
   - Blocking issues (only if VERDICT is REQUEST_CHANGES)
   - Non-blocking nits (only if VERDICT is APPROVE WITH NITS)
   - What was checked / evidence from diff (always)
