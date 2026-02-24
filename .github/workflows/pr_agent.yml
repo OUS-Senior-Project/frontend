@@ -6,29 +6,258 @@ on:
   issue_comment:
     types: [created, edited]
 
+concurrency:
+  group: pr-agent-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pr_agent_job:
-    if: ${{ github.event.sender.type != 'Bot' }}
+    if: >-
+      github.event.sender.type != 'Bot' &&
+      (
+        github.event_name == 'pull_request' ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request &&
+          startsWith(github.event.comment.body, '/review')
+        )
+      )
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       issues: write
       pull-requests: write
-      contents: write
+      contents: read
+
     steps:
-      - name: PR Agent action step
+      - name: Run PR-Agent
         id: pragent
-        uses: qodo-ai/pr-agent@main
+        uses: qodo-ai/pr-agent@v0.32
         env:
           OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # Run only the review tool automatically (reduce noise)
-          github_action_config.auto_review: "true"
-          github_action_config.auto_describe: "false"
-          github_action_config.auto_improve: "false"
+          # Use a documented/supported OpenAI model for PR-Agent
+          "config.model": "gpt-5-nano"
+          "config.fallback_models": "[\"gpt-5\"]"
 
-          # Match the pull_request events you trigger on above
-          github_action_config.pr_actions: '["opened", "reopened", "ready_for_review", "synchronize"]'
+          # We will publish our own normalized comment (reduce noise)
+          "config.publish_output": "false"
 
-          # Keep JSON output for later parsing in a custom workflow
-          github_action_config.enable_output: "true"
+          # Keep review JSON output so we can format it ourselves
+          "github_action_config.enable_output": "true"
+
+          # Only run review automatically (disable describe/improve noise)
+          "github_action_config.auto_review": "true"
+          "github_action_config.auto_describe": "false"
+          "github_action_config.auto_improve": "false"
+          "github_action_config.pr_actions": "[\"opened\",\"reopened\",\"ready_for_review\",\"synchronize\"]"
+
+      - name: Post normalized PR review comment
+        if: >-
+          always() &&
+          steps.pragent.outputs.review != ''
+        continue-on-error: true
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        env:
+          PR_REVIEW_JSON: ${{ steps.pragent.outputs.review }}
+        with:
+          script: |
+            const marker = '<!-- pr-agent-normalized-verdict -->';
+
+            function collectStrings(node, acc = []) {
+              if (node == null) return acc;
+              if (typeof node === 'string') acc.push(node);
+              else if (Array.isArray(node)) node.forEach(v => collectStrings(v, acc));
+              else if (typeof node === 'object') Object.values(node).forEach(v => collectStrings(v, acc));
+              return acc;
+            }
+
+            function extractFindings(node, acc = []) {
+              if (node == null) return acc;
+              if (Array.isArray(node)) {
+                for (const item of node) extractFindings(item, acc);
+                return acc;
+              }
+              if (typeof node !== 'object') return acc;
+
+              const maybeFinding =
+                ('issue_header' in node) ||
+                ('issue_content' in node) ||
+                ('relevant_file' in node) ||
+                ('file' in node && ('title' in node || 'content' in node));
+
+              if (maybeFinding) {
+                acc.push(node);
+              }
+
+              for (const value of Object.values(node)) extractFindings(value, acc);
+              return acc;
+            }
+
+            function clean(s) {
+              if (!s) return '';
+              return String(s)
+                .replace(/\r/g, '')
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/?[^>]+>/g, '')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+            }
+
+            function toFinding(obj) {
+              const title =
+                clean(obj.issue_header || obj.title || obj.header || obj.name || '');
+              const body =
+                clean(obj.issue_content || obj.content || obj.description || obj.details || '');
+              const file =
+                clean(obj.relevant_file || obj.file_path || obj.filename || obj.file || '');
+
+              const joined = `${title}\n${body}`;
+              let severity = 'NIT';
+              if (/\[BLOCKER\]/i.test(joined)) severity = 'BLOCKER';
+              else if (/\[NIT\]/i.test(joined)) severity = 'NIT';
+
+              const strippedTitle = title.replace(/\[(BLOCKER|NIT)\]\s*/ig, '').trim();
+              const strippedBody = body.replace(/\[(BLOCKER|NIT)\]\s*/ig, '').trim();
+
+              return {
+                severity,
+                title: strippedTitle || 'Issue found',
+                body: strippedBody,
+                file,
+              };
+            }
+
+            function uniqueFindings(findings) {
+              const seen = new Set();
+              const out = [];
+              for (const f of findings) {
+                const key = `${f.severity}||${f.file}||${f.title}||${f.body}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                out.push(f);
+              }
+              return out;
+            }
+
+            const raw = process.env.PR_REVIEW_JSON;
+            if (!raw || !raw.trim()) {
+              core.notice('No PR-Agent review JSON output found.');
+              return;
+            }
+
+            let reviewObj;
+            try {
+              reviewObj = JSON.parse(raw);
+            } catch (e) {
+              core.warning(`Failed to parse PR_AGENT review JSON: ${e.message}`);
+              return;
+            }
+
+            const allText = collectStrings(reviewObj).join('\n');
+            const explicitVerdictMatch = allText.match(/\bVerdict:\s*(APPROVE WITH NITS|APPROVE|REQUEST_CHANGES)\b/i);
+            let verdict = explicitVerdictMatch ? explicitVerdictMatch[1].toUpperCase() : null;
+
+            let findings = uniqueFindings(extractFindings(reviewObj).map(toFinding));
+
+            // Keep only meaningful findings
+            findings = findings.filter(f => f.title || f.body || f.file);
+
+            const blockers = findings.filter(f => f.severity === 'BLOCKER');
+            const nits = findings.filter(f => f.severity !== 'BLOCKER');
+
+            // Deterministic fallback if explicit verdict is absent:
+            // - BLOCKER tags => REQUEST_CHANGES
+            // - otherwise any findings => APPROVE WITH NITS
+            // - no findings => APPROVE
+            if (!verdict) {
+              if (blockers.length > 0) verdict = 'REQUEST_CHANGES';
+              else if (findings.length > 0) verdict = 'APPROVE WITH NITS';
+              else verdict = 'APPROVE';
+            }
+
+            function formatFindingBullet(f) {
+              const firstLine = f.file ? `**${f.file}** — ${f.title}` : f.title;
+              const details = f.body ? `\n  - ${f.body.replace(/\n/g, '\n  - ')}` : '';
+              return `- ${firstLine}${details}`;
+            }
+
+            const lines = [];
+            lines.push(`VERDICT: ${verdict}`);
+            lines.push(`COMMENT TO LEAVE:`);
+            lines.push('');
+
+            lines.push(`### Summary`);
+            if (verdict === 'REQUEST_CHANGES') {
+              lines.push(`- Changes are required before approval based on the issues identified in the PR diff review.`);
+            } else if (verdict === 'APPROVE WITH NITS') {
+              lines.push(`- Core changes look acceptable, but there are non-blocking improvements worth addressing.`);
+            } else {
+              lines.push(`- No significant issues were identified in the reviewed PR diff context.`);
+            }
+            lines.push('');
+
+            if (blockers.length > 0) {
+              lines.push(`### Blocking issues`);
+              blockers.forEach(f => lines.push(formatFindingBullet(f)));
+              lines.push('');
+            }
+
+            if (nits.length > 0) {
+              lines.push(`### Non-blocking notes`);
+              nits.forEach(f => lines.push(formatFindingBullet(f)));
+              lines.push('');
+            }
+
+            lines.push(`### What I checked`);
+            lines.push(`- PR-Agent review output for the current PR diff (JSON from \`steps.pragent.outputs.review\`).`);
+            lines.push(`- Findings were normalized into a single comment to reduce bot noise.`);
+            lines.push(`- Runtime/build/test execution is only referenced if present in the PR-Agent output context.`);
+            lines.push('');
+            lines.push(marker);
+            lines.push(`<!-- pr-agent-normalized-verdict:${verdict} -->`);
+
+            const body = lines.join('\n');
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request?.number || context.payload.issue?.number;
+
+            if (!issue_number) {
+              core.notice('No PR/issue number found; skipping comment.');
+              return;
+            }
+
+            // Upsert a single normalized comment by github-actions bot
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            });
+
+            const existing = comments.find(c =>
+              c.user?.type === 'Bot' &&
+              c.user?.login === 'github-actions[bot]' &&
+              typeof c.body === 'string' &&
+              c.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body
+              });
+              core.info(`Updated existing normalized comment (${existing.id}).`);
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+              });
+              core.info('Created normalized comment.');
+            }
