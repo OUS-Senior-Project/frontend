@@ -9,6 +9,7 @@ import {
 } from '@/features/datasets/api';
 import { listSnapshots } from '@/features/snapshots/api';
 import { getDatasetSubmissionStatus } from '@/features/submissions/api';
+import { AdminBulkBackfillMonitor } from '@/features/submissions/components/AdminBulkBackfillMonitor';
 import { formatUIErrorMessage, toUIError } from '@/lib/api/errors';
 import type {
   DatasetDetail,
@@ -848,6 +849,25 @@ export function AdminConsolePage() {
             </CardContent>
           </Card>
         )}
+
+        <section
+          aria-labelledby="admin-bulk-backfill-monitor-heading"
+          className="space-y-2"
+        >
+          <div className="space-y-1">
+            <h2
+              id="admin-bulk-backfill-monitor-heading"
+              className="text-lg font-semibold tracking-tight"
+            >
+              Bulk Backfill Monitor
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Track bulk ingestion jobs, inspect per-file validation failures,
+              and export job reports.
+            </p>
+          </div>
+          <AdminBulkBackfillMonitor />
+        </section>
       </main>
     </div>
   );

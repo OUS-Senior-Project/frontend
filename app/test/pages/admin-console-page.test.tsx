@@ -29,6 +29,12 @@ import type {
 } from '@/lib/api/types';
 import { renderWithProviders } from '../utils/render';
 
+jest.mock('@/features/submissions/components/AdminBulkBackfillMonitor', () => ({
+  AdminBulkBackfillMonitor: () => (
+    <div data-testid="admin-bulk-backfill-monitor">mock bulk monitor</div>
+  ),
+}));
+
 jest.mock('@/features/snapshots/api', () => ({
   listSnapshots: jest.fn(),
 }));
@@ -240,6 +246,9 @@ describe('Admin Console route', () => {
     renderWithProviders(<AdminConsoleRoute />);
 
     await screen.findByRole('heading', { name: 'Admin Console' });
+    expect(
+      screen.getByTestId('admin-bulk-backfill-monitor')
+    ).toBeInTheDocument();
     await screen.findByTestId('snapshot-row-snap-ready-active');
 
     expect(mockListSnapshots).toHaveBeenCalledWith({
