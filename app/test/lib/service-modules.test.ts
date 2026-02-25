@@ -8,6 +8,7 @@ import { getForecastsAnalytics } from '@/features/forecasts/api/forecastsService
 import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
 import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
 import { getDatasetOverview } from '@/features/overview/api/overviewService';
+import { listSnapshots } from '@/features/snapshots/api/snapshotsService';
 import {
   createBulkSubmissionJob,
   createDatasetSubmission,
@@ -683,6 +684,66 @@ describe('service modules', () => {
     await expect(getForecastsAnalytics('dataset-1')).rejects.toMatchObject({
       code: 'INVALID_RESPONSE_SHAPE',
       retryable: false,
+    });
+  });
+
+  test('listSnapshots forwards page/pageSize and ready status filters', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      items: [
+        {
+          snapshotId: 'snap-20260211',
+          effectiveDate: '2026-02-11',
+          effectiveDatetime: '2026-02-11T15:00:00Z',
+          createdAt: '2026-02-11T15:01:00Z',
+          academicPeriod: 'Spring 2026',
+          status: 'ready',
+          submissionId: 'sub-1',
+          datasetId: 'dataset-1',
+        },
+      ],
+      page: 2,
+      pageSize: 50,
+      total: 101,
+    });
+
+    const response = await listSnapshots({
+      page: 2,
+      pageSize: 50,
+      status: 'ready',
+      startDate: '2026-02-01',
+      endDate: '2026-02-28',
+    });
+
+    expect(response.total).toBe(101);
+    expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/snapshots', {
+      query: {
+        page: 2,
+        pageSize: 50,
+        status: 'ready',
+        startDate: '2026-02-01',
+        endDate: '2026-02-28',
+      },
+      signal: undefined,
+    });
+  });
+
+  test('listSnapshots supports default options', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      items: [],
+      page: 1,
+      pageSize: 20,
+      total: 0,
+    });
+
+    const response = await listSnapshots();
+
+    expect(response.items).toEqual([]);
+    expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/snapshots', {
+      query: {
+        page: 1,
+        pageSize: 20,
+      },
+      signal: undefined,
     });
   });
 

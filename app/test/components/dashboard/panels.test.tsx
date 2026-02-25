@@ -12,12 +12,9 @@ import {
 } from '@/features/dashboard/components/panels/PanelStates';
 
 jest.mock('@/shared/ui/tabs', () => ({
-  TabsContent: ({
-    children,
-    ...props
-  }: {
-    children: React.ReactNode;
-  }) => <div {...props}>{children}</div>,
+  TabsContent: ({ children, ...props }: { children: React.ReactNode }) => (
+    <div {...props}>{children}</div>
+  ),
 }));
 
 jest.mock('@/features/upload/components/UploadDatasetButton', () => ({
@@ -34,14 +31,6 @@ jest.mock('@/features/upload/components/UploadDatasetButton', () => ({
       }}
     >
       {buttonLabel}
-    </button>
-  ),
-}));
-
-jest.mock('@/features/filters/components/DateFilterButton', () => ({
-  DateFilterButton: ({ onDateChange }: { onDateChange: (value: Date) => void }) => (
-    <button onClick={() => onDateChange(new Date('2026-02-10'))}>
-      Change Date
     </button>
   ),
 }));
@@ -67,9 +56,11 @@ jest.mock('@/features/metrics/components/AnalyticsBreakdownModal', () => ({
 }));
 
 jest.mock('@/features/metrics/components/charts/MetricsTrendChart', () => ({
-  MetricsTrendChart: ({ data }: { data: Array<{ period: string; total: number }> }) => (
-    <div>{`Trend points: ${data.length}`}</div>
-  ),
+  MetricsTrendChart: ({
+    data,
+  }: {
+    data: Array<{ period: string; total: number }>;
+  }) => <div>{`Trend points: ${data.length}`}</div>,
 }));
 
 jest.mock(
@@ -83,13 +74,16 @@ jest.mock(
   })
 );
 
-jest.mock('@/features/metrics/components/charts/SchoolDistributionChart', () => ({
-  SchoolDistributionChart: ({
-    data,
-  }: {
-    data: Array<{ school: string; count: number }>;
-  }) => <div>{`School points: ${data.length}`}</div>,
-}));
+jest.mock(
+  '@/features/metrics/components/charts/SchoolDistributionChart',
+  () => ({
+    SchoolDistributionChart: ({
+      data,
+    }: {
+      data: Array<{ school: string; count: number }>;
+    }) => <div>{`School points: ${data.length}`}</div>,
+  })
+);
 
 jest.mock('@/features/metrics/components/CohortSummaryTable', () => ({
   CohortSummaryTable: ({ data }: { data: Array<{ major: string }> }) => (
@@ -97,13 +91,16 @@ jest.mock('@/features/metrics/components/CohortSummaryTable', () => ({
   ),
 }));
 
-jest.mock('@/features/metrics/components/charts/MajorDistributionChart', () => ({
-  MajorDistributionChart: ({
-    data,
-  }: {
-    data: Array<{ major: string; count: number }>;
-  }) => <div>{`Major points: ${data.length}`}</div>,
-}));
+jest.mock(
+  '@/features/metrics/components/charts/MajorDistributionChart',
+  () => ({
+    MajorDistributionChart: ({
+      data,
+    }: {
+      data: Array<{ major: string; count: number }>;
+    }) => <div>{`Major points: ${data.length}`}</div>,
+  })
+);
 
 jest.mock('@/features/metrics/components/major-analytics-charts', () => ({
   AvgCreditsByCohortChart: ({ data }: { data: unknown[] }) => (
@@ -165,15 +162,18 @@ jest.mock('@/shared/ui/select', () => ({
       {children}
     </div>
   ),
-  SelectTrigger: ({
-    children,
-    ...props
-  }: {
-    children: React.ReactNode;
-  }) => <button {...props}>{children}</button>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  SelectContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SelectTrigger: ({ children, ...props }: { children: React.ReactNode }) => (
+    <button {...props}>{children}</button>
+  ),
+  SelectValue: ({ placeholder }: { placeholder?: string }) => (
+    <span>{placeholder}</span>
+  ),
+  SelectContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SelectItem: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 jest.mock('@/features/metrics/components/ForecastSection', () => ({
@@ -196,7 +196,9 @@ describe('dashboard panel states', () => {
     const { rerender } = render(
       <PanelLoadingState message="Loading dashboard segment..." />
     );
-    expect(screen.getByText('Loading dashboard segment...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Loading dashboard segment...')
+    ).toBeInTheDocument();
 
     rerender(
       <PanelProcessingState
@@ -209,7 +211,12 @@ describe('dashboard panel states', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Current status: building.')).toBeInTheDocument();
 
-    rerender(<PanelProcessingState message="Processing dataset..." onRefresh={refresh} />);
+    rerender(
+      <PanelProcessingState
+        message="Processing dataset..."
+        onRefresh={refresh}
+      />
+    );
     expect(screen.queryByText(/Current status:/)).not.toBeInTheDocument();
 
     rerender(<PanelProcessingState onRefresh={refresh} />);
@@ -219,7 +226,9 @@ describe('dashboard panel states', () => {
       )
     ).toBeInTheDocument();
 
-    rerender(<PanelFailedState message="Processing failed" onRefresh={refresh} />);
+    rerender(
+      <PanelFailedState message="Processing failed" onRefresh={refresh} />
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
     expect(refresh).toHaveBeenCalledTimes(2);
 
@@ -234,19 +243,19 @@ describe('dashboard panel states', () => {
       />
     );
     expect(screen.getByText('No data')).toBeInTheDocument();
-    expect(screen.getByText('This panel has no records yet.')).toBeInTheDocument();
+    expect(
+      screen.getByText('This panel has no records yet.')
+    ).toBeInTheDocument();
   });
 
   test('OverviewPanel handles loading, error, empty, and populated states', () => {
     const onRetry = jest.fn();
     const onReadModelRetry = jest.fn();
     const onDatasetUpload = jest.fn();
-    const onDateChange = jest.fn();
     const onBreakdownOpenChange = jest.fn();
 
     const baseProps = {
-      selectedDate: new Date('2026-02-11'),
-      onDateChange,
+      currentDataDate: '2026-02-11',
       onDatasetUpload,
       uploadLoading: false,
       uploadError: null,
@@ -261,12 +270,7 @@ describe('dashboard panel states', () => {
     };
 
     const { rerender } = render(
-      <OverviewPanel
-        {...baseProps}
-        data={null}
-        loading={true}
-        error={null}
-      />
+      <OverviewPanel {...baseProps} data={null} loading={true} error={null} />
     );
     expect(screen.getByText('Loading overview metrics...')).toBeInTheDocument();
 
@@ -311,9 +315,7 @@ describe('dashboard panel states', () => {
         readModelPollingTimedOut={true}
       />
     );
-    expect(
-      screen.getByText(/Dataset is still processing/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Dataset is still processing/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
     expect(onReadModelRetry).toHaveBeenCalledTimes(2);
 
@@ -353,18 +355,17 @@ describe('dashboard panel states', () => {
       />
     );
     expect(
-      screen.getByText('Dataset processing failed. Upload a new dataset to continue.')
+      screen.getByText(
+        'Dataset processing failed. Upload a new dataset to continue.'
+      )
     ).toBeInTheDocument();
 
     rerender(
-      <OverviewPanel
-        {...baseProps}
-        data={null}
-        loading={false}
-        error={null}
-      />
+      <OverviewPanel {...baseProps} data={null} loading={false} error={null} />
     );
-    expect(screen.getByText('No overview metrics available')).toBeInTheDocument();
+    expect(
+      screen.getByText('No overview metrics available')
+    ).toBeInTheDocument();
 
     rerender(
       <OverviewPanel
@@ -407,16 +408,43 @@ describe('dashboard panel states', () => {
     expect(screen.getByText('Trend points: 1')).toBeInTheDocument();
     expect(screen.getByText('Student type points: 1')).toBeInTheDocument();
     expect(screen.getByText('School points: 1')).toBeInTheDocument();
-    expect(screen.getByText(/Date:/)).toBeInTheDocument();
+    expect(screen.getByText(/Current data date:/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Total Students:/ }));
     expect(onBreakdownOpenChange).toHaveBeenCalledWith(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Upload Dataset' }));
     expect(onDatasetUpload).toHaveBeenCalledTimes(2);
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Change Date' }));
-    expect(onDateChange).toHaveBeenCalledWith(new Date('2026-02-10'));
+  test('OverviewPanel shows unavailable current data date for malformed dates', () => {
+    const baseProps = {
+      onDatasetUpload: jest.fn(),
+      uploadLoading: false,
+      uploadError: null,
+      breakdownOpen: false,
+      onBreakdownOpenChange: jest.fn(),
+      data: null,
+      loading: false,
+      error: null,
+      onRetry: jest.fn(),
+      readModelState: 'ready' as const,
+      readModelStatus: null,
+      readModelError: null,
+      readModelPollingTimedOut: false,
+      onReadModelRetry: jest.fn(),
+    };
+
+    const { rerender } = render(
+      <OverviewPanel {...baseProps} currentDataDate="bad-date" />
+    );
+    expect(screen.getByText('Current data date: Unavailable')).toBeInTheDocument();
+
+    rerender(<OverviewPanel {...baseProps} currentDataDate={null} />);
+    expect(screen.getByText('Current data date: Unavailable')).toBeInTheDocument();
+
+    rerender(<OverviewPanel {...baseProps} currentDataDate="2026-02-31" />);
+    expect(screen.getByText('Current data date: Unavailable')).toBeInTheDocument();
   });
 
   test('MajorsPanel handles loading/error/empty and renders populated data', () => {
@@ -528,7 +556,9 @@ describe('dashboard panel states', () => {
       />
     );
     expect(
-      screen.getByText('Dataset processing failed. Upload a new dataset to continue.')
+      screen.getByText(
+        'Dataset processing failed. Upload a new dataset to continue.'
+      )
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
     expect(onReadModelRetry).toHaveBeenCalledTimes(4);
@@ -546,7 +576,9 @@ describe('dashboard panel states', () => {
         onReadModelRetry={onReadModelRetry}
       />
     );
-    expect(screen.getByText('No majors analytics available')).toBeInTheDocument();
+    expect(
+      screen.getByText('No majors analytics available')
+    ).toBeInTheDocument();
 
     rerender(
       <MajorsPanel
@@ -625,7 +657,9 @@ describe('dashboard panel states', () => {
         onReadModelRetry={onReadModelRetry}
       />
     );
-    expect(screen.getByText('Loading migration analytics...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Loading migration analytics...')
+    ).toBeInTheDocument();
 
     rerender(
       <MigrationPanel
@@ -731,7 +765,9 @@ describe('dashboard panel states', () => {
       />
     );
     expect(
-      screen.getByText('Dataset processing failed. Upload a new dataset to continue.')
+      screen.getByText(
+        'Dataset processing failed. Upload a new dataset to continue.'
+      )
     ).toBeInTheDocument();
 
     rerender(
@@ -749,7 +785,9 @@ describe('dashboard panel states', () => {
         onReadModelRetry={onReadModelRetry}
       />
     );
-    expect(screen.getByText('No migration analytics available')).toBeInTheDocument();
+    expect(
+      screen.getByText('No migration analytics available')
+    ).toBeInTheDocument();
 
     rerender(
       <MigrationPanel
@@ -773,8 +811,12 @@ describe('dashboard panel states', () => {
     expect(
       screen.getByText('No migration detected for selected period')
     ).toBeInTheDocument();
-    expect(screen.queryByText('Migration flow rows: 0')).not.toBeInTheDocument();
-    expect(screen.queryByText('Migration table rows: 0')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Migration flow rows: 0')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Migration table rows: 0')
+    ).not.toBeInTheDocument();
 
     rerender(
       <MigrationPanel
@@ -806,7 +848,9 @@ describe('dashboard panel states', () => {
     expect(screen.getByText('Semester options: 1')).toBeInTheDocument();
     expect(screen.getByText('Migration flow rows: 1')).toBeInTheDocument();
     expect(screen.getByText('Migration table rows: 1')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Semester options: 1' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Semester options: 1' })
+    );
     expect(onSemesterChange).toHaveBeenCalledWith('Fall 2025');
   });
 
@@ -830,7 +874,9 @@ describe('dashboard panel states', () => {
         onReadModelRetry={onReadModelRetry}
       />
     );
-    expect(screen.getByText('Loading forecast analytics...')).toBeInTheDocument();
+    expect(
+      screen.getByText('Loading forecast analytics...')
+    ).toBeInTheDocument();
 
     rerender(
       <ForecastsPanel
@@ -932,7 +978,9 @@ describe('dashboard panel states', () => {
       />
     );
     expect(
-      screen.getByText('Dataset processing failed. Upload a new dataset to continue.')
+      screen.getByText(
+        'Dataset processing failed. Upload a new dataset to continue.'
+      )
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh status' }));
     expect(onReadModelRetry).toHaveBeenCalledTimes(4);
@@ -952,7 +1000,9 @@ describe('dashboard panel states', () => {
         onReadModelRetry={onReadModelRetry}
       />
     );
-    expect(screen.getByText('No forecast analytics available')).toBeInTheDocument();
+    expect(
+      screen.getByText('No forecast analytics available')
+    ).toBeInTheDocument();
 
     rerender(
       <ForecastsPanel
@@ -1018,7 +1068,9 @@ describe('dashboard panel states', () => {
       />
     );
     expect(screen.getByText('5-Year Growth: -3%')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Trigger Select Value' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Trigger Select Value' })
+    );
     expect(onHorizonChange).toHaveBeenCalledWith(6);
   });
 });

@@ -114,14 +114,30 @@ export function PanelFailedState({
 interface PanelEmptyStateProps {
   title: string;
   description: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
-export function PanelEmptyState({ title, description }: PanelEmptyStateProps) {
+export function PanelEmptyState({
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: PanelEmptyStateProps) {
   return (
     <Card className="border-border bg-card">
-      <CardContent className="flex h-[320px] flex-col items-center justify-center text-center">
+      <CardContent className="flex h-[320px] flex-col items-center justify-center gap-3 text-center">
         <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
+        {actionLabel && onAction && (
+          <Button
+            variant="outline"
+            className="cursor-pointer bg-transparent"
+            onClick={onAction}
+          >
+            {actionLabel}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

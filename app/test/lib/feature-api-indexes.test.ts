@@ -14,6 +14,8 @@ import { getMigrationAnalytics } from '@/features/migration/api';
 import { getMigrationAnalytics as getMigrationAnalyticsService } from '@/features/migration/api/migrationService';
 import { getDatasetOverview } from '@/features/overview/api';
 import { getDatasetOverview as getDatasetOverviewService } from '@/features/overview/api/overviewService';
+import { listSnapshots } from '@/features/snapshots/api';
+import { listSnapshots as listSnapshotsService } from '@/features/snapshots/api/snapshotsService';
 import {
   createDatasetSubmission,
   getDatasetSubmissionStatus,
@@ -43,6 +45,10 @@ describe('feature API public entrypoints', () => {
 
   test('overview API index re-exports service functions', () => {
     expect(getDatasetOverview).toBe(getDatasetOverviewService);
+  });
+
+  test('snapshots API index re-exports service functions', () => {
+    expect(listSnapshots).toBe(listSnapshotsService);
   });
 
   test('submissions API index re-exports service functions', () => {

@@ -40,6 +40,26 @@ export interface DatasetListResponse {
   total: number;
 }
 
+export type SnapshotStatus = 'building' | 'ready' | 'failed';
+
+export interface SnapshotSummary {
+  snapshotId: string;
+  effectiveDate: string;
+  effectiveDatetime: string;
+  createdAt: string;
+  academicPeriod: string | null;
+  status: SnapshotStatus;
+  submissionId: string | null;
+  datasetId: string | null;
+}
+
+export interface SnapshotListResponse {
+  items: SnapshotSummary[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 export interface AnalyticsRecord {
   year: number;
   semester: string;
