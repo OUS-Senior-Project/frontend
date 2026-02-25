@@ -125,7 +125,7 @@ export function formatValidationError(
 }
 
 export function isSnapshotActivatable(snapshot: SnapshotSummary) {
-  return snapshot.status === 'ready' && snapshot.datasetId !== null;
+  return snapshot.status === 'ready' && snapshot.datasetId != null;
 }
 
 export function AdminConsolePage() {
