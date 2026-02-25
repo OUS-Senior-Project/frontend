@@ -2,7 +2,6 @@ import { memo, useMemo } from 'react';
 import { Building, GraduationCap, Users } from 'lucide-react';
 import { AnalyticsBreakdownModal } from '@/features/metrics/components/AnalyticsBreakdownModal';
 import { MetricsTrendChart } from '@/features/metrics/components/charts/MetricsTrendChart';
-import { DateFilterButton } from '@/features/filters/components/DateFilterButton';
 import { SchoolDistributionChart } from '@/features/metrics/components/charts/SchoolDistributionChart';
 import { MetricsSummaryCard } from '@/features/metrics/components/MetricsSummaryCard';
 import { StudentTypeDistributionChart } from '@/features/metrics/components/charts/StudentTypeDistributionChart';
@@ -20,8 +19,7 @@ import {
 } from './PanelStates';
 
 interface OverviewPanelProps {
-  selectedDate: Date;
-  onDateChange: (date: Date) => void;
+  currentDataDate: string | null;
   onDatasetUpload: (file: File) => void;
   uploadLoading: boolean;
   uploadError: UIError | null;
@@ -38,9 +36,34 @@ interface OverviewPanelProps {
   onReadModelRetry: () => void;
 }
 
+function parseLocalIsoDate(value: string) {
+  const [yearRaw, monthRaw, dayRaw] = value.split('-');
+  const year = Number(yearRaw);
+  const monthIndex = Number(monthRaw) - 1;
+  const day = Number(dayRaw);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(monthIndex) ||
+    !Number.isFinite(day)
+  ) {
+    return null;
+  }
+
+  const parsed = new Date(year, monthIndex, day);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== monthIndex ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function OverviewPanelComponent({
-  selectedDate,
-  onDateChange,
+  currentDataDate,
   onDatasetUpload,
   uploadLoading,
   uploadError,
@@ -56,26 +79,32 @@ function OverviewPanelComponent({
   readModelPollingTimedOut,
   onReadModelRetry,
 }: OverviewPanelProps) {
-  const dateLabel = useMemo(
-    () =>
-      selectedDate.toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      }),
-    [selectedDate]
-  );
+  const dateLabel = useMemo(() => {
+    const parsedCurrentDataDate = currentDataDate
+      ? parseLocalIsoDate(currentDataDate)
+      : null;
+    if (!parsedCurrentDataDate) {
+      return 'Unavailable';
+    }
+
+    return parsedCurrentDataDate.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }, [currentDataDate]);
 
   return (
     <TabsContent value="overview" className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Overview</h2>
-          <p className="text-sm text-muted-foreground">Date: {dateLabel}</p>
+          <p className="text-sm text-muted-foreground">
+            Current data date: {dateLabel}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <UploadDatasetButton onDatasetUpload={onDatasetUpload} />
-          <DateFilterButton date={selectedDate} onDateChange={onDateChange} />
         </div>
       </div>
       {uploadLoading && (

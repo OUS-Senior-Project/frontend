@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs';
+import { formatUIErrorMessage } from '@/lib/api/errors';
 import type {
   DatasetOverviewResponse,
   ForecastsAnalyticsResponse,
@@ -7,6 +8,8 @@ import type {
   MigrationAnalyticsResponse,
   UIError,
 } from '@/lib/api/types';
+import { DateFilterButton } from '@/features/filters/components/DateFilterButton';
+import { PanelEmptyState } from './panels/PanelStates';
 import { ForecastsPanel } from './panels/ForecastsPanel';
 import { MajorsPanel } from './panels/MajorsPanel';
 import { MigrationPanel } from './panels/MigrationPanel';
@@ -17,8 +20,19 @@ interface DashboardTabsProps {
 }
 
 interface DashboardTabsModel {
-  selectedDate: Date;
+  selectedDate: Date | null;
   setSelectedDate: (date: Date) => void;
+  currentDataDate: string | null;
+  availableSnapshotDates: Date[];
+  snapshotDatesLoading: boolean;
+  snapshotDatesError: UIError | null;
+  snapshotDateEmptyState: {
+    title: string;
+    description: string;
+  } | null;
+  latestAvailableSnapshotDate: string | null;
+  canGoToLatestAvailableDate: boolean;
+  goToLatestAvailableDate: () => void;
   handleDatasetUpload: (file: File) => void;
   uploadLoading: boolean;
   uploadError: UIError | null;
@@ -64,6 +78,33 @@ function isDashboardTabValue(value: string): value is DashboardTabValue {
   return DASHBOARD_TAB_VALUES.includes(value as DashboardTabValue);
 }
 
+function formatCurrentDataDateLabel(value: string | null) {
+  if (!value) {
+    return 'Unavailable';
+  }
+
+  const [yearRaw, monthRaw, dayRaw] = value.split('-');
+  const year = Number(yearRaw);
+  const monthIndex = Number(monthRaw) - 1;
+  const day = Number(dayRaw);
+  const parsed = new Date(year, monthIndex, day);
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== monthIndex ||
+    parsed.getDate() !== day
+  ) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 export function DashboardTabs(props: DashboardTabsProps) {
   const { model } = props;
   const [activeTab, setActiveTab] = useState<DashboardTabValue>('overview');
@@ -75,6 +116,28 @@ export function DashboardTabs(props: DashboardTabsProps) {
 
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">
+            Current data date:{' '}
+            {formatCurrentDataDateLabel(model.currentDataDate)}
+          </p>
+          {model.snapshotDatesError && (
+            <p className="text-xs text-destructive">
+              {formatUIErrorMessage(model.snapshotDatesError)}
+            </p>
+          )}
+        </div>
+        <DateFilterButton
+          date={model.selectedDate}
+          onDateChange={model.setSelectedDate}
+          availableDates={model.availableSnapshotDates}
+          disabled={
+            model.snapshotDatesLoading ||
+            model.availableSnapshotDates.length === 0
+          }
+        />
+      </div>
       <TabsList className="bg-secondary">
         <TabsTrigger
           value="overview"
@@ -102,10 +165,24 @@ export function DashboardTabs(props: DashboardTabsProps) {
         </TabsTrigger>
       </TabsList>
 
-      {activeTab === 'overview' && (
+      {model.snapshotDateEmptyState ? (
+        <PanelEmptyState
+          title={model.snapshotDateEmptyState.title}
+          description={model.snapshotDateEmptyState.description}
+          actionLabel={
+            model.canGoToLatestAvailableDate
+              ? 'Go to latest available'
+              : undefined
+          }
+          onAction={
+            model.canGoToLatestAvailableDate
+              ? model.goToLatestAvailableDate
+              : undefined
+          }
+        />
+      ) : activeTab === 'overview' ? (
         <OverviewPanel
-          selectedDate={model.selectedDate}
-          onDateChange={model.setSelectedDate}
+          currentDataDate={model.currentDataDate}
           onDatasetUpload={model.handleDatasetUpload}
           uploadLoading={model.uploadLoading}
           uploadError={model.uploadError}
@@ -121,8 +198,8 @@ export function DashboardTabs(props: DashboardTabsProps) {
           readModelPollingTimedOut={model.readModelPollingTimedOut}
           onReadModelRetry={model.retryReadModelState}
         />
-      )}
-      {activeTab === 'majors' && (
+      ) : null}
+      {!model.snapshotDateEmptyState && activeTab === 'majors' && (
         <MajorsPanel
           data={model.majorsData}
           loading={model.majorsLoading}
@@ -135,7 +212,7 @@ export function DashboardTabs(props: DashboardTabsProps) {
           onReadModelRetry={model.retryReadModelState}
         />
       )}
-      {activeTab === 'migration' && (
+      {!model.snapshotDateEmptyState && activeTab === 'migration' && (
         <MigrationPanel
           data={model.migrationData}
           loading={model.migrationLoading}
@@ -150,7 +227,7 @@ export function DashboardTabs(props: DashboardTabsProps) {
           onReadModelRetry={model.retryReadModelState}
         />
       )}
-      {activeTab === 'forecasts' && (
+      {!model.snapshotDateEmptyState && activeTab === 'forecasts' && (
         <ForecastsPanel
           data={model.forecastsData}
           loading={model.forecastsLoading}

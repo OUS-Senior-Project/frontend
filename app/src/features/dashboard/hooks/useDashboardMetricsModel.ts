@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -13,6 +14,7 @@ import { getForecastsAnalytics } from '@/features/forecasts/api';
 import { getMajorsAnalytics } from '@/features/majors/api';
 import { getMigrationAnalytics } from '@/features/migration/api';
 import { getDatasetOverview } from '@/features/overview/api';
+import { listSnapshots } from '@/features/snapshots/api';
 import {
   createDatasetSubmission,
   getDatasetSubmissionStatus,
@@ -25,6 +27,7 @@ import type {
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
   MigrationAnalyticsResponse,
+  SnapshotSummary,
   UIError,
 } from '@/lib/api/types';
 import {
@@ -37,6 +40,15 @@ import {
   type DashboardReadModelState,
   type DashboardViewState,
 } from './dashboardReadModel';
+import {
+  resolveSnapshotDateSelection,
+  type SnapshotDateSelection,
+} from './snapshotSelection';
+import {
+  formatDateParamValue,
+  parseLocalDateFromDateParam,
+  useDashboardDateParam,
+} from './useDashboardDateParam';
 
 interface AsyncResourceState<T> {
   data: T | null;
@@ -54,6 +66,8 @@ const SUBMISSION_POLL_TIMEOUT_MS = 180_000;
 export const DATASET_STATUS_POLL_INTERVAL_MS = 3_000;
 export const DATASET_STATUS_POLL_MAX_DURATION_MS = 300_000;
 const DEFAULT_FORECAST_HORIZON = 4;
+const SNAPSHOTS_PAGE_SIZE = 100;
+const EMPTY_SNAPSHOT_ITEMS: SnapshotSummary[] = [];
 
 function initialAsyncResourceState<T>(): AsyncResourceState<T> {
   return {
@@ -135,7 +149,7 @@ function startPerformanceMeasurement(metricName: string) {
 }
 
 export function useDashboardMetricsModel() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const { rawDateParam, dateParam, setDateParam } = useDashboardDateParam();
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [migrationSemester, setMigrationSemester] = useState<
     string | undefined
@@ -151,6 +165,9 @@ export function useDashboardMetricsModel() {
     loading: true,
     error: null,
   });
+  const [snapshotsState, setSnapshotsState] = useState<
+    AsyncResourceState<SnapshotSummary[]>
+  >(initialAsyncResourceState);
   const [overviewState, setOverviewState] = useState<
     AsyncResourceState<DatasetOverviewResponse>
   >(initialAsyncResourceState);
@@ -316,6 +333,73 @@ export function useDashboardMetricsModel() {
     [applyReadModelState, runDeduped]
   );
 
+  const fetchAllReadySnapshots = useCallback(
+    async (signal?: AbortSignal): Promise<SnapshotSummary[]> => {
+      const items: SnapshotSummary[] = [];
+      let page = 1;
+
+      while (true) {
+        const response = await listSnapshots({
+          page,
+          pageSize: SNAPSHOTS_PAGE_SIZE,
+          status: 'ready',
+          signal,
+        });
+
+        items.push(...response.items);
+
+        if (response.items.length === 0 || items.length >= response.total) {
+          return items;
+        }
+
+        page += 1;
+      }
+    },
+    []
+  );
+
+  const loadSnapshotsCatalog = useCallback(
+    async (signal?: AbortSignal): Promise<SnapshotSummary[] | null> => {
+      const stopMeasure = startPerformanceMeasurement(
+        'dashboard:snapshots:load'
+      );
+      setSnapshotsState((previous) => ({
+        ...previous,
+        loading: true,
+        error: null,
+      }));
+
+      try {
+        const snapshots = await runDeduped('snapshots:ready:all', () =>
+          fetchAllReadySnapshots(signal)
+        );
+
+        setSnapshotsState({
+          data: snapshots,
+          loading: false,
+          error: null,
+        });
+
+        return snapshots;
+      } catch (error) {
+        if (isAbortedRequest(error)) {
+          return null;
+        }
+
+        setSnapshotsState({
+          data: null,
+          loading: false,
+          error: toUIError(error, 'Unable to load available snapshot dates.'),
+        });
+
+        return null;
+      } finally {
+        stopMeasure();
+      }
+    },
+    [fetchAllReadySnapshots, runDeduped]
+  );
+
   interface LoadDashboardResourceOptions<T> {
     datasetId: string;
     requestKey: string;
@@ -380,7 +464,11 @@ export function useDashboardMetricsModel() {
   );
 
   const loadOverview = useCallback(
-    async (datasetId: string | undefined, signal?: AbortSignal) => {
+    async (
+      datasetId: string | undefined,
+      snapshotId: string | undefined,
+      signal?: AbortSignal
+    ) => {
       if (!datasetId) {
         resetAsyncResourceState(setOverviewState);
         return;
@@ -388,7 +476,7 @@ export function useDashboardMetricsModel() {
 
       await loadDashboardResource({
         datasetId,
-        requestKey: `overview:${datasetId}`,
+        requestKey: `overview:${datasetId}:${snapshotId ?? 'none'}`,
         measureKey: 'dashboard:panel:overview:load',
         fallbackMessage: 'Unable to load overview metrics.',
         setResourceState: setOverviewState,
@@ -399,7 +487,11 @@ export function useDashboardMetricsModel() {
   );
 
   const loadMajors = useCallback(
-    async (datasetId: string | undefined, signal?: AbortSignal) => {
+    async (
+      datasetId: string | undefined,
+      snapshotId: string | undefined,
+      signal?: AbortSignal
+    ) => {
       if (!datasetId) {
         resetAsyncResourceState(setMajorsState);
         return;
@@ -407,7 +499,7 @@ export function useDashboardMetricsModel() {
 
       await loadDashboardResource({
         datasetId,
-        requestKey: `majors:${datasetId}`,
+        requestKey: `majors:${datasetId}:${snapshotId ?? 'none'}`,
         measureKey: 'dashboard:panel:majors:load',
         fallbackMessage: 'Unable to load majors analytics.',
         setResourceState: setMajorsState,
@@ -420,6 +512,7 @@ export function useDashboardMetricsModel() {
   const loadMigration = useCallback(
     async (
       datasetId: string | undefined,
+      snapshotId: string | undefined,
       semester: string | undefined,
       signal?: AbortSignal
     ) => {
@@ -430,7 +523,7 @@ export function useDashboardMetricsModel() {
 
       await loadDashboardResource({
         datasetId,
-        requestKey: `migration:${datasetId}:${semester ?? 'all'}`,
+        requestKey: `migration:${datasetId}:${snapshotId ?? 'none'}:${semester ?? 'all'}`,
         measureKey: 'dashboard:panel:migration:load',
         fallbackMessage: 'Unable to load migration analytics.',
         setResourceState: setMigrationState,
@@ -447,6 +540,7 @@ export function useDashboardMetricsModel() {
   const loadForecasts = useCallback(
     async (
       datasetId: string | undefined,
+      snapshotId: string | undefined,
       horizon: number,
       signal?: AbortSignal
     ) => {
@@ -457,7 +551,7 @@ export function useDashboardMetricsModel() {
 
       await loadDashboardResource({
         datasetId,
-        requestKey: `forecasts:${datasetId}:${horizon}`,
+        requestKey: `forecasts:${datasetId}:${snapshotId ?? 'none'}:${horizon}`,
         measureKey: 'dashboard:panel:forecasts:load',
         fallbackMessage: 'Unable to load forecast analytics.',
         setResourceState: setForecastsState,
@@ -480,12 +574,32 @@ export function useDashboardMetricsModel() {
   );
 
   const refreshAnalyticsResources = useCallback(
-    async (datasetId: string, signal?: AbortSignal) => {
+    async (
+      options: {
+        datasetId: string;
+        snapshotId?: string | null;
+      },
+      signal?: AbortSignal
+    ) => {
       await Promise.all([
-        loadOverview(datasetId, signal),
-        loadMajors(datasetId, signal),
-        loadMigration(datasetId, migrationSemester, signal),
-        loadForecasts(datasetId, forecastHorizon, signal),
+        loadOverview(
+          options.datasetId,
+          options.snapshotId ?? undefined,
+          signal
+        ),
+        loadMajors(options.datasetId, options.snapshotId ?? undefined, signal),
+        loadMigration(
+          options.datasetId,
+          options.snapshotId ?? undefined,
+          migrationSemester,
+          signal
+        ),
+        loadForecasts(
+          options.datasetId,
+          options.snapshotId ?? undefined,
+          forecastHorizon,
+          signal
+        ),
       ]);
     },
     [
@@ -496,6 +610,111 @@ export function useDashboardMetricsModel() {
       loadOverview,
       migrationSemester,
     ]
+  );
+
+  const activeDatasetId = datasetState.data?.datasetId;
+  const snapshotCatalogLoaded =
+    !snapshotsState.loading && snapshotsState.data !== null;
+  const snapshotItems = snapshotsState.data ?? EMPTY_SNAPSHOT_ITEMS;
+  const hasInvalidDateParamFormat = rawDateParam !== null && dateParam === null;
+  const latestSnapshotDateSelection = useMemo(
+    () => resolveSnapshotDateSelection(snapshotItems, null),
+    [snapshotItems]
+  );
+  const snapshotDateSelection: SnapshotDateSelection = useMemo(
+    () =>
+      hasInvalidDateParamFormat
+        ? {
+            ...latestSnapshotDateSelection,
+            selectedSnapshot: null,
+          }
+        : resolveSnapshotDateSelection(snapshotItems, dateParam),
+    [
+      dateParam,
+      hasInvalidDateParamFormat,
+      latestSnapshotDateSelection,
+      snapshotItems,
+    ]
+  );
+  const latestSelectableSnapshot =
+    snapshotDateSelection.latestSelectableSnapshot;
+  const selectedSnapshot = snapshotDateSelection.selectedSnapshot;
+  const requestedDateUnavailable =
+    rawDateParam !== null && selectedSnapshot === null ? rawDateParam : null;
+  const selectedDate = useMemo(() => {
+    if (selectedSnapshot) {
+      return parseLocalDateFromDateParam(selectedSnapshot.effectiveDate);
+    }
+    if (rawDateParam) {
+      return parseLocalDateFromDateParam(rawDateParam);
+    }
+    return null;
+  }, [rawDateParam, selectedSnapshot]);
+  const shouldUseSnapshotSelection =
+    snapshotCatalogLoaded && snapshotsState.error === null;
+  const defaultDateHydrationPending =
+    shouldUseSnapshotSelection &&
+    rawDateParam === null &&
+    latestSelectableSnapshot !== null;
+  const analyticsDatasetId = !activeDatasetId
+    ? undefined
+    : shouldUseSnapshotSelection
+      ? defaultDateHydrationPending
+        ? undefined
+        : (selectedSnapshot?.datasetId ?? undefined)
+      : snapshotsState.error
+        ? activeDatasetId
+        : undefined;
+  const analyticsSnapshotId =
+    shouldUseSnapshotSelection && analyticsDatasetId
+      ? selectedSnapshot?.snapshotId
+      : undefined;
+  const selectedSnapshotId = selectedSnapshot?.snapshotId ?? null;
+
+  const setSelectedDate = useCallback(
+    (date: Date) => {
+      setDateParam(formatDateParamValue(date), {
+        mode: 'push',
+      });
+    },
+    [setDateParam]
+  );
+
+  const buildSnapshotRefreshTarget = useCallback(
+    (
+      snapshots: SnapshotSummary[] | null,
+      fallbackDatasetId: string
+    ): { datasetId: string; snapshotId?: string | null } | null => {
+      if (rawDateParam !== null && dateParam === null) {
+        return null;
+      }
+
+      if (snapshots === null) {
+        return {
+          datasetId: fallbackDatasetId,
+        };
+      }
+
+      const selection = resolveSnapshotDateSelection(snapshots, dateParam);
+      const snapshotToUse =
+        rawDateParam !== null
+          ? selection.selectedSnapshot
+          : selection.latestSelectableSnapshot;
+
+      if (!snapshotToUse?.datasetId) {
+        return rawDateParam === null
+          ? {
+              datasetId: fallbackDatasetId,
+            }
+          : null;
+      }
+
+      return {
+        datasetId: snapshotToUse.datasetId,
+        snapshotId: snapshotToUse.snapshotId,
+      };
+    },
+    [dateParam, rawDateParam]
   );
 
   const refreshReadModelStatus = useCallback(
@@ -516,9 +735,17 @@ export function useDashboardMetricsModel() {
         applyReadModelState({
           kind: 'ready',
         });
+        const refreshedSnapshots = await loadSnapshotsCatalog(signal);
         // Polling cleanup runs when readModelState flips to "ready"; don't let it abort
         // the one-time analytics refresh that hydrates the panels for the ready state.
-        await refreshAnalyticsResources(latestDataset.datasetId);
+        const refreshTarget = buildSnapshotRefreshTarget(
+          refreshedSnapshots,
+          latestDataset.datasetId
+        );
+
+        if (refreshTarget) {
+          await refreshAnalyticsResources(refreshTarget);
+        }
         return;
       }
 
@@ -538,10 +765,14 @@ export function useDashboardMetricsModel() {
         status: latestDataset.status,
       });
     },
-    [applyReadModelState, refreshAnalyticsResources, runDeduped]
+    [
+      applyReadModelState,
+      buildSnapshotRefreshTarget,
+      loadSnapshotsCatalog,
+      refreshAnalyticsResources,
+      runDeduped,
+    ]
   );
-
-  const activeDatasetId = datasetState.data?.datasetId;
 
   const retryReadModelState = useCallback(async () => {
     const datasetId =
@@ -612,11 +843,21 @@ export function useDashboardMetricsModel() {
         const refreshedDataset = await loadDataset(uploadController.signal);
         const refreshedDatasetId =
           refreshedDataset?.datasetId ?? terminalSubmission.datasetId;
-
-        await refreshAnalyticsResources(
-          refreshedDatasetId,
+        const refreshedSnapshots = await loadSnapshotsCatalog(
           uploadController.signal
         );
+
+        const refreshTarget = buildSnapshotRefreshTarget(
+          refreshedSnapshots,
+          refreshedDatasetId
+        );
+
+        if (refreshTarget) {
+          await refreshAnalyticsResources(
+            refreshTarget,
+            uploadController.signal
+          );
+        }
 
         setUploadState({
           loading: false,
@@ -637,7 +878,13 @@ export function useDashboardMetricsModel() {
         }
       }
     },
-    [loadDataset, pollSubmissionUntilTerminal, refreshAnalyticsResources]
+    [
+      buildSnapshotRefreshTarget,
+      loadDataset,
+      loadSnapshotsCatalog,
+      pollSubmissionUntilTerminal,
+      refreshAnalyticsResources,
+    ]
   );
 
   useEffect(() => {
@@ -668,6 +915,39 @@ export function useDashboardMetricsModel() {
       controller.abort();
     };
   }, [loadDataset]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadSnapshotsCatalog(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [loadSnapshotsCatalog]);
+
+  useEffect(() => {
+    if (!snapshotCatalogLoaded || snapshotsState.error) {
+      return;
+    }
+
+    if (rawDateParam !== null) {
+      return;
+    }
+
+    if (!latestSelectableSnapshot) {
+      return;
+    }
+
+    setDateParam(latestSelectableSnapshot.effectiveDate, {
+      mode: 'replace',
+    });
+  }, [
+    latestSelectableSnapshot,
+    rawDateParam,
+    setDateParam,
+    snapshotCatalogLoaded,
+    snapshotsState.error,
+  ]);
 
   const processingDatasetId =
     readModelState.kind === 'processing' ? readModelState.datasetId : null;
@@ -739,39 +1019,58 @@ export function useDashboardMetricsModel() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadOverview(activeDatasetId, controller.signal);
+    void loadOverview(
+      analyticsDatasetId,
+      analyticsSnapshotId,
+      controller.signal
+    );
 
     return () => {
       controller.abort();
     };
-  }, [activeDatasetId, loadOverview]);
+  }, [analyticsDatasetId, analyticsSnapshotId, loadOverview]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadMajors(activeDatasetId, controller.signal);
+    void loadMajors(analyticsDatasetId, analyticsSnapshotId, controller.signal);
 
     return () => {
       controller.abort();
     };
-  }, [activeDatasetId, loadMajors]);
+  }, [analyticsDatasetId, analyticsSnapshotId, loadMajors]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadMigration(activeDatasetId, migrationSemester, controller.signal);
+    void loadMigration(
+      analyticsDatasetId,
+      analyticsSnapshotId,
+      migrationSemester,
+      controller.signal
+    );
 
     return () => {
       controller.abort();
     };
-  }, [activeDatasetId, loadMigration, migrationSemester]);
+  }, [
+    analyticsDatasetId,
+    analyticsSnapshotId,
+    loadMigration,
+    migrationSemester,
+  ]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadForecasts(activeDatasetId, forecastHorizon, controller.signal);
+    void loadForecasts(
+      analyticsDatasetId,
+      analyticsSnapshotId,
+      forecastHorizon,
+      controller.signal
+    );
 
     return () => {
       controller.abort();
     };
-  }, [activeDatasetId, forecastHorizon, loadForecasts]);
+  }, [analyticsDatasetId, analyticsSnapshotId, forecastHorizon, loadForecasts]);
 
   useEffect(() => {
     if (!migrationSemester || !migrationState.data) {
@@ -800,25 +1099,65 @@ export function useDashboardMetricsModel() {
     readModelState.kind === 'ready' ? null : readModelState.status;
   const retryDataset = useCallback(() => loadDataset(), [loadDataset]);
   const retryOverview = useCallback(
-    () => loadOverview(activeDatasetId),
-    [activeDatasetId, loadOverview]
+    () => loadOverview(analyticsDatasetId, analyticsSnapshotId),
+    [analyticsDatasetId, analyticsSnapshotId, loadOverview]
   );
   const retryMajors = useCallback(
-    () => loadMajors(activeDatasetId),
-    [activeDatasetId, loadMajors]
+    () => loadMajors(analyticsDatasetId, analyticsSnapshotId),
+    [analyticsDatasetId, analyticsSnapshotId, loadMajors]
   );
   const retryMigration = useCallback(
-    () => loadMigration(activeDatasetId, migrationSemester),
-    [activeDatasetId, loadMigration, migrationSemester]
+    () =>
+      loadMigration(analyticsDatasetId, analyticsSnapshotId, migrationSemester),
+    [analyticsDatasetId, analyticsSnapshotId, loadMigration, migrationSemester]
   );
   const retryForecasts = useCallback(
-    () => loadForecasts(activeDatasetId, forecastHorizon),
-    [activeDatasetId, forecastHorizon, loadForecasts]
+    () =>
+      loadForecasts(analyticsDatasetId, analyticsSnapshotId, forecastHorizon),
+    [analyticsDatasetId, analyticsSnapshotId, forecastHorizon, loadForecasts]
   );
+  const availableSnapshotDates = snapshotDateSelection.availableDateValues
+    .map((value) => parseLocalDateFromDateParam(value))
+    .filter((value): value is Date => value !== null);
+  const snapshotDateEmptyState =
+    requestedDateUnavailable !== null
+      ? {
+          title: 'Selected date is unavailable',
+          description: `No ready snapshot is available for ${requestedDateUnavailable}. Choose another available date or go to the latest available snapshot.`,
+        }
+      : shouldUseSnapshotSelection &&
+          snapshotDateSelection.availableDateValues.length === 0
+        ? {
+            title: 'No snapshot dates available',
+            description:
+              'No ready snapshots are available yet. Upload and process a dataset to populate dashboard dates.',
+          }
+        : null;
+  const canGoToLatestAvailableDate =
+    requestedDateUnavailable !== null && latestSelectableSnapshot !== null;
+  const goToLatestAvailableDate = useCallback(() => {
+    if (!latestSelectableSnapshot) {
+      return;
+    }
+
+    setDateParam(latestSelectableSnapshot.effectiveDate, {
+      mode: 'push',
+    });
+  }, [latestSelectableSnapshot, setDateParam]);
 
   return {
     selectedDate,
     setSelectedDate,
+    selectedSnapshotId,
+    currentDataDate: selectedSnapshot?.effectiveDate ?? null,
+    latestAvailableSnapshotDate:
+      latestSelectableSnapshot?.effectiveDate ?? null,
+    canGoToLatestAvailableDate,
+    goToLatestAvailableDate,
+    availableSnapshotDates,
+    snapshotDatesLoading: snapshotsState.loading,
+    snapshotDatesError: snapshotsState.error,
+    snapshotDateEmptyState,
     breakdownOpen,
     setBreakdownOpen,
     migrationSemester: activeMigrationSemester,

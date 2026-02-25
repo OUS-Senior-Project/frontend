@@ -13,12 +13,34 @@ import { getDatasetOverview } from '@/features/overview/api';
 import { getMajorsAnalytics } from '@/features/majors/api';
 import { getMigrationAnalytics } from '@/features/migration/api';
 import { getForecastsAnalytics } from '@/features/forecasts/api';
+import { listSnapshots } from '@/features/snapshots/api';
 import {
   createDatasetSubmission,
   getDatasetSubmissionStatus,
 } from '@/features/submissions/api';
-import type { DatasetStatus } from '@/lib/api/types';
+import type { DatasetStatus, SnapshotListResponse } from '@/lib/api/types';
 import { mockNow } from '../utils/time';
+
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+};
+let mockSearchParamsString = '';
+
+function setMockSearchParams(search: string) {
+  mockSearchParamsString = search.startsWith('?') ? search.slice(1) : search;
+}
+
+function applyMockNavigationHref(href: string) {
+  const [, query = ''] = href.split('?');
+  setMockSearchParams(query);
+}
+
+jest.mock('next/navigation', () => ({
+  useRouter: () => mockRouter,
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(mockSearchParamsString),
+}));
 
 jest.mock('@/features/datasets/api', () => ({
   getActiveDataset: jest.fn(),
@@ -39,6 +61,10 @@ jest.mock('@/features/migration/api', () => ({
 
 jest.mock('@/features/forecasts/api', () => ({
   getForecastsAnalytics: jest.fn(),
+}));
+
+jest.mock('@/features/snapshots/api', () => ({
+  listSnapshots: jest.fn(),
 }));
 
 jest.mock('@/features/submissions/api', () => ({
@@ -64,6 +90,9 @@ const mockGetMigrationAnalytics = getMigrationAnalytics as jest.MockedFunction<
 const mockGetForecastsAnalytics = getForecastsAnalytics as jest.MockedFunction<
   typeof getForecastsAnalytics
 >;
+const mockListSnapshots = listSnapshots as jest.MockedFunction<
+  typeof listSnapshots
+>;
 const mockCreateDatasetSubmission =
   createDatasetSubmission as jest.MockedFunction<typeof createDatasetSubmission>;
 const mockGetDatasetSubmissionStatus =
@@ -83,6 +112,24 @@ function makeActiveDataset(
     isActive: true,
     createdAt: '2026-02-11T00:00:00Z',
     sourceSubmissionId: `sub-${datasetId}`,
+  };
+}
+
+function makeSnapshot(
+  effectiveDate: string,
+  datasetId: string,
+  overrides: Partial<SnapshotListResponse['items'][number]> = {}
+): SnapshotListResponse['items'][number] {
+  return {
+    snapshotId: `snap-${effectiveDate}`,
+    effectiveDate,
+    effectiveDatetime: `${effectiveDate}T15:00:00Z`,
+    createdAt: `${effectiveDate}T15:01:00Z`,
+    academicPeriod: 'Spring 2026',
+    status: 'ready',
+    submissionId: `sub-${datasetId}`,
+    datasetId,
+    ...overrides,
   };
 }
 
@@ -111,6 +158,21 @@ function withApiBaseUrlOverride(
 describe('useDashboardMetricsModel', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.history.replaceState({}, '', '/');
+    setMockSearchParams('');
+    mockRouter.push.mockImplementation((href: string) => {
+      applyMockNavigationHref(href);
+    });
+    mockRouter.replace.mockImplementation((href: string) => {
+      applyMockNavigationHref(href);
+    });
+    mockListSnapshots.mockRejectedValue(
+      new ServiceError(
+        'NETWORK_ERROR',
+        'Unable to load available snapshot dates.',
+        true
+      )
+    );
   });
 
   test('exposes no-dataset state when active dataset is missing', async () => {
@@ -2275,8 +2337,787 @@ describe('useDashboardMetricsModel', () => {
     });
   });
 
-  test('does not re-fetch overview when only selectedDate changes', async () => {
+  test('no URL date defaults to latest snapshot and writes ?date=LATEST', async () => {
     mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-02-11', 'dataset-1', {
+          createdAt: '2026-02-11T15:01:00Z',
+        }),
+        makeSnapshot('2026-03-01', 'dataset-2', {
+          createdAt: '2026-03-01T15:02:00Z',
+        }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-2',
+      snapshotTotals: {
+        total: 10,
+        undergrad: 8,
+        ftic: 4,
+        transfer: 2,
+        international: 1,
+      },
+      activeMajors: 3,
+      activeSchools: 2,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result, rerender } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockRouter.replace).toHaveBeenCalledWith('/?date=2026-03-01');
+    });
+    expect(mockGetDatasetOverview).not.toHaveBeenCalled();
+
+    rerender();
+
+    await waitFor(() => {
+      expect(mockGetDatasetOverview).toHaveBeenCalledWith('dataset-2', {
+        signal: expect.any(Object),
+      });
+      expect(mockGetMajorsAnalytics).toHaveBeenCalledWith('dataset-2', {
+        signal: expect.any(Object),
+      });
+      expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-2', {
+        semester: undefined,
+        signal: expect.any(Object),
+      });
+      expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-2', {
+        horizon: 4,
+        signal: expect.any(Object),
+      });
+    });
+
+    expect(result.current.currentDataDate).toBe('2026-03-01');
+  });
+
+  test('does not load analytics while active dataset is ready but snapshot catalog is still loading', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockImplementation(
+      () => new Promise<SnapshotListResponse>(() => {})
+    );
+
+    const { result, unmount } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+      expect(result.current.snapshotDatesLoading).toBe(true);
+    });
+
+    expect(mockGetDatasetOverview).not.toHaveBeenCalled();
+    expect(mockGetMajorsAnalytics).not.toHaveBeenCalled();
+    expect(mockGetMigrationAnalytics).not.toHaveBeenCalled();
+    expect(mockGetForecastsAnalytics).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  test('re-fetches all analytics resources when selectedDate changes to another snapshot date', async () => {
+    setMockSearchParams('?date=2026-02-11');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-02-11', 'dataset-1'),
+        makeSnapshot('2026-03-01', 'dataset-2'),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    mockGetDatasetOverview
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-1',
+        snapshotTotals: {
+          total: 10,
+          undergrad: 8,
+          ftic: 4,
+          transfer: 2,
+          international: 1,
+        },
+        activeMajors: 3,
+        activeSchools: 2,
+        studentTypeDistribution: [],
+        schoolDistribution: [],
+        trend: [],
+      })
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-2',
+        snapshotTotals: {
+          total: 12,
+          undergrad: 9,
+          ftic: 5,
+          transfer: 2,
+          international: 1,
+        },
+        activeMajors: 4,
+        activeSchools: 2,
+        studentTypeDistribution: [],
+        schoolDistribution: [],
+        trend: [],
+      });
+    mockGetMajorsAnalytics
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-1',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      })
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-2',
+        analyticsRecords: [],
+        majorDistribution: [],
+        cohortRecords: [],
+      });
+    mockGetMigrationAnalytics
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-1',
+        semesters: [],
+        records: [],
+      })
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-2',
+        semesters: [],
+        records: [],
+      });
+    mockGetForecastsAnalytics
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-1',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      })
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-2',
+        historical: [],
+        forecast: [],
+        fiveYearGrowthPct: 0,
+        insights: {
+          projectedGrowthText: '',
+          resourcePlanningText: '',
+          recommendationText: '',
+        },
+      });
+
+    const { result, rerender } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(mockGetDatasetOverview).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      result.current.setSelectedDate(new Date(2026, 2, 1));
+    });
+    expect(mockRouter.push).toHaveBeenCalledWith('/?date=2026-03-01');
+
+    rerender();
+
+    await waitFor(() => {
+      expect(mockGetDatasetOverview).toHaveBeenCalledTimes(2);
+      expect(mockGetMajorsAnalytics).toHaveBeenCalledTimes(2);
+      expect(mockGetMigrationAnalytics).toHaveBeenCalledTimes(2);
+      expect(mockGetForecastsAnalytics).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockGetDatasetOverview).toHaveBeenLastCalledWith('dataset-2', {
+      signal: expect.any(Object),
+    });
+    expect(mockGetMajorsAnalytics).toHaveBeenLastCalledWith('dataset-2', {
+      signal: expect.any(Object),
+    });
+    expect(mockGetMigrationAnalytics).toHaveBeenLastCalledWith('dataset-2', {
+      semester: undefined,
+      signal: expect.any(Object),
+    });
+    expect(mockGetForecastsAnalytics).toHaveBeenLastCalledWith('dataset-2', {
+      horizon: 4,
+      signal: expect.any(Object),
+    });
+  });
+
+  test('honors URL date selection and loads matching snapshot dataset', async () => {
+    setMockSearchParams('?date=2026-03-01');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-03-01', 'dataset-2'),
+        makeSnapshot('2026-02-11', 'dataset-1'),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-2',
+      snapshotTotals: {
+        total: 10,
+        undergrad: 8,
+        ftic: 4,
+        transfer: 2,
+        international: 1,
+      },
+      activeMajors: 3,
+      activeSchools: 2,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockGetDatasetOverview).toHaveBeenCalledWith('dataset-2', {
+        signal: expect.any(Object),
+      });
+    });
+
+    expect(result.current.currentDataDate).toBe('2026-03-01');
+    expect(result.current.snapshotDateEmptyState).toBeNull();
+  });
+
+  test('shows clear empty state and suppresses analytics when URL date is unavailable', async () => {
+    setMockSearchParams('?date=2026-03-05');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [makeSnapshot('2026-02-11', 'dataset-1')],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.snapshotDatesLoading).toBe(false);
+    });
+
+    expect(result.current.snapshotDateEmptyState).toEqual({
+      title: 'Selected date is unavailable',
+      description:
+        'No ready snapshot is available for 2026-03-05. Choose another available date or go to the latest available snapshot.',
+    });
+    expect(result.current.canGoToLatestAvailableDate).toBe(true);
+    expect(mockGetDatasetOverview).not.toHaveBeenCalled();
+    expect(mockGetMajorsAnalytics).not.toHaveBeenCalled();
+    expect(mockGetMigrationAnalytics).not.toHaveBeenCalled();
+    expect(mockGetForecastsAnalytics).not.toHaveBeenCalled();
+  });
+
+  test('goToLatestAvailableDate pushes the latest snapshot date from invalid-date empty state', async () => {
+    setMockSearchParams('?date=1900-01-01');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-03-01', 'dataset-2'),
+        makeSnapshot('2026-02-11', 'dataset-1'),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.canGoToLatestAvailableDate).toBe(true);
+    });
+
+    await act(async () => {
+      result.current.goToLatestAvailableDate();
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/?date=2026-03-01');
+  });
+
+  test('does not auto-select a date when no selectable snapshots are available and latest recovery is a no-op', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-02-11', 'dataset-1', { datasetId: null }),
+        makeSnapshot('2026-03-01', 'dataset-2', { datasetId: null }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.snapshotDatesLoading).toBe(false);
+    });
+
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(result.current.snapshotDateEmptyState).toEqual({
+      title: 'No snapshot dates available',
+      description:
+        'No ready snapshots are available yet. Upload and process a dataset to populate dashboard dates.',
+    });
+    expect(result.current.canGoToLatestAvailableDate).toBe(false);
+
+    await act(async () => {
+      result.current.goToLatestAvailableDate();
+    });
+
+    expect(mockRouter.push).not.toHaveBeenCalled();
+  });
+
+  test('paginates snapshot discovery and selects the latest snapshot across pages', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots
+      .mockResolvedValueOnce({
+        items: [makeSnapshot('2026-02-11', 'dataset-1')],
+        page: 1,
+        pageSize: 100,
+        total: 2,
+      })
+      .mockResolvedValueOnce({
+        items: [makeSnapshot('2026-03-01', 'dataset-2')],
+        page: 2,
+        pageSize: 100,
+        total: 2,
+      });
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-2',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { rerender } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockRouter.replace).toHaveBeenCalledWith('/?date=2026-03-01');
+    });
+    expect(mockListSnapshots).toHaveBeenNthCalledWith(1, {
+      page: 1,
+      pageSize: 100,
+      status: 'ready',
+      signal: expect.any(Object),
+    });
+    expect(mockListSnapshots).toHaveBeenNthCalledWith(2, {
+      page: 2,
+      pageSize: 100,
+      status: 'ready',
+      signal: expect.any(Object),
+    });
+
+    rerender();
+
+    await waitFor(() => {
+      expect(mockGetDatasetOverview).toHaveBeenCalledWith('dataset-2', {
+        signal: expect.any(Object),
+      });
+    });
+  });
+
+  test('ignores aborted snapshot catalog requests without surfacing snapshot date errors', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+    mockListSnapshots.mockRejectedValue(
+      new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    expect(mockListSnapshots).toHaveBeenCalled();
+    expect(result.current.snapshotDatesError).toBeNull();
+  });
+
+  test('upload refresh uses the selected snapshot dataset from refreshed snapshot catalog', async () => {
+    setMockSearchParams('?date=2026-03-01');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-03-01', 'dataset-2'),
+        makeSnapshot('2026-02-11', 'dataset-1'),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-2',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-2',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+    mockCreateDatasetSubmission.mockResolvedValue({
+      submissionId: 'submission-2',
+      datasetId: 'dataset-uploaded',
+      status: 'queued',
+      fileName: 'upload.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+    });
+    mockGetDatasetSubmissionStatus.mockResolvedValue({
+      submissionId: 'submission-2',
+      datasetId: 'dataset-uploaded',
+      status: 'completed',
+      fileName: 'upload.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+      completedAt: '2026-02-11T00:00:10Z',
+      validationErrors: [],
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.currentDataDate).toBe('2026-03-01');
+    });
+
+    mockGetDatasetOverview.mockClear();
+    mockGetMajorsAnalytics.mockClear();
+    mockGetMigrationAnalytics.mockClear();
+    mockGetForecastsAnalytics.mockClear();
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'upload.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(mockGetDatasetOverview).toHaveBeenCalledWith('dataset-2', {
+      signal: expect.any(Object),
+    });
+    expect(mockGetMajorsAnalytics).toHaveBeenCalledWith('dataset-2', {
+      signal: expect.any(Object),
+    });
+    expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-2', {
+      semester: undefined,
+      signal: expect.any(Object),
+    });
+    expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-2', {
+      horizon: 4,
+      signal: expect.any(Object),
+    });
+  });
+
+  test('upload refresh falls back to refreshed dataset when snapshots are present but not selectable', async () => {
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [makeSnapshot('2026-02-11', 'dataset-1', { datasetId: null })],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+    mockCreateDatasetSubmission.mockResolvedValue({
+      submissionId: 'submission-4',
+      datasetId: 'dataset-uploaded',
+      status: 'queued',
+      fileName: 'upload.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+    });
+    mockGetDatasetSubmissionStatus.mockResolvedValue({
+      submissionId: 'submission-4',
+      datasetId: 'dataset-uploaded',
+      status: 'completed',
+      fileName: 'upload.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+      completedAt: '2026-02-11T00:00:10Z',
+      validationErrors: [],
+    });
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 0,
+        undergrad: 0,
+        ftic: 0,
+        transfer: 0,
+        international: 0,
+      },
+      activeMajors: 0,
+      activeSchools: 0,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.snapshotDatesLoading).toBe(false);
+    });
+
+    mockGetDatasetOverview.mockClear();
+    mockGetMajorsAnalytics.mockClear();
+    mockGetMigrationAnalytics.mockClear();
+    mockGetForecastsAnalytics.mockClear();
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'upload.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(mockGetDatasetOverview).toHaveBeenCalledWith('dataset-1', {
+      signal: expect.any(Object),
+    });
+    expect(mockGetMajorsAnalytics).toHaveBeenCalledWith('dataset-1', {
+      signal: expect.any(Object),
+    });
+    expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-1', {
+      semester: undefined,
+      signal: expect.any(Object),
+    });
+    expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-1', {
+      horizon: 4,
+      signal: expect.any(Object),
+    });
+  });
+
+  test('upload refresh skips analytics when the URL date param is invalid', async () => {
+    setMockSearchParams('?date=invalid-date');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [makeSnapshot('2026-02-11', 'dataset-1')],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+    mockCreateDatasetSubmission.mockResolvedValue({
+      submissionId: 'submission-3',
+      datasetId: 'dataset-uploaded',
+      status: 'queued',
+      fileName: 'upload.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+    });
+    mockGetDatasetSubmissionStatus.mockResolvedValue({
+      submissionId: 'submission-3',
+      datasetId: 'dataset-uploaded',
+      status: 'completed',
+      fileName: 'upload.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+      completedAt: '2026-02-11T00:00:10Z',
+      validationErrors: [],
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.snapshotDateEmptyState?.title).toBe(
+        'Selected date is unavailable'
+      );
+    });
+
+    mockGetDatasetOverview.mockClear();
+    mockGetMajorsAnalytics.mockClear();
+    mockGetMigrationAnalytics.mockClear();
+    mockGetForecastsAnalytics.mockClear();
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'upload.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(mockGetDatasetOverview).not.toHaveBeenCalled();
+    expect(mockGetMajorsAnalytics).not.toHaveBeenCalled();
+    expect(mockGetMigrationAnalytics).not.toHaveBeenCalled();
+    expect(mockGetForecastsAnalytics).not.toHaveBeenCalled();
+  });
+
+  test('upload refresh skips analytics when the URL date is valid but unavailable in refreshed snapshots', async () => {
+    setMockSearchParams('?date=2026-03-05');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [makeSnapshot('2026-02-11', 'dataset-1')],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+    mockCreateDatasetSubmission.mockResolvedValue({
+      submissionId: 'submission-5',
+      datasetId: 'dataset-uploaded',
+      status: 'queued',
+      fileName: 'upload.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+    });
+    mockGetDatasetSubmissionStatus.mockResolvedValue({
+      submissionId: 'submission-5',
+      datasetId: 'dataset-uploaded',
+      status: 'completed',
+      fileName: 'upload.csv',
+      createdAt: '2026-02-11T00:00:00Z',
+      completedAt: '2026-02-11T00:00:10Z',
+      validationErrors: [],
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.snapshotDateEmptyState?.title).toBe(
+        'Selected date is unavailable'
+      );
+    });
+
+    mockGetDatasetOverview.mockClear();
+    mockGetMajorsAnalytics.mockClear();
+    mockGetMigrationAnalytics.mockClear();
+    mockGetForecastsAnalytics.mockClear();
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'upload.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(mockGetDatasetOverview).not.toHaveBeenCalled();
+    expect(mockGetMajorsAnalytics).not.toHaveBeenCalled();
+    expect(mockGetMigrationAnalytics).not.toHaveBeenCalled();
+    expect(mockGetForecastsAnalytics).not.toHaveBeenCalled();
+  });
+
+  test('router-backed date selection supports back/forward rerenders', async () => {
+    setMockSearchParams('?date=2026-02-11');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-03-01', 'dataset-2'),
+        makeSnapshot('2026-02-11', 'dataset-1'),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
     mockGetDatasetOverview.mockResolvedValue({
       datasetId: 'dataset-1',
       snapshotTotals: {
@@ -2315,19 +3156,32 @@ describe('useDashboardMetricsModel', () => {
       },
     });
 
-    const { result } = renderHook(() => useDashboardMetricsModel());
+    const { result, rerender } = renderHook(() => useDashboardMetricsModel());
     await waitFor(() => {
-      expect(mockGetDatasetOverview).toHaveBeenCalledTimes(1);
+      expect(result.current.currentDataDate).toBe('2026-02-11');
     });
 
+    mockGetDatasetOverview.mockClear();
+    mockGetMajorsAnalytics.mockClear();
+    mockGetMigrationAnalytics.mockClear();
+    mockGetForecastsAnalytics.mockClear();
+
     await act(async () => {
-      result.current.setSelectedDate(new Date('2026-03-01'));
+      result.current.setSelectedDate(new Date(2026, 2, 1));
     });
-    await act(async () => {
-      await Promise.resolve();
+    expect(mockRouter.push).toHaveBeenCalledWith('/?date=2026-03-01');
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.currentDataDate).toBe('2026-03-01');
     });
 
-    expect(mockGetDatasetOverview).toHaveBeenCalledTimes(1);
+    setMockSearchParams('?date=2026-02-11');
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.currentDataDate).toBe('2026-02-11');
+    });
   });
 
   test('processing polling keeps interval cadence when status changes', async () => {

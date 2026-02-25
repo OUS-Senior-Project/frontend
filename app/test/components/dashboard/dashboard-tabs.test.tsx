@@ -23,6 +23,10 @@ jest.mock('@/features/dashboard/components/panels/ForecastsPanel', () => ({
   ForecastsPanel: (props: unknown) => forecastsPanelMock(props),
 }));
 
+jest.mock('@/features/filters/components/DateFilterButton', () => ({
+  DateFilterButton: () => <div>Date Filter Mock</div>,
+}));
+
 describe('DashboardTabs', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -32,6 +36,14 @@ describe('DashboardTabs', () => {
     const props = {
       selectedDate: new Date('2026-02-11'),
       setSelectedDate: jest.fn(),
+      currentDataDate: '2026-02-11',
+      availableSnapshotDates: [new Date('2026-02-11')],
+      snapshotDatesLoading: false,
+      snapshotDatesError: null,
+      snapshotDateEmptyState: null,
+      latestAvailableSnapshotDate: '2026-02-11',
+      canGoToLatestAvailableDate: false,
+      goToLatestAvailableDate: jest.fn(),
       handleDatasetUpload: jest.fn(),
       uploadLoading: false,
       uploadError: null,
@@ -73,8 +85,7 @@ describe('DashboardTabs', () => {
 
     expect(overviewPanelMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        selectedDate: props.selectedDate,
-        onDateChange: props.setSelectedDate,
+        currentDataDate: props.currentDataDate,
         onDatasetUpload: props.handleDatasetUpload,
         uploadLoading: props.uploadLoading,
         data: props.overviewData,
@@ -117,5 +128,179 @@ describe('DashboardTabs', () => {
         onReadModelRetry: props.retryReadModelState,
       })
     );
+  });
+
+  test('shows snapshot date empty state across tabs and supports latest-date recovery', async () => {
+    const goToLatestAvailableDate = jest.fn();
+    const props = {
+      selectedDate: null,
+      setSelectedDate: jest.fn(),
+      currentDataDate: null,
+      availableSnapshotDates: [],
+      snapshotDatesLoading: false,
+      snapshotDatesError: null,
+      snapshotDateEmptyState: {
+        title: 'Selected date is unavailable',
+        description: 'Choose another date.',
+      },
+      latestAvailableSnapshotDate: '2026-02-11',
+      canGoToLatestAvailableDate: true,
+      goToLatestAvailableDate,
+      handleDatasetUpload: jest.fn(),
+      uploadLoading: false,
+      uploadError: null,
+      readModelState: 'ready',
+      readModelStatus: null,
+      readModelError: null,
+      readModelPollingTimedOut: false,
+      retryReadModelState: jest.fn(),
+      breakdownOpen: false,
+      setBreakdownOpen: jest.fn(),
+      overviewData: null,
+      overviewLoading: false,
+      overviewError: null,
+      retryOverview: jest.fn(),
+      majorsData: null,
+      majorsLoading: false,
+      majorsError: null,
+      retryMajors: jest.fn(),
+      migrationData: null,
+      migrationLoading: false,
+      migrationError: null,
+      migrationSemester: undefined,
+      setMigrationSemester: jest.fn(),
+      retryMigration: jest.fn(),
+      forecastsData: null,
+      forecastsLoading: false,
+      forecastsError: null,
+      forecastHorizon: 4,
+      setForecastHorizon: jest.fn(),
+      retryForecasts: jest.fn(),
+    } as const;
+
+    render(<DashboardTabs model={props} />);
+
+    expect(
+      screen.getByText('Selected date is unavailable')
+    ).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: 'Go to latest available' })
+    );
+    expect(goToLatestAvailableDate).toHaveBeenCalledTimes(1);
+    expect(overviewPanelMock).not.toHaveBeenCalled();
+    expect(majorsPanelMock).not.toHaveBeenCalled();
+    expect(migrationPanelMock).not.toHaveBeenCalled();
+    expect(forecastsPanelMock).not.toHaveBeenCalled();
+  });
+
+  test('renders snapshot error and falls back to raw current data date label when invalid', () => {
+    const props = {
+      selectedDate: null,
+      setSelectedDate: jest.fn(),
+      currentDataDate: 'not-a-date',
+      availableSnapshotDates: [new Date('2026-02-11')],
+      snapshotDatesLoading: false,
+      snapshotDatesError: {
+        code: 'NETWORK_ERROR',
+        message: 'Unable to load available snapshot dates.',
+        retryable: true,
+      },
+      snapshotDateEmptyState: null,
+      latestAvailableSnapshotDate: '2026-02-11',
+      canGoToLatestAvailableDate: false,
+      goToLatestAvailableDate: jest.fn(),
+      handleDatasetUpload: jest.fn(),
+      uploadLoading: false,
+      uploadError: null,
+      readModelState: 'ready',
+      readModelStatus: null,
+      readModelError: null,
+      readModelPollingTimedOut: false,
+      retryReadModelState: jest.fn(),
+      breakdownOpen: false,
+      setBreakdownOpen: jest.fn(),
+      overviewData: null,
+      overviewLoading: false,
+      overviewError: null,
+      retryOverview: jest.fn(),
+      majorsData: null,
+      majorsLoading: false,
+      majorsError: null,
+      retryMajors: jest.fn(),
+      migrationData: null,
+      migrationLoading: false,
+      migrationError: null,
+      migrationSemester: undefined,
+      setMigrationSemester: jest.fn(),
+      retryMigration: jest.fn(),
+      forecastsData: null,
+      forecastsLoading: false,
+      forecastsError: null,
+      forecastHorizon: 4,
+      setForecastHorizon: jest.fn(),
+      retryForecasts: jest.fn(),
+    } as const;
+
+    render(<DashboardTabs model={props} />);
+
+    expect(screen.getByText(/Current data date: not-a-date/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Unable to load available snapshot dates.')
+    ).toBeInTheDocument();
+  });
+
+  test('does not render latest-date recovery button when no latest snapshot is available', () => {
+    const props = {
+      selectedDate: null,
+      setSelectedDate: jest.fn(),
+      currentDataDate: null,
+      availableSnapshotDates: [],
+      snapshotDatesLoading: false,
+      snapshotDatesError: null,
+      snapshotDateEmptyState: {
+        title: 'Selected date is unavailable',
+        description: 'No snapshot found.',
+      },
+      latestAvailableSnapshotDate: null,
+      canGoToLatestAvailableDate: false,
+      goToLatestAvailableDate: jest.fn(),
+      handleDatasetUpload: jest.fn(),
+      uploadLoading: false,
+      uploadError: null,
+      readModelState: 'ready',
+      readModelStatus: null,
+      readModelError: null,
+      readModelPollingTimedOut: false,
+      retryReadModelState: jest.fn(),
+      breakdownOpen: false,
+      setBreakdownOpen: jest.fn(),
+      overviewData: null,
+      overviewLoading: false,
+      overviewError: null,
+      retryOverview: jest.fn(),
+      majorsData: null,
+      majorsLoading: false,
+      majorsError: null,
+      retryMajors: jest.fn(),
+      migrationData: null,
+      migrationLoading: false,
+      migrationError: null,
+      migrationSemester: undefined,
+      setMigrationSemester: jest.fn(),
+      retryMigration: jest.fn(),
+      forecastsData: null,
+      forecastsLoading: false,
+      forecastsError: null,
+      forecastHorizon: 4,
+      setForecastHorizon: jest.fn(),
+      retryForecasts: jest.fn(),
+    } as const;
+
+    render(<DashboardTabs model={props} />);
+
+    expect(
+      screen.queryByRole('button', { name: 'Go to latest available' })
+    ).not.toBeInTheDocument();
   });
 });
