@@ -1,8 +1,10 @@
 import {
+  activateDataset,
   getActiveDataset,
   getDatasetById,
 } from '@/features/datasets/api';
 import {
+  activateDataset as activateDatasetService,
   getActiveDataset as getActiveDatasetService,
   getDatasetById as getDatasetByIdService,
 } from '@/features/datasets/api/datasetsService';
@@ -27,6 +29,7 @@ import {
 
 describe('feature API public entrypoints', () => {
   test('datasets API index re-exports service functions', () => {
+    expect(activateDataset).toBe(activateDatasetService);
     expect(getActiveDataset).toBe(getActiveDatasetService);
     expect(getDatasetById).toBe(getDatasetByIdService);
   });
