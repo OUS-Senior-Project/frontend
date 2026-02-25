@@ -2420,6 +2420,7 @@ describe('useDashboardMetricsModel', () => {
   });
 
   test('does not load analytics while active dataset is ready but snapshot catalog is still loading', async () => {
+    setMockSearchParams('?date=2026-02-11');
     mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
     mockListSnapshots.mockImplementation(
       () => new Promise<SnapshotListResponse>(() => {})
@@ -2436,6 +2437,7 @@ describe('useDashboardMetricsModel', () => {
     expect(mockGetMajorsAnalytics).not.toHaveBeenCalled();
     expect(mockGetMigrationAnalytics).not.toHaveBeenCalled();
     expect(mockGetForecastsAnalytics).not.toHaveBeenCalled();
+    expect(result.current.snapshotDateEmptyState).toBeNull();
     unmount();
   });
 
@@ -2808,6 +2810,80 @@ describe('useDashboardMetricsModel', () => {
 
     expect(mockListSnapshots).toHaveBeenCalled();
     expect(result.current.snapshotDatesError).toBeNull();
+  });
+
+  test('snapshot discovery error with URL date falls back to active dataset without showing unavailable-date empty state', async () => {
+    setMockSearchParams('?date=2026-02-11');
+    mockGetActiveDataset.mockResolvedValue(makeActiveDataset('dataset-1', 'ready'));
+    mockListSnapshots.mockRejectedValue(
+      new ServiceError(
+        'NETWORK_ERROR',
+        'Unable to load available snapshot dates.',
+        true
+      )
+    );
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 10,
+        undergrad: 8,
+        ftic: 4,
+        transfer: 2,
+        international: 1,
+      },
+      activeMajors: 3,
+      activeSchools: 2,
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockGetDatasetOverview).toHaveBeenCalledWith('dataset-1', {
+        signal: expect.any(Object),
+      });
+    });
+
+    expect(result.current.snapshotDatesError).toMatchObject({
+      code: 'NETWORK_ERROR',
+      retryable: true,
+    });
+    expect(result.current.snapshotDateEmptyState).toBeNull();
+    expect(mockGetMajorsAnalytics).toHaveBeenCalledWith('dataset-1', {
+      signal: expect.any(Object),
+    });
+    expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-1', {
+      semester: undefined,
+      signal: expect.any(Object),
+    });
+    expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-1', {
+      horizon: 4,
+      signal: expect.any(Object),
+    });
   });
 
   test('upload refresh uses the selected snapshot dataset from refreshed snapshot catalog', async () => {

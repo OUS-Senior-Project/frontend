@@ -639,8 +639,14 @@ export function useDashboardMetricsModel() {
   const latestSelectableSnapshot =
     snapshotDateSelection.latestSelectableSnapshot;
   const selectedSnapshot = snapshotDateSelection.selectedSnapshot;
+  const shouldUseSnapshotSelection =
+    snapshotCatalogLoaded && snapshotsState.error === null;
   const requestedDateUnavailable =
-    rawDateParam !== null && selectedSnapshot === null ? rawDateParam : null;
+    shouldUseSnapshotSelection &&
+    rawDateParam !== null &&
+    selectedSnapshot === null
+      ? rawDateParam
+      : null;
   const selectedDate = useMemo(() => {
     if (selectedSnapshot) {
       return parseLocalDateFromDateParam(selectedSnapshot.effectiveDate);
@@ -650,8 +656,6 @@ export function useDashboardMetricsModel() {
     }
     return null;
   }, [rawDateParam, selectedSnapshot]);
-  const shouldUseSnapshotSelection =
-    snapshotCatalogLoaded && snapshotsState.error === null;
   const defaultDateHydrationPending =
     shouldUseSnapshotSelection &&
     rawDateParam === null &&
