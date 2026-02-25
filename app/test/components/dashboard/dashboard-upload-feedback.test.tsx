@@ -188,7 +188,7 @@ describe('DashboardUploadFeedbackAlert', () => {
     expect(onRetryUpload).toHaveBeenCalledTimes(1);
   });
 
-  test('renders generic retry guidance and validation truncation/fallback labels', () => {
+  test('renders generic retry guidance and all validation fallback labels', () => {
     renderAlert({
       uploadFeedback: makeFeedback({
         phase: 'failed',
@@ -208,8 +208,10 @@ describe('DashboardUploadFeedbackAlert', () => {
         'Retry the upload. If it fails again, capture the error code and request ID for investigation.'
       )
     ).toBeInTheDocument();
-    expect(screen.getAllByText(/^Validation error \d+$/)).toHaveLength(5);
-    expect(screen.getByText('Showing first 5 of 6 validation errors.')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Validation error \d+$/)).toHaveLength(6);
+    expect(
+      screen.queryByText('Showing first 5 of 6 validation errors.')
+    ).not.toBeInTheDocument();
   });
 
   test('does not render current-moment hint for generic validation failures without backend signal', () => {

@@ -244,6 +244,28 @@ function isRecoverableUploadRetryError(error: UIError | null) {
   return status === undefined || status >= 500;
 }
 
+function toTerminalSubmissionFailedError(submission: DatasetSubmission) {
+  const firstValidationError = submission.validationErrors?.[0];
+
+  return new ServiceError(
+    String(firstValidationError?.code ?? 'SUBMISSION_FAILED'),
+    String(
+      firstValidationError?.message ??
+        'Dataset processing failed. Check validation errors and retry.'
+    ),
+    {
+      // Terminal submission failures are backend processing outcomes, not a safe
+      // transport-level reupload retry.
+      retryable: false,
+      details: {
+        submissionId: submission.submissionId,
+        datasetId: submission.datasetId,
+        validationErrors: submission.validationErrors ?? [],
+      },
+    }
+  );
+}
+
 function canUsePerformanceApi() {
   return (
     typeof window !== 'undefined' &&
@@ -937,6 +959,7 @@ export function useDashboardMetricsModel() {
       uploadControllerRef.current?.abort();
       const uploadController = new AbortController();
       uploadControllerRef.current = uploadController;
+      let completedSubmission: DatasetSubmission | null = null;
 
       setUploadState({
         loading: true,
@@ -981,24 +1004,10 @@ export function useDashboardMetricsModel() {
         );
 
         if (terminalSubmission.status === 'failed') {
-          const firstValidationError = terminalSubmission.validationErrors?.[0];
-          throw new ServiceError(
-            String(firstValidationError?.code ?? 'SUBMISSION_FAILED'),
-            String(
-              firstValidationError?.message ??
-                'Dataset processing failed. Check validation errors and retry.'
-            ),
-            {
-              retryable: true,
-              details: {
-                submissionId: terminalSubmission.submissionId,
-                datasetId: terminalSubmission.datasetId,
-                validationErrors: terminalSubmission.validationErrors ?? [],
-              },
-            }
-          );
+          throw toTerminalSubmissionFailedError(terminalSubmission);
         }
 
+        completedSubmission = terminalSubmission;
         const refreshedDataset = await loadDataset(uploadController.signal);
         const refreshedDatasetId =
           refreshedDataset?.datasetId ?? terminalSubmission.datasetId;
@@ -1022,6 +1031,7 @@ export function useDashboardMetricsModel() {
           ...previous,
           loading: false,
           error: null,
+          lastFile: null,
           feedback: toDashboardUploadFeedbackFromSubmission(
             terminalSubmission,
             {
@@ -1034,17 +1044,47 @@ export function useDashboardMetricsModel() {
           return;
         }
 
-        const uiError = toUIError(error, `Unable to upload "${file.name}".`);
-        setUploadState((previous) => ({
-          ...previous,
-          loading: false,
-          error: uiError,
-          feedback: toDashboardUploadFeedbackFromError(
-            uiError,
-            file.name,
-            previous.feedback
-          ),
-        }));
+        const isPostUploadRefreshFailure = completedSubmission !== null;
+        const uiErrorBase = toUIError(
+          error,
+          isPostUploadRefreshFailure
+            ? `Upload completed, but dashboard refresh failed for "${file.name}". Use dashboard retry actions to refresh data.`
+            : `Unable to upload "${file.name}".`
+        );
+        const uiError = isPostUploadRefreshFailure
+          ? {
+              ...uiErrorBase,
+              retryable: false,
+              message: `Upload completed, but dashboard refresh failed for "${file.name}". ${uiErrorBase.message}`,
+            }
+          : uiErrorBase;
+        if (completedSubmission !== null) {
+          const successfulSubmission = completedSubmission;
+          setUploadState((previous) => ({
+            ...previous,
+            loading: false,
+            error: uiError,
+            lastFile: null,
+            feedback: toDashboardUploadFeedbackFromSubmission(
+              successfulSubmission,
+              {
+                fileName: file.name,
+              }
+            ),
+          }));
+        } else {
+          setUploadState((previous) => ({
+            ...previous,
+            loading: false,
+            error: uiError,
+            lastFile: previous.lastFile,
+            feedback: toDashboardUploadFeedbackFromError(
+              uiError,
+              file.name,
+              previous.feedback
+            ),
+          }));
+        }
       } finally {
         if (uploadControllerRef.current === uploadController) {
           uploadControllerRef.current = null;

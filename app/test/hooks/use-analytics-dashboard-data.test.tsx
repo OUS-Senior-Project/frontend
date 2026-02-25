@@ -2152,6 +2152,134 @@ describe('useDashboardMetricsModel', () => {
       inferredEffectiveDate: '2026-02-11',
     });
     expect(result.current.uploadRetryAvailable).toBe(false);
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not allow upload retry when a post-success refresh step throws after submission completed', async () => {
+    let shouldThrowOnRefresh = false;
+    let hasThrown = false;
+    const originalArraySort = Array.prototype.sort;
+    const arraySortSpy = jest
+      .spyOn(Array.prototype, 'sort')
+      .mockImplementation(function (compareFn) {
+        if (
+          shouldThrowOnRefresh &&
+          !hasThrown &&
+          this.some(
+            (item) =>
+              typeof item === 'object' &&
+              item !== null &&
+              'snapshotId' in item &&
+              (item as { snapshotId?: unknown }).snapshotId === 'snap-refresh'
+          )
+        ) {
+          hasThrown = true;
+          throw new Error('Snapshot selection refresh failed.');
+        }
+
+        return originalArraySort.call(this, compareFn);
+      });
+
+    try {
+      mockGetActiveDataset
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue({
+          datasetId: 'dataset-2',
+          name: 'latest.csv',
+          status: 'ready',
+          isActive: true,
+          createdAt: '2026-02-11T00:00:00Z',
+          sourceSubmissionId: 'sub-1',
+        });
+
+      mockCreateDatasetSubmission.mockResolvedValue({
+        submissionId: 'submission-1',
+        datasetId: 'dataset-2',
+        status: 'queued',
+        fileName: 'latest.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+        effectiveDate: '2026-02-11',
+        effectiveDatetime: '2026-02-11T15:00:00Z',
+      });
+
+      mockGetDatasetSubmissionStatus.mockResolvedValue({
+        submissionId: 'submission-1',
+        datasetId: 'dataset-2',
+        status: 'completed',
+        fileName: 'latest.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+        effectiveDate: '2026-02-11',
+        effectiveDatetime: '2026-02-11T15:00:00Z',
+        completedAt: '2026-02-11T00:01:00Z',
+        validationErrors: [],
+      });
+
+      mockListSnapshots
+        .mockResolvedValueOnce({
+          items: [],
+          page: 1,
+          pageSize: 20,
+          total: 0,
+        })
+        .mockResolvedValueOnce({
+          items: [
+            {
+              snapshotId: 'snap-refresh',
+              effectiveDate: '2026-02-11',
+              effectiveDatetime: '2026-02-11T15:00:00Z',
+              createdAt: '2026-02-11T15:01:00Z',
+              academicPeriod: 'Spring 2026',
+              status: 'ready',
+              submissionId: 'submission-1',
+              datasetId: 'dataset-2',
+            },
+          ],
+          page: 1,
+          pageSize: 20,
+          total: 1,
+        });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.datasetLoading).toBe(false);
+      });
+
+      shouldThrowOnRefresh = true;
+      const file = new File(['a,b\n1,2'], 'latest.csv', { type: 'text/csv' });
+
+      await act(async () => {
+        await result.current.handleDatasetUpload(file);
+      });
+
+      expect(result.current.uploadFeedback).toMatchObject({
+        phase: 'ready',
+        submissionStatus: 'completed',
+        submissionId: 'submission-1',
+        inferredEffectiveDate: '2026-02-11',
+      });
+      expect(result.current.uploadError).toMatchObject({
+        code: 'UNKNOWN',
+        retryable: false,
+        message: expect.stringContaining(
+          'Upload completed, but dashboard refresh failed'
+        ),
+      });
+      expect(result.current.uploadRetryAvailable).toBe(false);
+
+      await act(async () => {
+        result.current.retryDatasetUpload();
+        await Promise.resolve();
+      });
+      expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
+    } finally {
+      arraySortSpy.mockRestore();
+    }
   });
 
   test('deduplicates concurrent active dataset requests', async () => {
@@ -2235,7 +2363,13 @@ describe('useDashboardMetricsModel', () => {
       submissionId: 'submission-1',
       validationErrors: [{ code: 'ROW_INVALID', message: 'Row 12 invalid.' }],
     });
-    expect(result.current.uploadRetryAvailable).toBe(true);
+    expect(result.current.uploadRetryAvailable).toBe(false);
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
   });
 
   test('falls back to default failed-submission error metadata when validation errors are absent', async () => {

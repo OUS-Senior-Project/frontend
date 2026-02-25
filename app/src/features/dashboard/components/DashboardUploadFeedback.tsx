@@ -300,20 +300,12 @@ export function DashboardUploadFeedbackAlert({
           <div className="w-full">
             <p className="font-medium">Validation errors</p>
             <ul className="list-disc space-y-1 pl-5">
-              {uploadFeedback.validationErrors
-                .slice(0, 5)
-                .map((item, index) => (
-                  <li key={`${String(item.code ?? 'validation')}-${index}`}>
-                    {formatValidationError(item, index)}
-                  </li>
-                ))}
+              {uploadFeedback.validationErrors.map((item, index) => (
+                <li key={`${String(item.code ?? 'validation')}-${index}`}>
+                  {formatValidationError(item, index)}
+                </li>
+              ))}
             </ul>
-            {uploadFeedback.validationErrors.length > 5 && (
-              <p className="text-xs text-muted-foreground">
-                Showing first 5 of {uploadFeedback.validationErrors.length}{' '}
-                validation errors.
-              </p>
-            )}
           </div>
         )}
 
