@@ -60,6 +60,24 @@ export interface SnapshotListResponse {
   total: number;
 }
 
+export interface SnapshotForecastRebuildJobResponse {
+  jobId: string;
+  snapshotId: string;
+  datasetId: string;
+  triggerSource: string;
+  status: string;
+  totalSteps: number;
+  completedSteps: number;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  error: {
+    code?: string;
+    message?: string;
+    [key: string]: unknown;
+  } | null;
+}
+
 export interface AnalyticsRecord {
   year: number;
   semester: string;
@@ -178,12 +196,32 @@ export interface ForecastInsights {
   recommendationText: string;
 }
 
+export type ForecastLifecycleState = 'READY' | 'NEEDS_REBUILD' | 'FAILED';
+
+export interface ForecastDataCoverage {
+  minAcademicPeriod: string | null;
+  maxAcademicPeriod: string | null;
+}
+
+export interface ForecastLifecycleError {
+  code: string;
+  message: string;
+  details?: Record<string, unknown> | null;
+}
+
 export interface DatasetForecastResponse {
   datasetId: string;
-  fiveYearGrowthPct: number;
+  state?: ForecastLifecycleState;
+  methodologySummary?: string;
+  assumptions?: string[];
+  dataCoverage?: ForecastDataCoverage | null;
+  fiveYearGrowthPct: number | null;
   historical: DatasetTrendPoint[];
   forecast: DatasetForecastPoint[];
-  insights: ForecastInsights;
+  insights?: ForecastInsights | null;
+  reason?: string | null;
+  suggestedAction?: string | null;
+  error?: ForecastLifecycleError | null;
 }
 
 export type ForecastsAnalyticsResponse = DatasetForecastResponse;

@@ -1,6 +1,14 @@
 import { apiClient } from '@/lib/api/client';
-import { buildPaginationQuery, toApiPath } from '@/lib/api/service-helpers';
-import type { SnapshotListResponse, SnapshotStatus } from '@/lib/api/types';
+import {
+  buildPaginationQuery,
+  encodePathSegment,
+  toApiPath,
+} from '@/lib/api/service-helpers';
+import type {
+  SnapshotForecastRebuildJobResponse,
+  SnapshotListResponse,
+  SnapshotStatus,
+} from '@/lib/api/types';
 
 const SNAPSHOTS_ENDPOINT = toApiPath('/snapshots');
 const LIST_SNAPSHOTS_QUERY_ALLOWLIST = [
@@ -22,6 +30,10 @@ interface ListSnapshotsOptions {
   signal?: AbortSignal;
 }
 
+interface SnapshotForecastRebuildOptions {
+  signal?: AbortSignal;
+}
+
 export async function listSnapshots(
   options: ListSnapshotsOptions = {}
 ): Promise<SnapshotListResponse> {
@@ -40,4 +52,17 @@ export async function listSnapshots(
     }),
     signal: options.signal,
   });
+}
+
+export async function createSnapshotForecastRebuildJob(
+  snapshotId: string,
+  options: SnapshotForecastRebuildOptions = {}
+): Promise<SnapshotForecastRebuildJobResponse> {
+  return apiClient.post<SnapshotForecastRebuildJobResponse>(
+    toApiPath(`/snapshots/${encodePathSegment(snapshotId)}/forecasts/rebuild`),
+    undefined,
+    {
+      signal: options.signal,
+    }
+  );
 }

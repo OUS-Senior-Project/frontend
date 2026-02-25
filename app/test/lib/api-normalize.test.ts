@@ -89,6 +89,13 @@ describe('api normalization', () => {
   test('normalizes mixed forecast semester values in both historical and forecast arrays', () => {
     const normalized = normalizeDatasetForecastResponse({
       datasetId: 'dataset-1',
+      state: 'READY',
+      methodologySummary: 'Backend methodology text.',
+      assumptions: ['Assumption A', 'Assumption B'],
+      dataCoverage: {
+        minAcademicPeriod: 'Fall 2024',
+        maxAcademicPeriod: 'Spring 2025',
+      },
       fiveYearGrowthPct: 12.5,
       historical: [
         { period: 'Fall 2024', year: 2024, semester: 'Fall', total: 100 },
@@ -117,20 +124,150 @@ describe('api normalization', () => {
     expect(normalized.forecast.map((point) => point.semester)).toEqual([
       'Unknown',
     ]);
+    expect(normalized.state).toBe('READY');
+    expect(normalized.methodologySummary).toBe('Backend methodology text.');
+    expect(normalized.assumptions).toEqual(['Assumption A', 'Assumption B']);
+    expect(normalized.dataCoverage).toEqual({
+      minAcademicPeriod: 'Fall 2024',
+      maxAcademicPeriod: 'Spring 2025',
+    });
+  });
+
+  test('normalizeDatasetForecastResponse defaults lifecycle fields for legacy payloads', () => {
+    const normalized = normalizeDatasetForecastResponse({
+      datasetId: 'dataset-legacy',
+      fiveYearGrowthPct: 3,
+      historical: [
+        { period: 'Fall 2024', year: 2024, semester: 'Fall', total: 100 },
+      ],
+      forecast: [
+        {
+          period: 'Spring 2025',
+          year: 2025,
+          semester: 'Spring',
+          total: 120,
+          isForecasted: true,
+        },
+      ],
+      insights: {
+        projectedGrowthText: 'Projected growth.',
+        resourcePlanningText: 'Plan resources.',
+        recommendationText: 'Take action.',
+      },
+    });
+
+    expect(normalized.state).toBe('READY');
+    expect(normalized.methodologySummary).toBe('');
+    expect(normalized.assumptions).toEqual([]);
+    expect(normalized.dataCoverage).toBeNull();
+    expect(normalized.reason).toBeNull();
+    expect(normalized.suggestedAction).toBeNull();
+    expect(normalized.error).toBeNull();
+  });
+
+  test('normalizes NEEDS_REBUILD lifecycle metadata and guards invalid error payloads', () => {
+    const normalized = normalizeDatasetForecastResponse({
+      datasetId: 'dataset-needs-rebuild',
+      state: 'NEEDS_REBUILD',
+      methodologySummary: 'Methodology summary',
+      assumptions: ['Assumption'],
+      dataCoverage: {
+        minAcademicPeriod: 123,
+        maxAcademicPeriod: null,
+      } as unknown as { minAcademicPeriod: string; maxAcademicPeriod: string },
+      fiveYearGrowthPct: null,
+      historical: [],
+      forecast: [],
+      insights: null,
+      reason: 'Forecast rows are missing.',
+      suggestedAction: 'Rebuild forecasts.',
+      error: { code: 'BAD_ONLY' } as unknown as {
+        code: string;
+        message: string;
+      },
+    });
+
+    expect(normalized.state).toBe('NEEDS_REBUILD');
+    expect(normalized.dataCoverage).toEqual({
+      minAcademicPeriod: null,
+      maxAcademicPeriod: null,
+    });
+    expect(normalized.reason).toBe('Forecast rows are missing.');
+    expect(normalized.suggestedAction).toBe('Rebuild forecasts.');
+    expect(normalized.error).toBeNull();
+  });
+
+  test('normalizes FAILED lifecycle error payload and drops non-object error details', () => {
+    const normalized = normalizeDatasetForecastResponse({
+      datasetId: 'dataset-failed',
+      state: 'FAILED',
+      methodologySummary: 'Methodology summary',
+      assumptions: [],
+      dataCoverage: null,
+      fiveYearGrowthPct: null,
+      historical: [],
+      forecast: [],
+      insights: null,
+      error: {
+        code: 'FORECAST_BUILD_FAILED',
+        message: 'Forecast build failed.',
+        details: 'overflow',
+      } as unknown as {
+        code: string;
+        message: string;
+        details: Record<string, unknown>;
+      },
+    });
+
+    expect(normalized.state).toBe('FAILED');
+    expect(normalized.error).toEqual({
+      code: 'FORECAST_BUILD_FAILED',
+      message: 'Forecast build failed.',
+      details: null,
+    });
+  });
+
+  test('preserves FAILED lifecycle error details when details is an object', () => {
+    const normalized = normalizeDatasetForecastResponse({
+      datasetId: 'dataset-failed-details',
+      state: 'FAILED',
+      methodologySummary: 'Methodology summary',
+      assumptions: [],
+      dataCoverage: null,
+      fiveYearGrowthPct: null,
+      historical: [],
+      forecast: [],
+      insights: null,
+      error: {
+        code: 'FORECAST_BUILD_FAILED',
+        message: 'Forecast build failed.',
+        details: { datasetId: 'dataset-failed-details' },
+      },
+    });
+
+    expect(normalized.error).toEqual({
+      code: 'FORECAST_BUILD_FAILED',
+      message: 'Forecast build failed.',
+      details: { datasetId: 'dataset-failed-details' },
+    });
   });
 
   test('isRawDatasetOverviewResponse validates required trend shape', () => {
     expect(
       isRawDatasetOverviewResponse({
         datasetId: 'dataset-1',
-        trend: [{ period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 }],
+        trend: [
+          { period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 },
+        ],
       })
     ).toBe(true);
 
     expect(
       isRawDatasetOverviewResponse({
         datasetId: 'dataset-1',
-        trend: [{ period: 'Fall 2024', year: '2024', semester: 'Fall', total: 10 }],
+        trend: [
+          { period: 'Fall 2024', year: '2024', semester: 'Fall', total: 10 },
+        ],
       })
     ).toBe(false);
     expect(isRawDatasetOverviewResponse({ trend: [123] })).toBe(false);
@@ -141,7 +278,9 @@ describe('api normalization', () => {
     expect(
       isRawDatasetForecastResponse({
         datasetId: 'dataset-1',
-        historical: [{ period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 }],
+        historical: [
+          { period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 },
+        ],
         forecast: [
           {
             period: 'Spring 2025',
@@ -157,7 +296,9 @@ describe('api normalization', () => {
     expect(
       isRawDatasetForecastResponse({
         datasetId: 'dataset-1',
-        historical: [{ period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 }],
+        historical: [
+          { period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 },
+        ],
         forecast: [
           {
             period: 'Spring 2025',
@@ -182,8 +323,8 @@ describe('api normalization', () => {
         forecast: [123],
       })
     ).toBe(false);
-    expect(isRawDatasetForecastResponse({ historical: [], forecast: 'bad' })).toBe(
-      false
-    );
+    expect(
+      isRawDatasetForecastResponse({ historical: [], forecast: 'bad' })
+    ).toBe(false);
   });
 });

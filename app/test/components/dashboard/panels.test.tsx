@@ -437,7 +437,9 @@ describe('dashboard panel states', () => {
     expect(screen.getByText('2026-02-11')).toBeInTheDocument();
     expect(screen.getByText(/Submission status:/)).toBeInTheDocument();
     expect(screen.getByText('failed')).toBeInTheDocument();
-    expect(screen.getByText('Stage-based upload progress: 100%.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Stage-based upload progress: 100%.')
+    ).toBeInTheDocument();
     expect(screen.getByText('Error code:')).toBeInTheDocument();
     expect(screen.getByText('VALIDATION_FAILED')).toBeInTheDocument();
     expect(
@@ -484,13 +486,19 @@ describe('dashboard panel states', () => {
     const { rerender } = render(
       <OverviewPanel {...baseProps} currentDataDate="bad-date" />
     );
-    expect(screen.getByText('Current data date: Unavailable')).toBeInTheDocument();
+    expect(
+      screen.getByText('Current data date: Unavailable')
+    ).toBeInTheDocument();
 
     rerender(<OverviewPanel {...baseProps} currentDataDate={null} />);
-    expect(screen.getByText('Current data date: Unavailable')).toBeInTheDocument();
+    expect(
+      screen.getByText('Current data date: Unavailable')
+    ).toBeInTheDocument();
 
     rerender(<OverviewPanel {...baseProps} currentDataDate="2026-02-31" />);
-    expect(screen.getByText('Current data date: Unavailable')).toBeInTheDocument();
+    expect(
+      screen.getByText('Current data date: Unavailable')
+    ).toBeInTheDocument();
   });
 
   test('DashboardNoDatasetState shows conflict guidance using backend effective date and IDs', () => {
@@ -537,7 +545,9 @@ describe('dashboard panel states', () => {
     expect(
       screen.getByRole('link', { name: 'Open Admin Console' })
     ).toHaveAttribute('href', '/admin-console');
-    expect(screen.getByText('Existing submission: sub-existing.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Existing submission: sub-existing.')
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Retry upload' })
     ).not.toBeInTheDocument();
@@ -1168,5 +1178,474 @@ describe('dashboard panel states', () => {
       screen.getByRole('button', { name: 'Trigger Select Value' })
     );
     expect(onHorizonChange).toHaveBeenCalledWith(6);
+  });
+
+  test('ForecastsPanel READY state shows methodology summary from backend response', () => {
+    render(
+      <ForecastsPanel
+        data={{
+          datasetId: 'dataset-ready',
+          state: 'READY',
+          methodologySummary:
+            'Holt linear trend with semester-level smoothing.',
+          assumptions: [
+            'Enrollment trends remain within recent seasonal ranges.',
+          ],
+          dataCoverage: {
+            minAcademicPeriod: 'Fall 2023',
+            maxAcademicPeriod: 'Spring 2026',
+          },
+          historical: [
+            { period: 'Fall 2025', year: 2025, semester: 'Fall', total: 1000 },
+          ],
+          forecast: [
+            {
+              period: 'Spring 2026',
+              year: 2026,
+              semester: 'Spring',
+              total: 1040,
+              isForecasted: true,
+            },
+          ],
+          fiveYearGrowthPct: 4,
+          insights: {
+            projectedGrowthText: 'Projected growth.',
+            resourcePlanningText: 'Plan resources.',
+            recommendationText: 'Recommendation.',
+          },
+        }}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('Forecast methodology')).toBeInTheDocument();
+    expect(
+      screen.getByText('Holt linear trend with semester-level smoothing.')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Data coverage: Fall 2023 to Spring 2026')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Forecast section: 1/1')).toBeInTheDocument();
+  });
+
+  test('ForecastsPanel NEEDS_REBUILD state shows admin rebuild action and reason', () => {
+    const onRebuildForecasts = jest.fn();
+
+    render(
+      <ForecastsPanel
+        data={{
+          datasetId: 'dataset-needs-rebuild',
+          state: 'NEEDS_REBUILD',
+          methodologySummary: 'Methodology summary from backend.',
+          assumptions: ['Assumption A'],
+          dataCoverage: null,
+          fiveYearGrowthPct: null,
+          historical: [],
+          forecast: [],
+          insights: null,
+          reason: 'Forecast points are missing for the latest snapshot.',
+          suggestedAction:
+            'Rebuild forecast read models for the latest snapshot and refresh.',
+          error: null,
+        }}
+        loading={false}
+        error={null}
+        canRebuildForecasts={true}
+        rebuildLoading={false}
+        rebuildError={null}
+        rebuildJob={null}
+        onRebuildForecasts={onRebuildForecasts}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('Forecast rebuild required')).toBeInTheDocument();
+    expect(
+      screen.getByText('Forecast points are missing for the latest snapshot.')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Rebuild forecast read models for the latest snapshot and refresh.'
+      )
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rebuild forecasts' }));
+    expect(onRebuildForecasts).toHaveBeenCalledTimes(1);
+  });
+
+  test('ForecastsPanel NEEDS_REBUILD state shows contact-admin guidance for non-admin users', () => {
+    render(
+      <ForecastsPanel
+        data={{
+          datasetId: 'dataset-needs-rebuild',
+          state: 'NEEDS_REBUILD',
+          methodologySummary: 'Methodology summary from backend.',
+          assumptions: [],
+          dataCoverage: null,
+          fiveYearGrowthPct: null,
+          historical: [],
+          forecast: [],
+          insights: null,
+          reason: 'Forecast data is stale.',
+          suggestedAction: 'Rebuild forecasts.',
+          error: null,
+        }}
+        loading={false}
+        error={null}
+        canRebuildForecasts={false}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        'Contact an admin to rebuild forecasts using the Admin Console.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Rebuild forecasts' })
+    ).not.toBeInTheDocument();
+  });
+
+  test('ForecastsPanel FAILED state shows backend error code and recovery guidance', () => {
+    render(
+      <ForecastsPanel
+        data={{
+          datasetId: 'dataset-failed',
+          state: 'FAILED',
+          methodologySummary: 'Backend methodology text.',
+          assumptions: [],
+          dataCoverage: null,
+          fiveYearGrowthPct: null,
+          historical: [],
+          forecast: [],
+          insights: null,
+          reason: null,
+          suggestedAction: null,
+          error: {
+            code: 'FORECAST_BUILD_FAILED',
+            message: 'Forecast rebuild job failed due to model overflow.',
+            details: { datasetId: 'dataset-failed' },
+          },
+        }}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('Forecast generation failed')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'FORECAST_BUILD_FAILED: Forecast rebuild job failed due to model overflow.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Contact an admin to review dataset/submission status and forecast rebuild job results in the Admin Console, then rebuild forecasts or upload a corrected dataset.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  test('ForecastsPanel legacy NEEDS_REBUILD error path renders rebuild status details', () => {
+    const onRebuildForecasts = jest.fn();
+
+    render(
+      <ForecastsPanel
+        data={null}
+        loading={false}
+        error={{
+          code: 'NEEDS_REBUILD',
+          message: 'Forecasts need rebuild.',
+          retryable: false,
+        }}
+        canRebuildForecasts={true}
+        rebuildLoading={false}
+        rebuildError={{
+          code: 'SNAPSHOT_FORECAST_REBUILD_UNAVAILABLE',
+          message: 'Snapshot cannot rebuild forecasts.',
+          retryable: false,
+        }}
+        rebuildJob={{
+          jobId: 'fjob-legacy',
+          snapshotId: 'snap-1',
+          datasetId: 'dataset-1',
+          triggerSource: 'manual',
+          status: 'queued',
+          totalSteps: 3,
+          completedSteps: 0,
+          createdAt: '2026-02-25T00:00:00Z',
+          startedAt: null,
+          completedAt: null,
+          error: null,
+        }}
+        onRebuildForecasts={onRebuildForecasts}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Rebuild forecasts' })
+    ).toBeEnabled();
+    expect(
+      screen.getByText(
+        'SNAPSHOT_FORECAST_REBUILD_UNAVAILABLE: Snapshot cannot rebuild forecasts.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Rebuild requested (job fjob-legacy, status: queued).')
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rebuild forecasts' }));
+    expect(onRebuildForecasts).toHaveBeenCalledTimes(1);
+  });
+
+  test('ForecastsPanel legacy NEEDS_REBUILD error path shows loading rebuild action label', () => {
+    render(
+      <ForecastsPanel
+        data={null}
+        loading={false}
+        error={{
+          code: 'NEEDS_REBUILD',
+          message: 'Forecasts need rebuild.',
+          retryable: false,
+        }}
+        canRebuildForecasts={true}
+        rebuildLoading={true}
+        onRebuildForecasts={jest.fn()}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Starting rebuild…' })
+    ).toBeDisabled();
+  });
+
+  test('ForecastsPanel NEEDS_REBUILD state falls back to default reason/action copy and loading CTA label', () => {
+    render(
+      <ForecastsPanel
+        data={{
+          datasetId: 'dataset-needs-rebuild',
+          state: 'NEEDS_REBUILD',
+          methodologySummary: 'Methodology summary.',
+          assumptions: [],
+          dataCoverage: {
+            minAcademicPeriod: 'Fall 2025',
+            maxAcademicPeriod: null,
+          },
+          fiveYearGrowthPct: null,
+          historical: [],
+          forecast: [],
+          insights: null,
+          reason: null,
+          suggestedAction: null,
+          error: null,
+        }}
+        loading={false}
+        error={null}
+        canRebuildForecasts={true}
+        rebuildLoading={true}
+        onRebuildForecasts={jest.fn()}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        'Forecasts are not currently available for this snapshot.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Rebuild forecast read models, then refresh the Forecasts tab.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Starting rebuild…' })
+    ).toBeDisabled();
+  });
+
+  test('ForecastsPanel FAILED state falls back to default error code and message when error payload is missing', () => {
+    render(
+      <ForecastsPanel
+        data={{
+          datasetId: 'dataset-failed-no-error',
+          state: 'FAILED',
+          methodologySummary: 'Backend methodology text.',
+          assumptions: [],
+          dataCoverage: null,
+          fiveYearGrowthPct: null,
+          historical: [],
+          forecast: [],
+          insights: null,
+          reason: null,
+          suggestedAction: null,
+          error: null,
+        }}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText('FORECAST_FAILED: Forecast processing failed.')
+    ).toBeInTheDocument();
+  });
+
+  test('ForecastsPanel READY state handles missing coverage bounds, null growth, and null insights', () => {
+    const { rerender } = render(
+      <ForecastsPanel
+        data={{
+          datasetId: 'dataset-ready-fallbacks',
+          state: 'READY',
+          methodologySummary: '   ',
+          assumptions: [],
+          dataCoverage: {
+            minAcademicPeriod: null,
+            maxAcademicPeriod: 'Spring 2026',
+          },
+          historical: [
+            { period: 'Fall 2025', year: 2025, semester: 'Fall', total: 1000 },
+          ],
+          forecast: [
+            {
+              period: 'Spring 2026',
+              year: 2026,
+              semester: 'Spring',
+              total: 1000,
+              isForecasted: true,
+            },
+          ],
+          fiveYearGrowthPct: 0,
+          insights: {
+            projectedGrowthText: '',
+            resourcePlanningText: '',
+            recommendationText: '',
+          },
+        }}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText('Methodology details were not provided by the backend.')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Data coverage: Unknown to Spring 2026')
+    ).toBeInTheDocument();
+
+    rerender(
+      <ForecastsPanel
+        data={{
+          datasetId: 'dataset-ready-fallbacks',
+          state: 'READY',
+          methodologySummary: 'Methodology summary',
+          assumptions: [],
+          dataCoverage: {
+            minAcademicPeriod: 'Fall 2025',
+            maxAcademicPeriod: null,
+          },
+          historical: [
+            { period: 'Fall 2025', year: 2025, semester: 'Fall', total: 1000 },
+          ],
+          forecast: [
+            {
+              period: 'Spring 2026',
+              year: 2026,
+              semester: 'Spring',
+              total: 1000,
+              isForecasted: true,
+            },
+          ],
+          fiveYearGrowthPct: null,
+          insights: null,
+        }}
+        loading={false}
+        error={null}
+        horizon={4}
+        onHorizonChange={jest.fn()}
+        onRetry={jest.fn()}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText('Data coverage: Fall 2025 to Unknown')
+    ).toBeInTheDocument();
+    expect(screen.getByText('5-Year Growth: Unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Forecast section: 1/1')).toBeInTheDocument();
   });
 });

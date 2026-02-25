@@ -17,7 +17,10 @@ import {
   getActiveDataset,
   getDatasetById,
 } from '@/features/datasets/api';
-import { listSnapshots } from '@/features/snapshots/api';
+import {
+  createSnapshotForecastRebuildJob,
+  listSnapshots,
+} from '@/features/snapshots/api';
 import { getDatasetSubmissionStatus } from '@/features/submissions/api';
 import { ServiceError } from '@/lib/api/errors';
 import type {
@@ -36,6 +39,7 @@ jest.mock('@/features/submissions/components/AdminBulkBackfillMonitor', () => ({
 }));
 
 jest.mock('@/features/snapshots/api', () => ({
+  createSnapshotForecastRebuildJob: jest.fn(),
   listSnapshots: jest.fn(),
 }));
 
@@ -52,6 +56,10 @@ jest.mock('@/features/submissions/api', () => ({
 const mockListSnapshots = listSnapshots as jest.MockedFunction<
   typeof listSnapshots
 >;
+const mockCreateSnapshotForecastRebuildJob =
+  createSnapshotForecastRebuildJob as jest.MockedFunction<
+    typeof createSnapshotForecastRebuildJob
+  >;
 const mockActivateDataset = activateDataset as jest.MockedFunction<
   typeof activateDataset
 >;
@@ -188,6 +196,19 @@ describe('Admin Console route', () => {
     mockGetActiveDataset.mockResolvedValue(
       makeDataset({ datasetId: 'dataset-1', isActive: true })
     );
+    mockCreateSnapshotForecastRebuildJob.mockResolvedValue({
+      jobId: 'fjob-1',
+      snapshotId: 'snap-ready-inactive',
+      datasetId: 'dataset-2',
+      triggerSource: 'manual',
+      status: 'queued',
+      totalSteps: 3,
+      completedSteps: 0,
+      createdAt: '2026-02-11T15:02:00Z',
+      startedAt: null,
+      completedAt: null,
+      error: null,
+    });
     mockActivateDataset.mockResolvedValue(
       makeDataset({ datasetId: 'dataset-2', isActive: true })
     );
@@ -372,6 +393,136 @@ describe('Admin Console route', () => {
         within(previousActiveRow).queryByText('Active')
       ).not.toBeInTheDocument();
     });
+  });
+
+  test('disables forecast rebuild button when no snapshot is selected', async () => {
+    renderWithProviders(<AdminConsoleRoute />);
+
+    await screen.findByTestId('snapshot-row-snap-ready-inactive');
+
+    expect(
+      screen.getByTestId('admin-console-rebuild-forecasts-button')
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        'Select a snapshot in the table below to enable forecast rebuild.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  test('requests forecast rebuild for the selected snapshot from admin console', async () => {
+    renderWithProviders(<AdminConsoleRoute />);
+
+    const row = await screen.findByTestId('snapshot-row-snap-ready-inactive');
+    fireEvent.click(
+      within(row).getByRole('button', {
+        name: 'View snapshot detail snap-ready-inactive',
+      })
+    );
+
+    await screen.findByTestId('snapshot-detail-panel');
+
+    fireEvent.click(
+      screen.getByTestId('admin-console-rebuild-forecasts-button')
+    );
+
+    await waitFor(() => {
+      expect(mockCreateSnapshotForecastRebuildJob).toHaveBeenCalledWith(
+        'snap-ready-inactive'
+      );
+    });
+
+    expect(
+      screen.getByTestId('admin-console-forecast-rebuild-success')
+    ).toHaveTextContent(
+      'Requested job fjob-1 (status: queued) for snapshot snap-ready-inactive.'
+    );
+  });
+
+  test('shows in-flight forecast rebuild state in admin console while request is pending', async () => {
+    const deferredJob =
+      createDeferred<
+        Awaited<ReturnType<typeof createSnapshotForecastRebuildJob>>
+      >();
+    mockCreateSnapshotForecastRebuildJob.mockReset();
+    mockCreateSnapshotForecastRebuildJob.mockReturnValueOnce(
+      deferredJob.promise
+    );
+
+    renderWithProviders(<AdminConsoleRoute />);
+
+    const row = await screen.findByTestId('snapshot-row-snap-ready-inactive');
+    fireEvent.click(
+      within(row).getByRole('button', {
+        name: 'View snapshot detail snap-ready-inactive',
+      })
+    );
+
+    await screen.findByTestId('snapshot-detail-panel');
+
+    fireEvent.click(
+      screen.getByTestId('admin-console-rebuild-forecasts-button')
+    );
+
+    const rebuildButton = screen.getByTestId(
+      'admin-console-rebuild-forecasts-button'
+    );
+    expect(rebuildButton).toBeDisabled();
+    expect(rebuildButton).toHaveTextContent('Rebuilding forecasts...');
+
+    await act(async () => {
+      deferredJob.resolve({
+        jobId: 'fjob-pending',
+        snapshotId: 'snap-ready-inactive',
+        datasetId: 'dataset-2',
+        triggerSource: 'manual',
+        status: 'queued',
+        totalSteps: 3,
+        completedSteps: 0,
+        createdAt: '2026-02-11T15:02:00Z',
+        startedAt: null,
+        completedAt: null,
+        error: null,
+      });
+    });
+
+    await screen.findByTestId('admin-console-forecast-rebuild-success');
+  });
+
+  test('surfaces forecast rebuild request errors from the backend in admin console', async () => {
+    mockCreateSnapshotForecastRebuildJob.mockRejectedValueOnce(
+      new ServiceError(
+        'SNAPSHOT_FORECAST_REBUILD_UNAVAILABLE',
+        'Snapshot cannot rebuild forecasts.',
+        {
+          retryable: false,
+          status: 409,
+        }
+      )
+    );
+
+    renderWithProviders(<AdminConsoleRoute />);
+
+    const row = await screen.findByTestId('snapshot-row-snap-ready-inactive');
+    fireEvent.click(
+      within(row).getByRole('button', {
+        name: 'View snapshot detail snap-ready-inactive',
+      })
+    );
+
+    await screen.findByTestId('snapshot-detail-panel');
+
+    fireEvent.click(
+      screen.getByTestId('admin-console-rebuild-forecasts-button')
+    );
+
+    const alert = await screen.findByTestId(
+      'admin-console-forecast-rebuild-error'
+    );
+    expect(alert).toHaveTextContent('Forecast rebuild request failed');
+    expect(alert).toHaveTextContent(
+      'SNAPSHOT_FORECAST_REBUILD_UNAVAILABLE: Snapshot cannot rebuild forecasts.'
+    );
   });
 
   test('surfaces activation errors from the backend', async () => {
