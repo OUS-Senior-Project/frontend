@@ -1,1 +1,5 @@
-export { getActiveDataset, getDatasetById } from './datasetsService';
+export {
+  activateDataset,
+  getActiveDataset,
+  getDatasetById,
+} from './datasetsService';
