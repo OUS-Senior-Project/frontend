@@ -1598,6 +1598,168 @@ describe('useDashboardMetricsModel', () => {
       activateOnSuccess: true,
     });
     expect(result.current.uploadError?.code).toBe('UPLOAD_FAILED');
+    expect(result.current.uploadFeedback).toMatchObject({
+      phase: 'failed',
+      fileName: 'enrollment.csv',
+      submissionStatus: null,
+    });
+    expect(result.current.uploadRetryAvailable).toBe(true);
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(2);
+    expect(mockCreateDatasetSubmission.mock.calls[1]?.[0]).toEqual({
+      file,
+      activateOnSuccess: true,
+    });
+  });
+
+  test('allows retry for recoverable 500 upload errors', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+    mockCreateDatasetSubmission.mockRejectedValue(
+      new ApiError({
+        code: 'UPLOAD_FAILED',
+        message: 'Backend unavailable.',
+        status: 500,
+        retryable: true,
+      })
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    const file = new File(['a,b\n1,2'], 'recoverable.csv', {
+      type: 'text/csv',
+    });
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(file);
+    });
+
+    expect(result.current.uploadError).toMatchObject({
+      code: 'UPLOAD_FAILED',
+      status: 500,
+    });
+    expect(result.current.uploadRetryAvailable).toBe(true);
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(2);
+    expect(mockCreateDatasetSubmission.mock.calls[1]?.[0]).toEqual({
+      file,
+      activateOnSuccess: true,
+    });
+  });
+
+  test('retryDatasetUpload is a no-op before any upload attempt', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+
+    expect(mockCreateDatasetSubmission).not.toHaveBeenCalled();
+  });
+
+  test('captures effective-date conflict metadata from snake_case backend error details and blocks retry', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+    mockCreateDatasetSubmission.mockRejectedValue(
+      new ApiError({
+        code: 'EFFECTIVE_DATE_UPLOAD_LIMIT',
+        message: 'An upload already exists for that effective date.',
+        status: 409,
+        retryable: true,
+        details: {
+          effective_date: '2026-02-10',
+          existing_submission_id: 'sub-existing',
+          existing_dataset_id: 'ds-existing',
+        },
+      })
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'conflict.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(result.current.uploadError).toMatchObject({
+      code: 'EFFECTIVE_DATE_UPLOAD_LIMIT',
+      status: 409,
+    });
+    expect(result.current.uploadFeedback).toMatchObject({
+      phase: 'failed',
+      fileName: 'conflict.csv',
+      inferredEffectiveDate: '2026-02-10',
+      submissionId: 'sub-existing',
+      datasetId: 'ds-existing',
+    });
+    expect(result.current.uploadRetryAvailable).toBe(false);
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  test('extracts validation errors from upload error envelope details', async () => {
+    mockGetActiveDataset.mockResolvedValue(null);
+    mockCreateDatasetSubmission.mockRejectedValue(
+      new ApiError({
+        code: 'VALIDATION_FAILED',
+        message: 'Upload validation failed.',
+        status: 422,
+        retryable: true,
+        details: {
+          validationErrors: [
+            { code: 'ROW_INVALID', message: 'Row 2 invalid.' },
+            null,
+          ],
+        },
+      })
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+    await waitFor(() => {
+      expect(result.current.datasetLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.handleDatasetUpload(
+        new File(['x,y\n1,2'], 'invalid.csv', { type: 'text/csv' })
+      );
+    });
+
+    expect(result.current.uploadFeedback).toMatchObject({
+      phase: 'failed',
+      validationErrors: [{ code: 'ROW_INVALID', message: 'Row 2 invalid.' }],
+    });
+    expect(result.current.uploadRetryAvailable).toBe(false);
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
   });
 
   test('surfaces non-dataset-not-found errors from active dataset loading', async () => {
@@ -1907,6 +2069,8 @@ describe('useDashboardMetricsModel', () => {
       status: 'queued',
       fileName: 'latest.csv',
       createdAt: '2026-02-11T00:00:00Z',
+      effectiveDate: '2026-02-11',
+      effectiveDatetime: '2026-02-11T15:00:00Z',
     });
 
     mockGetDatasetSubmissionStatus.mockResolvedValue({
@@ -1915,6 +2079,8 @@ describe('useDashboardMetricsModel', () => {
       status: 'completed',
       fileName: 'latest.csv',
       createdAt: '2026-02-11T00:00:00Z',
+      effectiveDate: '2026-02-11',
+      effectiveDatetime: '2026-02-11T15:00:00Z',
       completedAt: '2026-02-11T00:01:00Z',
       validationErrors: [],
     });
@@ -1979,6 +2145,141 @@ describe('useDashboardMetricsModel', () => {
     });
     expect(result.current.uploadError).toBeNull();
     expect(result.current.uploadLoading).toBe(false);
+    expect(result.current.uploadFeedback).toMatchObject({
+      phase: 'ready',
+      submissionStatus: 'completed',
+      submissionId: 'submission-1',
+      inferredEffectiveDate: '2026-02-11',
+    });
+    expect(result.current.uploadRetryAvailable).toBe(false);
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not allow upload retry when a post-success refresh step throws after submission completed', async () => {
+    let shouldThrowOnRefresh = false;
+    let hasThrown = false;
+    const originalArraySort = Array.prototype.sort;
+    const arraySortSpy = jest
+      .spyOn(Array.prototype, 'sort')
+      .mockImplementation(function (compareFn) {
+        if (
+          shouldThrowOnRefresh &&
+          !hasThrown &&
+          this.some(
+            (item) =>
+              typeof item === 'object' &&
+              item !== null &&
+              'snapshotId' in item &&
+              (item as { snapshotId?: unknown }).snapshotId === 'snap-refresh'
+          )
+        ) {
+          hasThrown = true;
+          throw new Error('Snapshot selection refresh failed.');
+        }
+
+        return originalArraySort.call(this, compareFn);
+      });
+
+    try {
+      mockGetActiveDataset
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue({
+          datasetId: 'dataset-2',
+          name: 'latest.csv',
+          status: 'ready',
+          isActive: true,
+          createdAt: '2026-02-11T00:00:00Z',
+          sourceSubmissionId: 'sub-1',
+        });
+
+      mockCreateDatasetSubmission.mockResolvedValue({
+        submissionId: 'submission-1',
+        datasetId: 'dataset-2',
+        status: 'queued',
+        fileName: 'latest.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+        effectiveDate: '2026-02-11',
+        effectiveDatetime: '2026-02-11T15:00:00Z',
+      });
+
+      mockGetDatasetSubmissionStatus.mockResolvedValue({
+        submissionId: 'submission-1',
+        datasetId: 'dataset-2',
+        status: 'completed',
+        fileName: 'latest.csv',
+        createdAt: '2026-02-11T00:00:00Z',
+        effectiveDate: '2026-02-11',
+        effectiveDatetime: '2026-02-11T15:00:00Z',
+        completedAt: '2026-02-11T00:01:00Z',
+        validationErrors: [],
+      });
+
+      mockListSnapshots
+        .mockResolvedValueOnce({
+          items: [],
+          page: 1,
+          pageSize: 20,
+          total: 0,
+        })
+        .mockResolvedValueOnce({
+          items: [
+            {
+              snapshotId: 'snap-refresh',
+              effectiveDate: '2026-02-11',
+              effectiveDatetime: '2026-02-11T15:00:00Z',
+              createdAt: '2026-02-11T15:01:00Z',
+              academicPeriod: 'Spring 2026',
+              status: 'ready',
+              submissionId: 'submission-1',
+              datasetId: 'dataset-2',
+            },
+          ],
+          page: 1,
+          pageSize: 20,
+          total: 1,
+        });
+
+      const { result } = renderHook(() => useDashboardMetricsModel());
+
+      await waitFor(() => {
+        expect(result.current.datasetLoading).toBe(false);
+      });
+
+      shouldThrowOnRefresh = true;
+      const file = new File(['a,b\n1,2'], 'latest.csv', { type: 'text/csv' });
+
+      await act(async () => {
+        await result.current.handleDatasetUpload(file);
+      });
+
+      expect(result.current.uploadFeedback).toMatchObject({
+        phase: 'ready',
+        submissionStatus: 'completed',
+        submissionId: 'submission-1',
+        inferredEffectiveDate: '2026-02-11',
+      });
+      expect(result.current.uploadError).toMatchObject({
+        code: 'UNKNOWN',
+        retryable: false,
+        message: expect.stringContaining(
+          'Upload completed, but dashboard refresh failed'
+        ),
+      });
+      expect(result.current.uploadRetryAvailable).toBe(false);
+
+      await act(async () => {
+        result.current.retryDatasetUpload();
+        await Promise.resolve();
+      });
+      expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
+    } finally {
+      arraySortSpy.mockRestore();
+    }
   });
 
   test('deduplicates concurrent active dataset requests', async () => {
@@ -2056,6 +2357,19 @@ describe('useDashboardMetricsModel', () => {
       code: 'ROW_INVALID',
       message: 'Row 12 invalid.',
     });
+    expect(result.current.uploadFeedback).toMatchObject({
+      phase: 'failed',
+      submissionStatus: 'failed',
+      submissionId: 'submission-1',
+      validationErrors: [{ code: 'ROW_INVALID', message: 'Row 12 invalid.' }],
+    });
+    expect(result.current.uploadRetryAvailable).toBe(false);
+
+    await act(async () => {
+      result.current.retryDatasetUpload();
+      await Promise.resolve();
+    });
+    expect(mockCreateDatasetSubmission).toHaveBeenCalledTimes(1);
   });
 
   test('falls back to default failed-submission error metadata when validation errors are absent', async () => {
@@ -2064,14 +2378,14 @@ describe('useDashboardMetricsModel', () => {
       submissionId: 'submission-1',
       datasetId: 'dataset-1',
       status: 'queued',
-      fileName: 'bad.csv',
+      fileName: '',
       createdAt: '2026-02-11T00:00:00Z',
     });
     mockGetDatasetSubmissionStatus.mockResolvedValue({
       submissionId: 'submission-1',
       datasetId: 'dataset-1',
       status: 'failed',
-      fileName: 'bad.csv',
+      fileName: '',
       createdAt: '2026-02-11T00:00:00Z',
       completedAt: '2026-02-11T00:00:10Z',
       validationErrors: undefined,
@@ -2094,6 +2408,12 @@ describe('useDashboardMetricsModel', () => {
       details: {
         validationErrors: [],
       },
+    });
+    expect(result.current.uploadFeedback).toMatchObject({
+      phase: 'failed',
+      fileName: 'bad.csv',
+      submissionStatus: 'failed',
+      validationErrors: [],
     });
   });
 
@@ -2141,6 +2461,11 @@ describe('useDashboardMetricsModel', () => {
       });
 
       expect(result.current.uploadError?.code).toBe('SUBMISSION_POLL_TIMEOUT');
+      expect(result.current.uploadFeedback).toMatchObject({
+        phase: 'failed',
+        fileName: 'slow.csv',
+      });
+      expect(result.current.uploadRetryAvailable).toBe(true);
       expect(mockGetDatasetSubmissionStatus).toHaveBeenCalled();
     } finally {
       now.restore();

@@ -24,12 +24,14 @@ import type {
   DatasetOverviewResponse,
   DatasetSubmission,
   DatasetSummary,
+  ErrorDetail,
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
   MigrationAnalyticsResponse,
   SnapshotSummary,
   UIError,
 } from '@/lib/api/types';
+import type { DashboardUploadFeedback } from '@/features/dashboard/types/uploadFeedback';
 import {
   createDatasetFailedError,
   getDashboardReadModelStateFromDataset,
@@ -116,6 +118,154 @@ function delay(ms: number, signal?: AbortSignal) {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getStringDetail(details: unknown, keys: string[]) {
+  if (!isRecord(details)) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = details[key];
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function extractValidationErrors(details: unknown): ErrorDetail[] {
+  if (!isRecord(details)) {
+    return [];
+  }
+
+  const candidates = [
+    details.validationErrors,
+    details.validation_errors,
+    details.errors,
+  ];
+
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate)) {
+      continue;
+    }
+
+    return candidate.filter((item): item is ErrorDetail => isRecord(item));
+  }
+
+  return [];
+}
+
+function mapSubmissionStatusToUploadPhase(
+  status: DatasetSubmission['status']
+): DashboardUploadFeedback['phase'] {
+  if (status === 'failed') {
+    return 'failed';
+  }
+
+  if (status === 'completed') {
+    return 'ready';
+  }
+
+  return status;
+}
+
+function toDashboardUploadFeedbackFromSubmission(
+  submission: DatasetSubmission,
+  options: { fileName: string }
+): DashboardUploadFeedback {
+  return {
+    phase: mapSubmissionStatusToUploadPhase(submission.status),
+    fileName: submission.fileName || options.fileName,
+    submissionStatus: submission.status,
+    submissionId: submission.submissionId,
+    datasetId: submission.datasetId,
+    inferredEffectiveDate: submission.effectiveDate ?? null,
+    inferredEffectiveDatetime: submission.effectiveDatetime ?? null,
+    validationErrors: submission.validationErrors ?? [],
+    error: null,
+  };
+}
+
+function toDashboardUploadFeedbackFromError(
+  error: UIError,
+  fileName: string,
+  previous: DashboardUploadFeedback | null
+): DashboardUploadFeedback {
+  const details = error.details;
+  const validationErrors = previous?.validationErrors.length
+    ? previous.validationErrors
+    : extractValidationErrors(details);
+
+  return {
+    phase: 'failed',
+    fileName: previous?.fileName || fileName,
+    submissionStatus: previous?.submissionStatus ?? null,
+    submissionId:
+      previous?.submissionId ??
+      getStringDetail(details, [
+        'submissionId',
+        'submission_id',
+        'existingSubmissionId',
+        'existing_submission_id',
+      ]),
+    datasetId:
+      previous?.datasetId ??
+      getStringDetail(details, [
+        'datasetId',
+        'dataset_id',
+        'existingDatasetId',
+        'existing_dataset_id',
+      ]),
+    inferredEffectiveDate:
+      previous?.inferredEffectiveDate ??
+      getStringDetail(details, ['effectiveDate', 'effective_date']),
+    inferredEffectiveDatetime:
+      previous?.inferredEffectiveDatetime ??
+      getStringDetail(details, ['effectiveDatetime', 'effective_datetime']),
+    validationErrors,
+    error,
+  };
+}
+
+function isRecoverableUploadRetryError(error: UIError | null) {
+  if (!error || error.retryable !== true) {
+    return false;
+  }
+
+  const status = error.status;
+  if (status === 409 || status === 422) {
+    return false;
+  }
+
+  return status === undefined || status >= 500;
+}
+
+function toTerminalSubmissionFailedError(submission: DatasetSubmission) {
+  const firstValidationError = submission.validationErrors?.[0];
+
+  return new ServiceError(
+    String(firstValidationError?.code ?? 'SUBMISSION_FAILED'),
+    String(
+      firstValidationError?.message ??
+        'Dataset processing failed. Check validation errors and retry.'
+    ),
+    {
+      // Terminal submission failures are backend processing outcomes, not a safe
+      // transport-level reupload retry.
+      retryable: false,
+      details: {
+        submissionId: submission.submissionId,
+        datasetId: submission.datasetId,
+        validationErrors: submission.validationErrors ?? [],
+      },
+    }
+  );
+}
+
 function canUsePerformanceApi() {
   return (
     typeof window !== 'undefined' &&
@@ -189,9 +339,13 @@ export function useDashboardMetricsModel() {
   const [uploadState, setUploadState] = useState<{
     loading: boolean;
     error: UIError | null;
+    feedback: DashboardUploadFeedback | null;
+    lastFile: File | null;
   }>({
     loading: false,
     error: null,
+    feedback: null,
+    lastFile: null,
   });
   const [readModelPollingTimedOut, setReadModelPollingTimedOut] =
     useState(false);
@@ -238,7 +392,8 @@ export function useDashboardMetricsModel() {
   const pollSubmissionUntilTerminal = useCallback(
     async (
       submissionId: string,
-      signal?: AbortSignal
+      signal?: AbortSignal,
+      onSubmissionUpdate?: (submission: DatasetSubmission) => void
     ): Promise<DatasetSubmission> => {
       const startedAt = Date.now();
       let pollAttempt = 0;
@@ -247,6 +402,7 @@ export function useDashboardMetricsModel() {
         const submission = await getDatasetSubmissionStatus(submissionId, {
           signal,
         });
+        onSubmissionUpdate?.(submission);
 
         if (
           submission.status === 'completed' ||
@@ -803,10 +959,13 @@ export function useDashboardMetricsModel() {
       uploadControllerRef.current?.abort();
       const uploadController = new AbortController();
       uploadControllerRef.current = uploadController;
+      let completedSubmission: DatasetSubmission | null = null;
 
       setUploadState({
         loading: true,
         error: null,
+        feedback: null,
+        lastFile: file,
       });
 
       try {
@@ -820,30 +979,35 @@ export function useDashboardMetricsModel() {
           }
         );
 
+        setUploadState((previous) => ({
+          ...previous,
+          loading: true,
+          error: null,
+          feedback: toDashboardUploadFeedbackFromSubmission(startedSubmission, {
+            fileName: file.name,
+          }),
+        }));
+
         const terminalSubmission = await pollSubmissionUntilTerminal(
           startedSubmission.submissionId,
-          uploadController.signal
+          uploadController.signal,
+          (submission) => {
+            setUploadState((previous) => ({
+              ...previous,
+              loading: true,
+              error: null,
+              feedback: toDashboardUploadFeedbackFromSubmission(submission, {
+                fileName: file.name,
+              }),
+            }));
+          }
         );
 
         if (terminalSubmission.status === 'failed') {
-          const firstValidationError = terminalSubmission.validationErrors?.[0];
-          throw new ServiceError(
-            String(firstValidationError?.code ?? 'SUBMISSION_FAILED'),
-            String(
-              firstValidationError?.message ??
-                'Dataset processing failed. Check validation errors and retry.'
-            ),
-            {
-              retryable: true,
-              details: {
-                submissionId: terminalSubmission.submissionId,
-                datasetId: terminalSubmission.datasetId,
-                validationErrors: terminalSubmission.validationErrors ?? [],
-              },
-            }
-          );
+          throw toTerminalSubmissionFailedError(terminalSubmission);
         }
 
+        completedSubmission = terminalSubmission;
         const refreshedDataset = await loadDataset(uploadController.signal);
         const refreshedDatasetId =
           refreshedDataset?.datasetId ?? terminalSubmission.datasetId;
@@ -863,19 +1027,64 @@ export function useDashboardMetricsModel() {
           );
         }
 
-        setUploadState({
+        setUploadState((previous) => ({
+          ...previous,
           loading: false,
           error: null,
-        });
+          lastFile: null,
+          feedback: toDashboardUploadFeedbackFromSubmission(
+            terminalSubmission,
+            {
+              fileName: file.name,
+            }
+          ),
+        }));
       } catch (error) {
         if (isAbortedRequest(error)) {
           return;
         }
 
-        setUploadState({
-          loading: false,
-          error: toUIError(error, `Unable to upload "${file.name}".`),
-        });
+        const isPostUploadRefreshFailure = completedSubmission !== null;
+        const uiErrorBase = toUIError(
+          error,
+          isPostUploadRefreshFailure
+            ? `Upload completed, but dashboard refresh failed for "${file.name}". Use dashboard retry actions to refresh data.`
+            : `Unable to upload "${file.name}".`
+        );
+        const uiError = isPostUploadRefreshFailure
+          ? {
+              ...uiErrorBase,
+              retryable: false,
+              message: `Upload completed, but dashboard refresh failed for "${file.name}". ${uiErrorBase.message}`,
+            }
+          : uiErrorBase;
+        if (completedSubmission !== null) {
+          const successfulSubmission = completedSubmission;
+          setUploadState((previous) => ({
+            ...previous,
+            loading: false,
+            error: uiError,
+            lastFile: null,
+            feedback: toDashboardUploadFeedbackFromSubmission(
+              successfulSubmission,
+              {
+                fileName: file.name,
+              }
+            ),
+          }));
+        } else {
+          setUploadState((previous) => ({
+            ...previous,
+            loading: false,
+            error: uiError,
+            lastFile: previous.lastFile,
+            feedback: toDashboardUploadFeedbackFromError(
+              uiError,
+              file.name,
+              previous.feedback
+            ),
+          }));
+        }
       } finally {
         if (uploadControllerRef.current === uploadController) {
           uploadControllerRef.current = null;
@@ -890,6 +1099,23 @@ export function useDashboardMetricsModel() {
       refreshAnalyticsResources,
     ]
   );
+
+  const retryDatasetUpload = useCallback(() => {
+    if (
+      uploadState.loading ||
+      !uploadState.lastFile ||
+      !isRecoverableUploadRetryError(uploadState.error)
+    ) {
+      return;
+    }
+
+    void handleDatasetUpload(uploadState.lastFile);
+  }, [
+    handleDatasetUpload,
+    uploadState.error,
+    uploadState.lastFile,
+    uploadState.loading,
+  ]);
 
   useEffect(() => {
     bootstrapMeasureStopRef.current = startPerformanceMeasurement(
@@ -1171,6 +1397,12 @@ export function useDashboardMetricsModel() {
     handleDatasetUpload,
     uploadLoading: uploadState.loading,
     uploadError: uploadState.error,
+    uploadFeedback: uploadState.feedback,
+    uploadRetryAvailable:
+      !uploadState.loading &&
+      uploadState.lastFile !== null &&
+      isRecoverableUploadRetryError(uploadState.error),
+    retryDatasetUpload,
     activeDataset: datasetState.data,
     datasetLoading: datasetState.loading,
     datasetError: datasetState.error,

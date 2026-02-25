@@ -202,6 +202,8 @@ export interface SubmissionStatusResponse {
   status: SubmissionStatus;
   fileName: string;
   createdAt: string;
+  effectiveDatetime: string | null;
+  effectiveDate: string | null;
   completedAt: string | null;
   validationErrors: ErrorDetail[];
 }
@@ -212,6 +214,8 @@ export interface SubmissionHistoryItem {
   status: SubmissionStatus;
   fileName: string;
   createdAt: string;
+  effectiveDatetime: string | null;
+  effectiveDate: string | null;
   completedAt: string | null;
 }
 
@@ -228,6 +232,8 @@ export interface DatasetSubmission {
   status: SubmissionStatus;
   fileName: string;
   createdAt: string;
+  effectiveDatetime?: string | null;
+  effectiveDate?: string | null;
   completedAt?: string | null;
   validationErrors?: ErrorDetail[];
 }

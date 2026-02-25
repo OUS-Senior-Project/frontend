@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs';
 import { formatUIErrorMessage } from '@/lib/api/errors';
+import type { DashboardUploadFeedback } from '@/features/dashboard/types/uploadFeedback';
 import type {
   DatasetOverviewResponse,
   ForecastsAnalyticsResponse,
@@ -36,6 +37,9 @@ interface DashboardTabsModel {
   handleDatasetUpload: (file: File) => void;
   uploadLoading: boolean;
   uploadError: UIError | null;
+  uploadFeedback: DashboardUploadFeedback | null;
+  uploadRetryAvailable: boolean;
+  retryDatasetUpload: () => void;
   readModelState: 'ready' | 'processing' | 'failed';
   readModelStatus: string | null;
   readModelError: UIError | null;
@@ -186,6 +190,9 @@ export function DashboardTabs(props: DashboardTabsProps) {
           onDatasetUpload={model.handleDatasetUpload}
           uploadLoading={model.uploadLoading}
           uploadError={model.uploadError}
+          uploadFeedback={model.uploadFeedback}
+          uploadRetryAvailable={model.uploadRetryAvailable}
+          onRetryUpload={model.retryDatasetUpload}
           breakdownOpen={model.breakdownOpen}
           onBreakdownOpenChange={model.setBreakdownOpen}
           data={model.overviewData}

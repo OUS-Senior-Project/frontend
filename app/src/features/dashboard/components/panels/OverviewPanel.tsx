@@ -1,5 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Building, GraduationCap, Users } from 'lucide-react';
+import { DashboardUploadFeedbackAlert } from '@/features/dashboard/components/DashboardUploadFeedback';
+import type { DashboardUploadFeedback } from '@/features/dashboard/types/uploadFeedback';
 import { AnalyticsBreakdownModal } from '@/features/metrics/components/AnalyticsBreakdownModal';
 import { MetricsTrendChart } from '@/features/metrics/components/charts/MetricsTrendChart';
 import { SchoolDistributionChart } from '@/features/metrics/components/charts/SchoolDistributionChart';
@@ -8,7 +10,6 @@ import { StudentTypeDistributionChart } from '@/features/metrics/components/char
 import { UploadDatasetButton } from '@/features/upload/components/UploadDatasetButton';
 import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { DatasetOverviewResponse, UIError } from '@/lib/api/types';
-import { Spinner } from '@/shared/ui/spinner';
 import { TabsContent } from '@/shared/ui/tabs';
 import {
   PanelEmptyState,
@@ -23,6 +24,9 @@ interface OverviewPanelProps {
   onDatasetUpload: (file: File) => void;
   uploadLoading: boolean;
   uploadError: UIError | null;
+  uploadFeedback: DashboardUploadFeedback | null;
+  uploadRetryAvailable: boolean;
+  onRetryUpload: () => void;
   breakdownOpen: boolean;
   onBreakdownOpenChange: (isOpen: boolean) => void;
   data: DatasetOverviewResponse | null;
@@ -67,6 +71,9 @@ function OverviewPanelComponent({
   onDatasetUpload,
   uploadLoading,
   uploadError,
+  uploadFeedback,
+  uploadRetryAvailable,
+  onRetryUpload,
   breakdownOpen,
   onBreakdownOpenChange,
   data,
@@ -107,17 +114,13 @@ function OverviewPanelComponent({
           <UploadDatasetButton onDatasetUpload={onDatasetUpload} />
         </div>
       </div>
-      {uploadLoading && (
-        <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <Spinner className="h-4 w-4" />
-          Submitting dataset...
-        </p>
-      )}
-      {uploadError && (
-        <p className="text-sm text-destructive">
-          {formatUIErrorMessage(uploadError)}
-        </p>
-      )}
+      <DashboardUploadFeedbackAlert
+        uploadLoading={uploadLoading}
+        uploadError={uploadError}
+        uploadFeedback={uploadFeedback}
+        uploadRetryAvailable={uploadRetryAvailable}
+        onRetryUpload={onRetryUpload}
+      />
 
       {readModelState === 'processing' && (
         <PanelProcessingState
