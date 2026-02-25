@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { DashboardNoDatasetState } from '@/features/dashboard/components/DashboardNoDatasetState';
 import { ForecastsPanel } from '@/features/dashboard/components/panels/ForecastsPanel';
 import { MajorsPanel } from '@/features/dashboard/components/panels/MajorsPanel';
 import { MigrationPanel } from '@/features/dashboard/components/panels/MigrationPanel';
@@ -253,12 +254,16 @@ describe('dashboard panel states', () => {
     const onReadModelRetry = jest.fn();
     const onDatasetUpload = jest.fn();
     const onBreakdownOpenChange = jest.fn();
+    const onRetryUpload = jest.fn();
 
     const baseProps = {
       currentDataDate: '2026-02-11',
       onDatasetUpload,
       uploadLoading: false,
       uploadError: null,
+      uploadFeedback: null,
+      uploadRetryAvailable: false,
+      onRetryUpload,
       breakdownOpen: false,
       onBreakdownOpenChange,
       onRetry,
@@ -399,12 +404,50 @@ describe('dashboard panel states', () => {
           code: 'UPLOAD_FAILED',
           message: 'Upload API not ready',
           retryable: true,
+          status: 422,
         }}
+        uploadFeedback={{
+          phase: 'failed',
+          fileName: 'dataset.csv',
+          submissionStatus: 'failed',
+          submissionId: 'sub-1',
+          datasetId: 'dataset-1',
+          inferredEffectiveDate: '2026-02-11',
+          inferredEffectiveDatetime: '2026-02-11T15:00:00Z',
+          validationErrors: [
+            {
+              code: 'VALIDATION_FAILED',
+              message: 'Current Moment values are inconsistent.',
+            },
+          ],
+          error: {
+            code: 'VALIDATION_FAILED',
+            message: 'Upload API not ready',
+            retryable: true,
+            status: 422,
+          },
+        }}
+        uploadRetryAvailable={false}
       />
     );
 
-    expect(screen.getByText('Submitting dataset...')).toBeInTheDocument();
+    expect(screen.getByText('Upload failed')).toBeInTheDocument();
     expect(screen.getByText('Upload API not ready')).toBeInTheDocument();
+    expect(screen.getByText(/Inferred effective date:/)).toBeInTheDocument();
+    expect(screen.getByText('2026-02-11')).toBeInTheDocument();
+    expect(screen.getByText(/Submission status:/)).toBeInTheDocument();
+    expect(screen.getByText('failed')).toBeInTheDocument();
+    expect(screen.getByText('Stage-based upload progress: 100%.')).toBeInTheDocument();
+    expect(screen.getByText('Error code:')).toBeInTheDocument();
+    expect(screen.getByText('VALIDATION_FAILED')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /If the error references Current Moment \(DateTime\), ensure every row has the same value/
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Retry upload' })
+    ).not.toBeInTheDocument();
     expect(screen.getByText('Trend points: 1')).toBeInTheDocument();
     expect(screen.getByText('Student type points: 1')).toBeInTheDocument();
     expect(screen.getByText('School points: 1')).toBeInTheDocument();
@@ -422,6 +465,9 @@ describe('dashboard panel states', () => {
       onDatasetUpload: jest.fn(),
       uploadLoading: false,
       uploadError: null,
+      uploadFeedback: null,
+      uploadRetryAvailable: false,
+      onRetryUpload: jest.fn(),
       breakdownOpen: false,
       onBreakdownOpenChange: jest.fn(),
       data: null,
@@ -445,6 +491,56 @@ describe('dashboard panel states', () => {
 
     rerender(<OverviewPanel {...baseProps} currentDataDate="2026-02-31" />);
     expect(screen.getByText('Current data date: Unavailable')).toBeInTheDocument();
+  });
+
+  test('DashboardNoDatasetState shows conflict guidance using backend effective date and IDs', () => {
+    render(
+      <DashboardNoDatasetState
+        onDatasetUpload={jest.fn()}
+        uploadLoading={false}
+        uploadError={{
+          code: 'EFFECTIVE_DATE_UPLOAD_LIMIT',
+          message: 'An upload already exists for that effective date.',
+          retryable: false,
+          status: 409,
+        }}
+        uploadFeedback={{
+          phase: 'failed',
+          fileName: 'conflict.csv',
+          submissionStatus: null,
+          submissionId: 'sub-existing',
+          datasetId: 'ds-existing',
+          inferredEffectiveDate: '2026-02-10',
+          inferredEffectiveDatetime: null,
+          validationErrors: [],
+          error: {
+            code: 'EFFECTIVE_DATE_UPLOAD_LIMIT',
+            message: 'An upload already exists for that effective date.',
+            retryable: false,
+            status: 409,
+          },
+        }}
+        uploadRetryAvailable={false}
+        onRetryUpload={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('Upload failed')).toBeInTheDocument();
+    expect(
+      screen.getByText('An upload already exists for 2026-02-10.')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Open the Admin Console to inspect the existing submission and snapshot for that date.'
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Open Admin Console' })
+    ).toHaveAttribute('href', '/admin-console');
+    expect(screen.getByText('Existing submission: sub-existing.')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Retry upload' })
+    ).not.toBeInTheDocument();
   });
 
   test('MajorsPanel handles loading/error/empty and renders populated data', () => {

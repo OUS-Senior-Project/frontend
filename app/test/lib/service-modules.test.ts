@@ -755,6 +755,8 @@ describe('service modules', () => {
         status: 'queued',
         fileName: 'latest.csv',
         createdAt: '2026-02-10T00:00:00Z',
+        effectiveDate: '2026-02-10',
+        effectiveDatetime: '2026-02-10T12:00:00Z',
       })
       .mockResolvedValueOnce({
         jobId: 'job-1',
@@ -773,6 +775,8 @@ describe('service modules', () => {
         status: 'failed',
         fileName: 'latest.csv',
         createdAt: '2026-02-10T00:00:00Z',
+        effectiveDate: '2026-02-10',
+        effectiveDatetime: '2026-02-10T12:00:00Z',
         completedAt: '2026-02-10T00:02:00Z',
         validationErrors: [{ code: 'VALIDATION_FAILED', message: 'Bad row' }],
       })
@@ -821,8 +825,12 @@ describe('service modules', () => {
       submissionId: 'sub-1',
       datasetId: 'dataset-1',
       status: 'queued',
+      effectiveDate: '2026-02-10',
+      effectiveDatetime: '2026-02-10T12:00:00Z',
     });
     expect(status).toMatchObject({
+      effectiveDate: '2026-02-10',
+      effectiveDatetime: '2026-02-10T12:00:00Z',
       completedAt: '2026-02-10T00:02:00Z',
       validationErrors: [{ code: 'VALIDATION_FAILED', message: 'Bad row' }],
     });
@@ -858,6 +866,40 @@ describe('service modules', () => {
       { signal: undefined }
     );
     expect(mockClearDatasetResponseCache).toHaveBeenCalledTimes(2);
+  });
+
+  test('submissionsService normalizes missing effective-date fields to null for older backend payloads', async () => {
+    mockApiClient.postForm.mockResolvedValueOnce({
+      submissionId: 'sub-legacy-create',
+      datasetId: 'dataset-1',
+      status: 'queued',
+      fileName: 'legacy.csv',
+      createdAt: '2026-02-10T00:00:00Z',
+    });
+    mockApiClient.get.mockResolvedValueOnce({
+      submissionId: 'sub-legacy-status',
+      datasetId: 'dataset-1',
+      status: 'processing',
+      fileName: 'legacy.csv',
+      createdAt: '2026-02-10T00:00:00Z',
+      completedAt: null,
+      validationErrors: [],
+    });
+
+    const file = new File(['a,b\n1,2'], 'legacy.csv', { type: 'text/csv' });
+    const created = await createDatasetSubmission({ file });
+    const status = await getDatasetSubmissionStatus('sub-legacy-status');
+
+    expect(created).toMatchObject({
+      submissionId: 'sub-legacy-create',
+      effectiveDate: null,
+      effectiveDatetime: null,
+    });
+    expect(status).toMatchObject({
+      submissionId: 'sub-legacy-status',
+      effectiveDate: null,
+      effectiveDatetime: null,
+    });
   });
 
   test('submissionsService applies default query and form flags when optional fields are omitted', async () => {

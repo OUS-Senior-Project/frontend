@@ -54,6 +54,9 @@ function DashboardPageContent() {
             onDatasetUpload={dashboard.handleDatasetUpload}
             uploadLoading={dashboard.uploadLoading}
             uploadError={dashboard.uploadError}
+            uploadFeedback={dashboard.uploadFeedback}
+            uploadRetryAvailable={dashboard.uploadRetryAvailable}
+            onRetryUpload={dashboard.retryDatasetUpload}
           />
         )}
 

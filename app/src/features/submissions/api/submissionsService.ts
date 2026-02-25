@@ -69,6 +69,8 @@ function mapToDatasetSubmission(
     status: response.status,
     fileName: response.fileName,
     createdAt: response.createdAt,
+    effectiveDatetime: response.effectiveDatetime ?? null,
+    effectiveDate: response.effectiveDate ?? null,
     ...(response.completedAt !== undefined
       ? { completedAt: response.completedAt }
       : {}),

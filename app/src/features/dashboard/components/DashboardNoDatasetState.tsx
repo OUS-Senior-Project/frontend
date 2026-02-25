@@ -1,23 +1,27 @@
 'use client';
 
-import { Database } from 'lucide-react';
 import { UploadDatasetButton } from '@/features/upload/components/UploadDatasetButton';
-import { formatUIErrorMessage } from '@/lib/api/errors';
+import { DashboardUploadFeedbackAlert } from '@/features/dashboard/components/DashboardUploadFeedback';
+import type { DashboardUploadFeedback } from '@/features/dashboard/types/uploadFeedback';
 import type { UIError } from '@/lib/api/types';
-import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
-import { Spinner } from '@/shared/ui/spinner';
 
 interface DashboardNoDatasetStateProps {
   onDatasetUpload: (file: File) => void;
   uploadLoading: boolean;
   uploadError: UIError | null;
+  uploadFeedback: DashboardUploadFeedback | null;
+  uploadRetryAvailable: boolean;
+  onRetryUpload: () => void;
 }
 
 export function DashboardNoDatasetState({
   onDatasetUpload,
   uploadLoading,
   uploadError,
+  uploadFeedback,
+  uploadRetryAvailable,
+  onRetryUpload,
 }: DashboardNoDatasetStateProps) {
   return (
     <Card className="border-border bg-card">
@@ -35,22 +39,14 @@ export function DashboardNoDatasetState({
             onDatasetUpload={onDatasetUpload}
             buttonLabel="Upload file"
           />
-          {uploadLoading && (
-            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <Spinner className="h-4 w-4" />
-              Submitting dataset...
-            </span>
-          )}
         </div>
-        {uploadError && (
-          <Alert variant="destructive">
-            <Database />
-            <AlertTitle>Upload unavailable</AlertTitle>
-            <AlertDescription>
-              {formatUIErrorMessage(uploadError)}
-            </AlertDescription>
-          </Alert>
-        )}
+        <DashboardUploadFeedbackAlert
+          uploadLoading={uploadLoading}
+          uploadError={uploadError}
+          uploadFeedback={uploadFeedback}
+          uploadRetryAvailable={uploadRetryAvailable}
+          onRetryUpload={onRetryUpload}
+        />
       </CardContent>
     </Card>
   );
