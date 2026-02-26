@@ -164,7 +164,7 @@ function OverviewPanelComponent({
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <MetricsSummaryCard
-              title="Total Students"
+              title="Total Enrollment"
               value={data.snapshotTotals.total}
               icon={Users}
               description="Current data date"

@@ -49,7 +49,7 @@ export function AnalyticsBreakdownModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Student Breakdown</DialogTitle>
+          <DialogTitle>Enrollment Breakdown</DialogTitle>
           <DialogDescription>
             Detailed student composition for the selected data date.
           </DialogDescription>

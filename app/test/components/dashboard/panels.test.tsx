@@ -410,7 +410,7 @@ describe('dashboard panel states', () => {
     expect(screen.getByText('School points: 1')).toBeInTheDocument();
     expect(screen.getByText(/Current data date:/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Total Students:/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Total Enrollment:/ }));
     expect(onBreakdownOpenChange).toHaveBeenCalledWith(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Upload Dataset' }));

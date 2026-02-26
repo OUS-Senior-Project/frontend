@@ -78,7 +78,7 @@ describe('analytics header and stat card', () => {
       />
     );
 
-    expect(screen.getByText('Student Breakdown')).toBeInTheDocument();
+    expect(screen.getByText('Enrollment Breakdown')).toBeInTheDocument();
     expect(screen.getByText('Undergraduate Students')).toBeInTheDocument();
     expect(screen.getByText('International Students')).toBeInTheDocument();
   });
