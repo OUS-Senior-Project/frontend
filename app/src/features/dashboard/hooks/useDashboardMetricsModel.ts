@@ -14,7 +14,10 @@ import { getForecastsAnalytics } from '@/features/forecasts/api';
 import { getMajorsAnalytics } from '@/features/majors/api';
 import { getMigrationAnalytics } from '@/features/migration/api';
 import { getDatasetOverview } from '@/features/overview/api';
-import { listSnapshots } from '@/features/snapshots/api';
+import {
+  createSnapshotForecastRebuildJob,
+  listSnapshots,
+} from '@/features/snapshots/api';
 import {
   createDatasetSubmission,
   getDatasetSubmissionStatus,
@@ -28,6 +31,7 @@ import type {
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
   MigrationAnalyticsResponse,
+  SnapshotForecastRebuildJobResponse,
   SnapshotSummary,
   UIError,
 } from '@/lib/api/types';
@@ -330,6 +334,15 @@ export function useDashboardMetricsModel() {
   const [forecastsState, setForecastsState] = useState<
     AsyncResourceState<ForecastsAnalyticsResponse>
   >(initialAsyncResourceState);
+  const [forecastRebuildState, setForecastRebuildState] = useState<{
+    loading: boolean;
+    error: UIError | null;
+    job: SnapshotForecastRebuildJobResponse | null;
+  }>({
+    loading: false,
+    error: null,
+    job: null,
+  });
   const [readModelState, setReadModelState] = useState<DashboardReadModelState>(
     {
       kind: 'ready',
@@ -830,6 +843,17 @@ export function useDashboardMetricsModel() {
       ? selectedSnapshot?.snapshotId
       : undefined;
   const selectedSnapshotId = selectedSnapshot?.snapshotId ?? null;
+  // MVP1 no-auth decision: rebuild controls are gated to the non-public admin
+  // console route, not the main dashboard page.
+  const canRebuildForecasts = false;
+
+  useEffect(() => {
+    setForecastRebuildState({
+      loading: false,
+      error: null,
+      job: null,
+    });
+  }, [analyticsDatasetId, analyticsSnapshotId]);
 
   const setSelectedDate = useCallback(
     (date: Date) => {
@@ -1346,6 +1370,42 @@ export function useDashboardMetricsModel() {
       loadForecasts(analyticsDatasetId, analyticsSnapshotId, forecastHorizon),
     [analyticsDatasetId, analyticsSnapshotId, forecastHorizon, loadForecasts]
   );
+  const rebuildForecasts = useCallback(async () => {
+    if (!analyticsSnapshotId) {
+      setForecastRebuildState((previous) => ({
+        ...previous,
+        loading: false,
+        error: {
+          code: 'SNAPSHOT_NOT_SELECTED',
+          message:
+            'Select a snapshot date before rebuilding forecasts for this view.',
+          retryable: false,
+        },
+      }));
+      return;
+    }
+
+    setForecastRebuildState(() => ({
+      loading: true,
+      error: null,
+      job: null,
+    }));
+
+    try {
+      const job = await createSnapshotForecastRebuildJob(analyticsSnapshotId);
+      setForecastRebuildState({
+        loading: false,
+        error: null,
+        job,
+      });
+    } catch (error) {
+      setForecastRebuildState((previous) => ({
+        ...previous,
+        loading: false,
+        error: toUIError(error, 'Unable to start forecast rebuild.'),
+      }));
+    }
+  }, [analyticsSnapshotId]);
   const availableSnapshotDates = snapshotDateSelection.availableDateValues
     .map((value) => parseLocalDateFromDateParam(value))
     .filter((value): value is Date => value !== null);
@@ -1429,6 +1489,11 @@ export function useDashboardMetricsModel() {
     forecastsData: forecastsState.data,
     forecastsLoading: forecastsState.loading,
     forecastsError: forecastsState.error,
+    canRebuildForecasts,
+    forecastRebuildLoading: forecastRebuildState.loading,
+    forecastRebuildError: forecastRebuildState.error,
+    forecastRebuildJob: forecastRebuildState.job,
+    rebuildForecasts,
     retryForecasts,
   };
 }

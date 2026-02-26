@@ -1,1 +1,4 @@
-export { listSnapshots } from './snapshotsService';
+export {
+  createSnapshotForecastRebuildJob,
+  listSnapshots,
+} from './snapshotsService';

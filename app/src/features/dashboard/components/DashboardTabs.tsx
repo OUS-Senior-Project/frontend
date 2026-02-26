@@ -7,6 +7,7 @@ import type {
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
   MigrationAnalyticsResponse,
+  SnapshotForecastRebuildJobResponse,
   UIError,
 } from '@/lib/api/types';
 import { DateFilterButton } from '@/features/filters/components/DateFilterButton';
@@ -64,6 +65,11 @@ interface DashboardTabsModel {
   forecastsData: ForecastsAnalyticsResponse | null;
   forecastsLoading: boolean;
   forecastsError: UIError | null;
+  canRebuildForecasts?: boolean;
+  forecastRebuildLoading?: boolean;
+  forecastRebuildError?: UIError | null;
+  forecastRebuildJob?: SnapshotForecastRebuildJobResponse | null;
+  rebuildForecasts?: () => void | Promise<void>;
   forecastHorizon: number;
   setForecastHorizon: (horizon: number) => void;
   retryForecasts: () => void;
@@ -239,6 +245,11 @@ export function DashboardTabs(props: DashboardTabsProps) {
           data={model.forecastsData}
           loading={model.forecastsLoading}
           error={model.forecastsError}
+          canRebuildForecasts={model.canRebuildForecasts}
+          rebuildLoading={model.forecastRebuildLoading}
+          rebuildError={model.forecastRebuildError ?? null}
+          rebuildJob={model.forecastRebuildJob ?? null}
+          onRebuildForecasts={model.rebuildForecasts}
           horizon={model.forecastHorizon}
           onHorizonChange={model.setForecastHorizon}
           onRetry={model.retryForecasts}

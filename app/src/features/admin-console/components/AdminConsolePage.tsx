@@ -7,7 +7,10 @@ import {
   getActiveDataset,
   getDatasetById,
 } from '@/features/datasets/api';
-import { listSnapshots } from '@/features/snapshots/api';
+import {
+  createSnapshotForecastRebuildJob,
+  listSnapshots,
+} from '@/features/snapshots/api';
 import { getDatasetSubmissionStatus } from '@/features/submissions/api';
 import { AdminBulkBackfillMonitor } from '@/features/submissions/components/AdminBulkBackfillMonitor';
 import { formatUIErrorMessage, toUIError } from '@/lib/api/errors';
@@ -16,6 +19,7 @@ import type {
   DatasetSummary,
   DatasetSubmission,
   SnapshotListResponse,
+  SnapshotForecastRebuildJobResponse,
   SnapshotStatus,
   SnapshotSummary,
   UIError,
@@ -71,6 +75,12 @@ type ActionNotice =
     }
   | null;
 
+type ForecastRebuildActionState = {
+  loading: boolean;
+  error: UIError | null;
+  job: SnapshotForecastRebuildJobResponse | null;
+};
+
 const STATUS_FILTER_OPTIONS: SnapshotStatus[] = ['ready', 'building', 'failed'];
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const DEFAULT_PAGE_SIZE = 20;
@@ -85,6 +95,12 @@ const INITIAL_ACTIVE_DATASET_STATE: ActiveDatasetState = {
   loading: true,
   error: null,
   data: null,
+};
+
+const INITIAL_FORECAST_REBUILD_ACTION_STATE: ForecastRebuildActionState = {
+  loading: false,
+  error: null,
+  job: null,
 };
 
 export function statusBadgeVariant(status: string) {
@@ -148,6 +164,8 @@ export function AdminConsolePage() {
   const [activationPendingSnapshotId, setActivationPendingSnapshotId] =
     useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<ActionNotice>(null);
+  const [forecastRebuildState, setForecastRebuildState] =
+    useState<ForecastRebuildActionState>(INITIAL_FORECAST_REBUILD_ACTION_STATE);
 
   useEffect(() => {
     let isCancelled = false;
@@ -237,6 +255,10 @@ export function AdminConsolePage() {
       : detailStateBySnapshotId[selectedSnapshotId];
   const selectedSubmissionValidationErrors =
     selectedSnapshotDetail?.submission?.validationErrors ?? [];
+
+  useEffect(() => {
+    setForecastRebuildState(INITIAL_FORECAST_REBUILD_ACTION_STATE);
+  }, [selectedSnapshotId]);
 
   async function loadSnapshotDetail(
     snapshot: SnapshotSummary,
@@ -333,6 +355,31 @@ export function AdminConsolePage() {
       });
     } finally {
       setActivationPendingSnapshotId(null);
+    }
+  }
+
+  async function handleRebuildForecasts(snapshot: SnapshotSummary) {
+    setActionNotice(null);
+
+    setForecastRebuildState({
+      loading: true,
+      error: null,
+      job: null,
+    });
+
+    try {
+      const job = await createSnapshotForecastRebuildJob(snapshot.snapshotId);
+      setForecastRebuildState({
+        loading: false,
+        error: null,
+        job,
+      });
+    } catch (error) {
+      setForecastRebuildState({
+        loading: false,
+        error: toUIError(error, 'Unable to start forecast rebuild.'),
+        job: null,
+      });
     }
   }
 
@@ -461,6 +508,66 @@ export function AdminConsolePage() {
             </AlertDescription>
           </Alert>
         )}
+
+        <Card data-testid="admin-console-forecast-rebuild-card">
+          <CardHeader>
+            <CardTitle>Forecast Rebuild</CardTitle>
+            <CardDescription>
+              Rebuild forecast read models for the currently selected snapshot.
+              This is the MVP1 admin-only recovery path.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {selectedSnapshot
+                ? `Selected snapshot: ${selectedSnapshot.snapshotId} (${selectedSnapshot.effectiveDate})`
+                : 'Select a snapshot in the table below to enable forecast rebuild.'}
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                data-testid="admin-console-rebuild-forecasts-button"
+                disabled={
+                  selectedSnapshot === null || forecastRebuildState.loading
+                }
+                onClick={
+                  selectedSnapshot
+                    ? () => {
+                        void handleRebuildForecasts(selectedSnapshot);
+                      }
+                    : undefined
+                }
+              >
+                {forecastRebuildState.loading
+                  ? 'Rebuilding forecasts...'
+                  : 'Rebuild forecasts'}
+              </Button>
+              {forecastRebuildState.job && (
+                <span
+                  className="text-sm text-muted-foreground"
+                  data-testid="admin-console-forecast-rebuild-success"
+                >
+                  Requested job {forecastRebuildState.job.jobId} (status:{' '}
+                  {forecastRebuildState.job.status}) for snapshot{' '}
+                  {forecastRebuildState.job.snapshotId}.
+                </span>
+              )}
+            </div>
+            {forecastRebuildState.error && (
+              <Alert
+                variant="destructive"
+                data-testid="admin-console-forecast-rebuild-error"
+              >
+                <AlertCircle />
+                <AlertTitle>Forecast rebuild request failed</AlertTitle>
+                <AlertDescription>
+                  {forecastRebuildState.error.code}:{' '}
+                  {formatUIErrorMessage(forecastRebuildState.error)}
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

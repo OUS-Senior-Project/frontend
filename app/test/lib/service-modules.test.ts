@@ -8,7 +8,10 @@ import { getForecastsAnalytics } from '@/features/forecasts/api/forecastsService
 import { getMajorsAnalytics } from '@/features/majors/api/majorsService';
 import { getMigrationAnalytics } from '@/features/migration/api/migrationService';
 import { getDatasetOverview } from '@/features/overview/api/overviewService';
-import { listSnapshots } from '@/features/snapshots/api/snapshotsService';
+import {
+  createSnapshotForecastRebuildJob,
+  listSnapshots,
+} from '@/features/snapshots/api/snapshotsService';
 import {
   createBulkSubmissionJob,
   createDatasetSubmission,
@@ -745,6 +748,33 @@ describe('service modules', () => {
       },
       signal: undefined,
     });
+  });
+
+  test('createSnapshotForecastRebuildJob posts to snapshot rebuild endpoint', async () => {
+    mockApiClient.post.mockResolvedValueOnce({
+      jobId: 'fjob-1',
+      snapshotId: 'snap-20260211',
+      datasetId: 'dataset-1',
+      triggerSource: 'manual',
+      status: 'queued',
+      totalSteps: 3,
+      completedSteps: 0,
+      createdAt: '2026-02-25T12:00:00Z',
+      startedAt: null,
+      completedAt: null,
+      error: null,
+    });
+
+    const response = await createSnapshotForecastRebuildJob('snap-20260211');
+
+    expect(response.jobId).toBe('fjob-1');
+    expect(mockApiClient.post).toHaveBeenCalledWith(
+      '/api/v1/snapshots/snap-20260211/forecasts/rebuild',
+      undefined,
+      {
+        signal: undefined,
+      }
+    );
   });
 
   test('submissionsService handles single submission, status, list, and bulk endpoints', async () => {

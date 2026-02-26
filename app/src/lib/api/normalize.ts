@@ -3,6 +3,9 @@ import type {
   DatasetForecastResponse,
   DatasetOverviewResponse,
   DatasetTrendPoint,
+  ForecastDataCoverage,
+  ForecastLifecycleError,
+  ForecastLifecycleState,
 } from './types';
 import { normalizeSemesterLabel } from '@/lib/format/semester';
 
@@ -31,6 +34,12 @@ export type RawDatasetForecastResponse = Omit<
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === 'string')
+  );
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -121,9 +130,81 @@ export function normalizeDatasetOverviewResponse(
 export function normalizeDatasetForecastResponse(
   response: RawDatasetForecastResponse
 ): DatasetForecastResponse {
+  const lifecycleState = normalizeForecastLifecycleState(response.state);
+
   return {
-    ...response,
+    datasetId: response.datasetId,
+    state: lifecycleState,
+    methodologySummary:
+      typeof response.methodologySummary === 'string'
+        ? response.methodologySummary
+        : '',
+    assumptions: isStringArray(response.assumptions)
+      ? response.assumptions
+      : [],
+    dataCoverage: normalizeForecastDataCoverage(response.dataCoverage),
+    fiveYearGrowthPct:
+      typeof response.fiveYearGrowthPct === 'number'
+        ? response.fiveYearGrowthPct
+        : null,
     historical: response.historical.map(normalizeDatasetTrendPoint),
     forecast: response.forecast.map(normalizeDatasetForecastPoint),
+    insights: isRecord(response.insights) ? response.insights : null,
+    reason: typeof response.reason === 'string' ? response.reason : null,
+    suggestedAction:
+      typeof response.suggestedAction === 'string'
+        ? response.suggestedAction
+        : null,
+    error: normalizeForecastLifecycleError(response.error),
+  };
+}
+
+function normalizeForecastLifecycleState(
+  value: unknown
+): ForecastLifecycleState {
+  return value === 'NEEDS_REBUILD' || value === 'FAILED' ? value : 'READY';
+}
+
+function normalizeForecastDataCoverage(
+  value: unknown
+): ForecastDataCoverage | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const minAcademicPeriod =
+    typeof value.minAcademicPeriod === 'string'
+      ? value.minAcademicPeriod
+      : null;
+  const maxAcademicPeriod =
+    typeof value.maxAcademicPeriod === 'string'
+      ? value.maxAcademicPeriod
+      : null;
+
+  return {
+    minAcademicPeriod,
+    maxAcademicPeriod,
+  };
+}
+
+function normalizeForecastLifecycleError(
+  value: unknown
+): ForecastLifecycleError | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (typeof value.code !== 'string' || typeof value.message !== 'string') {
+    return null;
+  }
+
+  const details = isRecord(value.details)
+    ? (value.details as Record<string, unknown>)
+    : null;
+
+  return {
+    code: value.code,
+    message: value.message,
+    details,
   };
 }
