@@ -10,6 +10,7 @@ import { getMigrationAnalytics } from '@/features/migration/api/migrationService
 import { getDatasetOverview } from '@/features/overview/api/overviewService';
 import {
   createSnapshotForecastRebuildJob,
+  getSnapshotCoverage,
   listSnapshots,
 } from '@/features/snapshots/api/snapshotsService';
 import {
@@ -962,6 +963,47 @@ describe('service modules', () => {
         page: 1,
         pageSize: 20,
       },
+      signal: undefined,
+    });
+  });
+
+  test('getSnapshotCoverage forwards explicit range query params', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      minEffectiveDate: '2026-01-29',
+      maxEffectiveDate: '2026-02-11',
+      rangeStartDate: '2026-01-29',
+      rangeEndDate: '2026-02-11',
+      missingWeekdays: ['2026-02-03'],
+      missingWeekdayCount: 1,
+    });
+
+    const response = await getSnapshotCoverage({
+      startDate: '2026-01-29',
+      endDate: '2026-02-11',
+    });
+
+    expect(response.missingWeekdayCount).toBe(1);
+    expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/snapshots/coverage', {
+      query: {
+        startDate: '2026-01-29',
+        endDate: '2026-02-11',
+      },
+      signal: undefined,
+    });
+  });
+
+  test('getSnapshotCoverage supports calls without an explicit range', async () => {
+    const coverageResponse: Awaited<ReturnType<typeof getSnapshotCoverage>> = {
+      missingWeekdays: [],
+      missingWeekdayCount: 0,
+    };
+    mockApiClient.get.mockResolvedValueOnce(coverageResponse);
+
+    const response = await getSnapshotCoverage();
+
+    expect(response.missingWeekdayCount).toBe(0);
+    expect(mockApiClient.get).toHaveBeenCalledWith('/api/v1/snapshots/coverage', {
+      query: {},
       signal: undefined,
     });
   });

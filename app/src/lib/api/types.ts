@@ -60,6 +60,15 @@ export interface SnapshotListResponse {
   total: number;
 }
 
+export interface SnapshotCoverageResponse {
+  minEffectiveDate?: string | null;
+  maxEffectiveDate?: string | null;
+  rangeStartDate?: string | null;
+  rangeEndDate?: string | null;
+  missingWeekdays: string[];
+  missingWeekdayCount: number;
+}
+
 export interface SnapshotForecastRebuildJobResponse {
   jobId: string;
   snapshotId: string;

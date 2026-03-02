@@ -4,6 +4,7 @@ import {
   DATASET_STATUS_POLL_MAX_DURATION_MS,
   useDashboardMetricsModel,
 } from '@/features/dashboard/hooks';
+import { parseSnapshotCoverageRangeDaysFromEnv } from '@/features/dashboard/hooks/useDashboardMetricsModel';
 import { ApiError, ServiceError } from '@/lib/api/errors';
 import { getActiveDataset, getDatasetById } from '@/features/datasets/api';
 import { getDatasetOverview } from '@/features/overview/api';
@@ -12,6 +13,7 @@ import { getMigrationAnalytics } from '@/features/migration/api';
 import { getForecastsAnalytics } from '@/features/forecasts/api';
 import {
   createSnapshotForecastRebuildJob,
+  getSnapshotCoverage,
   listSnapshots,
 } from '@/features/snapshots/api';
 import {
@@ -19,6 +21,10 @@ import {
   getDatasetSubmissionStatus,
 } from '@/features/submissions/api';
 import type { DatasetStatus, SnapshotListResponse } from '@/lib/api/types';
+import {
+  resolveSnapshotDateSelection,
+  type SnapshotDateSelection,
+} from '@/features/dashboard/hooks/snapshotSelection';
 import { mockNow } from '../utils/time';
 
 const mockRouter = {
@@ -65,6 +71,7 @@ jest.mock('@/features/forecasts/api', () => ({
 
 jest.mock('@/features/snapshots/api', () => ({
   createSnapshotForecastRebuildJob: jest.fn(),
+  getSnapshotCoverage: jest.fn(),
   listSnapshots: jest.fn(),
 }));
 
@@ -72,6 +79,17 @@ jest.mock('@/features/submissions/api', () => ({
   createDatasetSubmission: jest.fn(),
   getDatasetSubmissionStatus: jest.fn(),
 }));
+
+jest.mock('@/features/dashboard/hooks/snapshotSelection', () => {
+  const actual = jest.requireActual(
+    '@/features/dashboard/hooks/snapshotSelection'
+  ) as typeof import('@/features/dashboard/hooks/snapshotSelection');
+
+  return {
+    ...actual,
+    resolveSnapshotDateSelection: jest.fn(actual.resolveSnapshotDateSelection),
+  };
+});
 
 const mockGetActiveDataset = getActiveDataset as jest.MockedFunction<
   typeof getActiveDataset
@@ -94,6 +112,9 @@ const mockGetForecastsAnalytics = getForecastsAnalytics as jest.MockedFunction<
 const mockListSnapshots = listSnapshots as jest.MockedFunction<
   typeof listSnapshots
 >;
+const mockGetSnapshotCoverage = getSnapshotCoverage as jest.MockedFunction<
+  typeof getSnapshotCoverage
+>;
 const mockCreateSnapshotForecastRebuildJob =
   createSnapshotForecastRebuildJob as jest.MockedFunction<
     typeof createSnapshotForecastRebuildJob
@@ -105,6 +126,15 @@ const mockCreateDatasetSubmission =
 const mockGetDatasetSubmissionStatus =
   getDatasetSubmissionStatus as jest.MockedFunction<
     typeof getDatasetSubmissionStatus
+  >;
+const actualResolveSnapshotDateSelection = (
+  jest.requireActual(
+    '@/features/dashboard/hooks/snapshotSelection'
+  ) as typeof import('@/features/dashboard/hooks/snapshotSelection')
+).resolveSnapshotDateSelection;
+const mockResolveSnapshotDateSelection =
+  resolveSnapshotDateSelection as jest.MockedFunction<
+    typeof resolveSnapshotDateSelection
   >;
 type ActiveDataset = NonNullable<Awaited<ReturnType<typeof getActiveDataset>>>;
 
@@ -205,6 +235,9 @@ function withApiBaseUrlOverride(
 describe('useDashboardMetricsModel', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockResolveSnapshotDateSelection.mockImplementation(
+      actualResolveSnapshotDateSelection
+    );
     window.history.replaceState({}, '', '/');
     setMockSearchParams('');
     mockRouter.push.mockImplementation((href: string) => {
@@ -220,6 +253,17 @@ describe('useDashboardMetricsModel', () => {
         true
       )
     );
+    mockGetSnapshotCoverage.mockResolvedValue({
+      missingWeekdays: [],
+      missingWeekdayCount: 0,
+    });
+  });
+
+  test('normalizes snapshot coverage range days from environment values', () => {
+    expect(parseSnapshotCoverageRangeDaysFromEnv(undefined)).toBe(14);
+    expect(parseSnapshotCoverageRangeDaysFromEnv('not-a-number')).toBe(14);
+    expect(parseSnapshotCoverageRangeDaysFromEnv('0')).toBe(1);
+    expect(parseSnapshotCoverageRangeDaysFromEnv('999')).toBe(366);
   });
 
   test('exposes no-dataset state when active dataset is missing', async () => {
@@ -2903,6 +2947,276 @@ describe('useDashboardMetricsModel', () => {
     });
 
     expect(result.current.currentDataDate).toBe('2026-03-01');
+  });
+
+  test('loads snapshot coverage for latest selected effective date range', async () => {
+    mockGetActiveDataset.mockResolvedValue(
+      makeActiveDataset('dataset-1', 'ready')
+    );
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-02-11', 'dataset-1'),
+        makeSnapshot('2026-03-01', 'dataset-2'),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    mockSuccessfulDashboardReads('dataset-2');
+    mockGetSnapshotCoverage.mockResolvedValue({
+      minEffectiveDate: '2026-02-11',
+      maxEffectiveDate: '2026-03-01',
+      rangeStartDate: '2026-02-16',
+      rangeEndDate: '2026-03-01',
+      missingWeekdays: ['2026-02-24'],
+      missingWeekdayCount: 1,
+    });
+
+    const { result, rerender } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockRouter.replace).toHaveBeenCalledWith('/?date=2026-03-01');
+    });
+    rerender();
+
+    await waitFor(() => {
+      expect(mockGetSnapshotCoverage).toHaveBeenCalledWith({
+        startDate: '2026-02-16',
+        endDate: '2026-03-01',
+        signal: expect.any(AbortSignal),
+      });
+    });
+
+    expect(result.current.snapshotCoverageRangeDays).toBe(14);
+    await waitFor(() => {
+      expect(result.current.snapshotCoverage?.missingWeekdayCount).toBe(1);
+      expect(result.current.snapshotCoverageError).toBeNull();
+    });
+  });
+
+  test('skips coverage fetch when selected snapshot effective date is unparseable', async () => {
+    setMockSearchParams('?date=2026-02-11');
+    mockGetActiveDataset.mockResolvedValue(
+      makeActiveDataset('dataset-1', 'ready')
+    );
+    mockListSnapshots.mockResolvedValue({
+      items: [makeSnapshot('2026-02-11', 'dataset-1')],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+    mockSuccessfulDashboardReads('dataset-1');
+
+    const invalidEffectiveDateSnapshot = makeSnapshot('2026-02-11', 'dataset-1', {
+      snapshotId: 'snap-invalid-effective-date',
+      effectiveDate: '2026-13-40',
+    });
+    mockResolveSnapshotDateSelection.mockImplementation(
+      (_snapshots, requestedDateParam): SnapshotDateSelection => ({
+        sortedSnapshots: [invalidEffectiveDateSnapshot],
+        latestSelectableSnapshot: invalidEffectiveDateSnapshot,
+        selectedSnapshot:
+          requestedDateParam === null ? null : invalidEffectiveDateSnapshot,
+        availableDateValues: ['2026-02-11'],
+      })
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.overviewData?.datasetId).toBe('dataset-1');
+    });
+
+    expect(mockGetSnapshotCoverage).not.toHaveBeenCalled();
+    expect(result.current.snapshotCoverage).toBeNull();
+    expect(result.current.snapshotCoverageError).toBeNull();
+  });
+
+  test('re-fetches snapshot coverage when the selected snapshot date changes', async () => {
+    setMockSearchParams('?date=2026-02-11');
+    mockGetActiveDataset.mockResolvedValue(
+      makeActiveDataset('dataset-1', 'ready')
+    );
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-02-11', 'dataset-1'),
+        makeSnapshot('2026-03-01', 'dataset-2'),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    mockSuccessfulDashboardReads('dataset-1');
+    mockGetSnapshotCoverage
+      .mockResolvedValueOnce({
+        minEffectiveDate: '2026-02-11',
+        maxEffectiveDate: '2026-03-01',
+        rangeStartDate: '2026-01-29',
+        rangeEndDate: '2026-02-11',
+        missingWeekdays: [],
+        missingWeekdayCount: 0,
+      })
+      .mockResolvedValueOnce({
+        minEffectiveDate: '2026-02-11',
+        maxEffectiveDate: '2026-03-01',
+        rangeStartDate: '2026-02-16',
+        rangeEndDate: '2026-03-01',
+        missingWeekdays: ['2026-02-24'],
+        missingWeekdayCount: 1,
+      });
+
+    const { result, rerender } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockGetSnapshotCoverage).toHaveBeenCalledWith({
+        startDate: '2026-01-29',
+        endDate: '2026-02-11',
+        signal: expect.any(AbortSignal),
+      });
+    });
+
+    await act(async () => {
+      result.current.setSelectedDate(new Date(2026, 2, 1));
+    });
+    rerender();
+
+    await waitFor(() => {
+      expect(mockGetSnapshotCoverage).toHaveBeenCalledWith({
+        startDate: '2026-02-16',
+        endDate: '2026-03-01',
+        signal: expect.any(AbortSignal),
+      });
+    });
+  });
+
+  test('ignores aborted snapshot coverage requests and recovers on the next range', async () => {
+    setMockSearchParams('?date=2026-02-11');
+    mockGetActiveDataset.mockResolvedValue(
+      makeActiveDataset('dataset-1', 'ready')
+    );
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2026-02-11', 'dataset-1'),
+        makeSnapshot('2026-03-01', 'dataset-1'),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    mockSuccessfulDashboardReads('dataset-1');
+    mockGetSnapshotCoverage
+      .mockRejectedValueOnce(
+        new ServiceError('REQUEST_ABORTED', 'The request was cancelled.', true)
+      )
+      .mockResolvedValueOnce({
+        minEffectiveDate: '2026-02-11',
+        maxEffectiveDate: '2026-03-01',
+        rangeStartDate: '2026-02-16',
+        rangeEndDate: '2026-03-01',
+        missingWeekdays: [],
+        missingWeekdayCount: 0,
+      });
+
+    const { result, rerender } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockGetSnapshotCoverage).toHaveBeenCalledWith({
+        startDate: '2026-01-29',
+        endDate: '2026-02-11',
+        signal: expect.any(AbortSignal),
+      });
+    });
+
+    await act(async () => {
+      result.current.setSelectedDate(new Date(2026, 2, 1));
+    });
+    rerender();
+
+    await waitFor(() => {
+      expect(mockGetSnapshotCoverage).toHaveBeenCalledWith({
+        startDate: '2026-02-16',
+        endDate: '2026-03-01',
+        signal: expect.any(AbortSignal),
+      });
+      expect(result.current.snapshotCoverageError).toBeNull();
+      expect(result.current.snapshotCoverage?.missingWeekdayCount).toBe(0);
+    });
+  });
+
+  test('clears coverage state when URL date is unavailable', async () => {
+    setMockSearchParams('?date=2026-02-11');
+    mockGetActiveDataset.mockResolvedValue(
+      makeActiveDataset('dataset-1', 'ready')
+    );
+    mockListSnapshots.mockResolvedValue({
+      items: [makeSnapshot('2026-02-11', 'dataset-1')],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+    mockSuccessfulDashboardReads('dataset-1');
+    mockGetSnapshotCoverage.mockResolvedValue({
+      minEffectiveDate: '2026-02-11',
+      maxEffectiveDate: '2026-02-11',
+      rangeStartDate: '2026-01-29',
+      rangeEndDate: '2026-02-11',
+      missingWeekdays: [],
+      missingWeekdayCount: 0,
+    });
+
+    const { result, rerender } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockGetSnapshotCoverage).toHaveBeenCalledTimes(1);
+      expect(result.current.snapshotCoverageError).toBeNull();
+      expect(result.current.snapshotCoverage).not.toBeNull();
+    });
+
+    setMockSearchParams('?date=2026-03-05');
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.snapshotDateEmptyState?.title).toBe(
+        'Selected date is unavailable'
+      );
+    });
+    expect(mockGetSnapshotCoverage).toHaveBeenCalledTimes(1);
+    expect(result.current.snapshotCoverage).toBeNull();
+    expect(result.current.snapshotCoverageError).toBeNull();
+  });
+
+  test('surfaces snapshot coverage errors without blocking analytics rendering', async () => {
+    setMockSearchParams('?date=2026-02-11');
+    mockGetActiveDataset.mockResolvedValue(
+      makeActiveDataset('dataset-1', 'ready')
+    );
+    mockListSnapshots.mockResolvedValue({
+      items: [makeSnapshot('2026-02-11', 'dataset-1')],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    });
+    mockSuccessfulDashboardReads('dataset-1');
+    mockGetSnapshotCoverage.mockRejectedValueOnce(
+      new ServiceError(
+        'NETWORK_ERROR',
+        'Unable to load snapshot coverage status.',
+        true
+      )
+    );
+
+    const { result } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(result.current.overviewData?.datasetId).toBe('dataset-1');
+    });
+    await waitFor(() => {
+      expect(result.current.snapshotCoverageError?.code).toBe('NETWORK_ERROR');
+    });
+
+    expect(result.current.snapshotCoverage).toBeNull();
+    expect(result.current.datasetError).toBeNull();
+    expect(result.current.snapshotDatesError).toBeNull();
   });
 
   test('does not load analytics while active dataset is ready but snapshot catalog is still loading', async () => {

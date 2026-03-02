@@ -20,6 +20,7 @@ import { getMigrationAnalytics } from '@/features/migration/api';
 import { getDatasetOverview } from '@/features/overview/api';
 import {
   createSnapshotForecastRebuildJob,
+  getSnapshotCoverage,
   listSnapshots,
 } from '@/features/snapshots/api';
 import {
@@ -35,6 +36,7 @@ import type {
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
   MigrationAnalyticsResponse,
+  SnapshotCoverageResponse,
   SnapshotForecastRebuildJobResponse,
   SnapshotSummary,
   UIError,
@@ -77,7 +79,34 @@ export const DATASET_STATUS_POLL_INTERVAL_MS = 3_000;
 export const DATASET_STATUS_POLL_MAX_DURATION_MS = 300_000;
 const DEFAULT_FORECAST_HORIZON = 4;
 const SNAPSHOTS_PAGE_SIZE = 100;
+const DEFAULT_SNAPSHOT_COVERAGE_RANGE_DAYS = 14;
+const MAX_SNAPSHOT_COVERAGE_RANGE_DAYS = 366;
 const EMPTY_SNAPSHOT_ITEMS: SnapshotSummary[] = [];
+
+export function parseSnapshotCoverageRangeDaysFromEnv(
+  value: string | undefined
+) {
+  if (value === undefined) {
+    return DEFAULT_SNAPSHOT_COVERAGE_RANGE_DAYS;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_SNAPSHOT_COVERAGE_RANGE_DAYS;
+  }
+
+  return Math.min(MAX_SNAPSHOT_COVERAGE_RANGE_DAYS, Math.max(1, parsed));
+}
+
+const SNAPSHOT_COVERAGE_RANGE_DAYS = parseSnapshotCoverageRangeDaysFromEnv(
+  process.env.NEXT_PUBLIC_SNAPSHOT_COVERAGE_RANGE_DAYS
+);
+
+function subtractDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() - days);
+  return next;
+}
 
 function initialAsyncResourceState<T>(): AsyncResourceState<T> {
   return {
@@ -328,6 +357,9 @@ export function useDashboardMetricsModel() {
   const [snapshotsState, setSnapshotsState] = useState<
     AsyncResourceState<SnapshotSummary[]>
   >(initialAsyncResourceState);
+  const [snapshotCoverageState, setSnapshotCoverageState] = useState<
+    AsyncResourceState<SnapshotCoverageResponse>
+  >(initialAsyncResourceState);
   const [overviewState, setOverviewState] = useState<
     AsyncResourceState<DatasetOverviewResponse>
   >(initialAsyncResourceState);
@@ -576,6 +608,56 @@ export function useDashboardMetricsModel() {
       }
     },
     [fetchAllReadySnapshots, runDeduped]
+  );
+
+  const loadSnapshotCoverage = useCallback(
+    async (
+      range: {
+        startDate: string;
+        endDate: string;
+      } | null,
+      signal?: AbortSignal
+    ) => {
+      if (range === null) {
+        resetAsyncResourceState(setSnapshotCoverageState);
+        return;
+      }
+
+      setSnapshotCoverageState((previous) => ({
+        ...previous,
+        loading: true,
+        error: null,
+      }));
+
+      try {
+        const coverage = await runDeduped(
+          `snapshot-coverage:${range.startDate}:${range.endDate}`,
+          () =>
+            getSnapshotCoverage({
+              startDate: range.startDate,
+              endDate: range.endDate,
+              signal,
+            })
+        );
+
+        setSnapshotCoverageState({
+          data: coverage,
+          loading: false,
+          error: null,
+        });
+      } catch (error) {
+        if (isAbortedRequest(error)) {
+          return;
+        }
+
+        setSnapshotCoverageState({
+          data: null,
+          loading: false,
+          error: toUIError(error, 'Unable to load snapshot coverage status.'),
+        });
+      }
+    },
+    [runDeduped]
   );
 
   interface LoadDashboardResourceOptions<T> {
@@ -867,6 +949,49 @@ export function useDashboardMetricsModel() {
     selectedSnapshot === null
       ? rawDateParam
       : null;
+  const defaultDateHydrationPending =
+    shouldUseSnapshotSelection &&
+    rawDateParam === null &&
+    latestSelectableSnapshot !== null;
+  const snapshotCoverageRange = useMemo(() => {
+    if (
+      !shouldUseSnapshotSelection ||
+      defaultDateHydrationPending ||
+      hasInvalidDateParamFormat ||
+      requestedDateUnavailable !== null
+    ) {
+      return null;
+    }
+
+    const effectiveDate =
+      selectedSnapshot?.effectiveDate ??
+      (rawDateParam === null ? latestSelectableSnapshot?.effectiveDate : null);
+
+    if (!effectiveDate) {
+      return null;
+    }
+
+    const parsedEndDate = parseLocalDateFromDateParam(effectiveDate);
+    if (!parsedEndDate) {
+      return null;
+    }
+
+    const endDate = parsedEndDate;
+
+    const startDate = subtractDays(endDate, SNAPSHOT_COVERAGE_RANGE_DAYS - 1);
+    return {
+      startDate: formatDateParamValue(startDate),
+      endDate: formatDateParamValue(endDate),
+    };
+  }, [
+    defaultDateHydrationPending,
+    hasInvalidDateParamFormat,
+    latestSelectableSnapshot,
+    rawDateParam,
+    requestedDateUnavailable,
+    selectedSnapshot,
+    shouldUseSnapshotSelection,
+  ]);
   const selectedDate = useMemo(() => {
     if (selectedSnapshot) {
       return parseLocalDateFromDateParam(selectedSnapshot.effectiveDate);
@@ -876,10 +1001,6 @@ export function useDashboardMetricsModel() {
     }
     return null;
   }, [rawDateParam, selectedSnapshot]);
-  const defaultDateHydrationPending =
-    shouldUseSnapshotSelection &&
-    rawDateParam === null &&
-    latestSelectableSnapshot !== null;
   const analyticsDatasetId = !activeDatasetId
     ? undefined
     : shouldUseSnapshotSelection
@@ -1254,6 +1375,15 @@ export function useDashboardMetricsModel() {
     snapshotsState.error,
   ]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadSnapshotCoverage(snapshotCoverageRange, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [loadSnapshotCoverage, snapshotCoverageRange]);
+
   const processingDatasetId =
     readModelState.kind === 'processing' ? readModelState.datasetId : null;
 
@@ -1565,6 +1695,10 @@ export function useDashboardMetricsModel() {
     snapshotDatesLoading: snapshotsState.loading,
     snapshotDatesError: snapshotsState.error,
     snapshotDateEmptyState,
+    snapshotCoverage: snapshotCoverageState.data,
+    snapshotCoverageLoading: snapshotCoverageState.loading,
+    snapshotCoverageError: snapshotCoverageState.error,
+    snapshotCoverageRangeDays: SNAPSHOT_COVERAGE_RANGE_DAYS,
     breakdownOpen,
     setBreakdownOpen,
     migrationSemester: activeMigrationSemester,

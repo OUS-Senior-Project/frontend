@@ -31,6 +31,16 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 
 Set it in `app/.env.local`.
 
+Optional build-time configuration:
+
+```bash
+NEXT_PUBLIC_SNAPSHOT_COVERAGE_RANGE_DAYS=14
+```
+
+- Default: `14`
+- Allowed range: `1` to `366`
+- Applied at build/startup from `NEXT_PUBLIC_*` environment configuration
+
 If this variable is missing, API requests fail with:
 - `MISSING_API_BASE_URL`
 - `NEXT_PUBLIC_API_BASE_URL is required (example: http://localhost:8000)`

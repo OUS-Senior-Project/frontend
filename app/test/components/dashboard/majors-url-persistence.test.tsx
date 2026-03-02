@@ -9,7 +9,7 @@ import { getDatasetOverview } from '@/features/overview/api';
 import { getMajorsAnalytics } from '@/features/majors/api';
 import { getMigrationAnalytics } from '@/features/migration/api';
 import { getForecastsAnalytics } from '@/features/forecasts/api';
-import { listSnapshots } from '@/features/snapshots/api';
+import { getSnapshotCoverage, listSnapshots } from '@/features/snapshots/api';
 
 const SelectContext = React.createContext<{
   value: string;
@@ -150,6 +150,7 @@ jest.mock('@/features/forecasts/api', () => ({
 
 jest.mock('@/features/snapshots/api', () => ({
   createSnapshotForecastRebuildJob: jest.fn(),
+  getSnapshotCoverage: jest.fn(),
   listSnapshots: jest.fn(),
 }));
 
@@ -173,6 +174,9 @@ const mockGetForecastsAnalytics = getForecastsAnalytics as jest.MockedFunction<
 >;
 const mockListSnapshots = listSnapshots as jest.MockedFunction<
   typeof listSnapshots
+>;
+const mockGetSnapshotCoverage = getSnapshotCoverage as jest.MockedFunction<
+  typeof getSnapshotCoverage
 >;
 
 function hasMajorsRequestWithFilters(expected: {
@@ -287,6 +291,14 @@ describe('majors filters URL persistence', () => {
         true
       )
     );
+    mockGetSnapshotCoverage.mockResolvedValue({
+      minEffectiveDate: null,
+      maxEffectiveDate: null,
+      rangeStartDate: null,
+      rangeEndDate: null,
+      missingWeekdays: [],
+      missingWeekdayCount: 0,
+    });
     mockSuccessfulReads('dataset-1');
   });
 
