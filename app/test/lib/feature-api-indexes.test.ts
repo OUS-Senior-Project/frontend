@@ -18,10 +18,12 @@ import { getDatasetOverview } from '@/features/overview/api';
 import { getDatasetOverview as getDatasetOverviewService } from '@/features/overview/api/overviewService';
 import {
   createSnapshotForecastRebuildJob,
+  getSnapshotCoverage,
   listSnapshots,
 } from '@/features/snapshots/api';
 import {
   createSnapshotForecastRebuildJob as createSnapshotForecastRebuildJobService,
+  getSnapshotCoverage as getSnapshotCoverageService,
   listSnapshots as listSnapshotsService,
 } from '@/features/snapshots/api/snapshotsService';
 import {
@@ -60,6 +62,7 @@ describe('feature API public entrypoints', () => {
     expect(createSnapshotForecastRebuildJob).toBe(
       createSnapshotForecastRebuildJobService
     );
+    expect(getSnapshotCoverage).toBe(getSnapshotCoverageService);
     expect(listSnapshots).toBe(listSnapshotsService);
   });
 

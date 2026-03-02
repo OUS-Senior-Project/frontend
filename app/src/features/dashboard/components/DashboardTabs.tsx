@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
+import Link from 'next/link';
 import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/tabs';
+import { Badge } from '@/shared/ui/badge';
 import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { DashboardUploadFeedback } from '@/features/dashboard/types/uploadFeedback';
 import type {
@@ -7,6 +9,7 @@ import type {
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
   MigrationAnalyticsResponse,
+  SnapshotCoverageResponse,
   SnapshotForecastRebuildJobResponse,
   UIError,
 } from '@/lib/api/types';
@@ -33,6 +36,10 @@ interface DashboardTabsModel {
     title: string;
     description: string;
   } | null;
+  snapshotCoverage: SnapshotCoverageResponse | null;
+  snapshotCoverageLoading: boolean;
+  snapshotCoverageError: UIError | null;
+  snapshotCoverageRangeDays: number;
   latestAvailableSnapshotDate: string | null;
   canGoToLatestAvailableDate: boolean;
   goToLatestAvailableDate: () => void;
@@ -123,6 +130,17 @@ function formatCurrentDataDateLabel(value: string | null) {
   });
 }
 
+function formatMissingCoverageDates(dates: string[]) {
+  const previewLimit = 5;
+  const previewDates = dates.slice(0, previewLimit);
+  const remainingCount = Math.max(0, dates.length - previewDates.length);
+
+  return {
+    preview: previewDates.join(', '),
+    remainingCount,
+  };
+}
+
 export function DashboardTabs(props: DashboardTabsProps) {
   const { model } = props;
   const [activeTab, setActiveTab] = useState<DashboardTabValue>('overview');
@@ -131,6 +149,22 @@ export function DashboardTabs(props: DashboardTabsProps) {
       setActiveTab(nextValue);
     }
   }, []);
+  const snapshotCoverage = model.snapshotCoverage;
+  const hasCoverageWarning =
+    !model.snapshotCoverageLoading &&
+    !model.snapshotCoverageError &&
+    snapshotCoverage !== null &&
+    snapshotCoverage.missingWeekdayCount > 0;
+  const coverageDates =
+    hasCoverageWarning &&
+    snapshotCoverage &&
+    snapshotCoverage.missingWeekdays.length > 0
+      ? formatMissingCoverageDates(snapshotCoverage.missingWeekdays)
+      : null;
+  const coverageWarningCount =
+    hasCoverageWarning && snapshotCoverage
+      ? snapshotCoverage.missingWeekdayCount
+      : 0;
 
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-6">
@@ -143,6 +177,43 @@ export function DashboardTabs(props: DashboardTabsProps) {
           {model.snapshotDatesError && (
             <p className="text-xs text-destructive">
               {formatUIErrorMessage(model.snapshotDatesError)}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Coverage status:</span>
+            {model.snapshotCoverageLoading ? (
+              <Badge variant="outline">
+                Checking last {model.snapshotCoverageRangeDays} days…
+              </Badge>
+            ) : model.snapshotCoverageError ? (
+              <Badge variant="destructive">Coverage unavailable</Badge>
+            ) : hasCoverageWarning ? (
+              <Badge variant="destructive">
+                Missing weekdays: {coverageWarningCount}
+              </Badge>
+            ) : (
+              <Badge variant="secondary">
+                No missing weekdays (last {model.snapshotCoverageRangeDays}{' '}
+                days)
+              </Badge>
+            )}
+          </div>
+          {hasCoverageWarning && (
+            <p className="text-xs text-destructive">
+              {coverageDates
+                ? `Missing weekday dates: ${coverageDates.preview}${
+                    coverageDates.remainingCount > 0
+                      ? ` (+${coverageDates.remainingCount} more)`
+                      : ''
+                  }.`
+                : 'Missing weekday dates unavailable.'}{' '}
+              <Link
+                href="/admin-console#admin-bulk-backfill-monitor-heading"
+                className="underline"
+              >
+                Open Admin Console backfill tools
+              </Link>
+              .
             </p>
           )}
         </div>

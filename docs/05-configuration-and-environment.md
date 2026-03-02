@@ -25,3 +25,10 @@ These are used by helper scripts and shell tooling, not by dashboard runtime dat
 - `NEXT_PUBLIC_API_BASE_URL`
   - Example: `http://localhost:8000`
   - Development requests are sent to `${NEXT_PUBLIC_API_BASE_URL}/api/v1/...`
+
+## Optional frontend build-time env vars
+- `NEXT_PUBLIC_SNAPSHOT_COVERAGE_RANGE_DAYS`
+  - Controls dashboard snapshot coverage warning window (inclusive days ending at selected snapshot date)
+  - Default: `14`
+  - Allowed range: `1` to `366`
+  - Applied at build/startup from `NEXT_PUBLIC_*` environment configuration
