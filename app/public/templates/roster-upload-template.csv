@@ -1,0 +1,3 @@
+Student ID,Academic Period,Academic Level,Student Type,Primary Program of Study,Current Primary College / School,Is International Student,Cumulative GPA,Cumulative Credits: Earned,FTIC Cohort,Current Moment (DateTime)
+000000001,Fall 2025,Undergraduate,FTIC,Computer Science,College of Engineering,No,3.45,45,FTIC 2025,2025-08-20T14:30:00-04:00
+000000002,Spring 2026,Undergraduate,Transfer,Biology,College of Arts and Sciences,Yes,3.72,60,FTIC 2024,2026-01-15T09:00:00-05:00
