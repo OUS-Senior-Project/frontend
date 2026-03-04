@@ -661,6 +661,98 @@ describe('useDashboardMetricsModel', () => {
     });
   });
 
+  test('supports migration semester range filters by resolving start and end dates', async () => {
+    mockGetActiveDataset.mockResolvedValue({
+      datasetId: 'dataset-1',
+      name: 'dataset.csv',
+      status: 'ready',
+      isActive: true,
+      createdAt: '2026-02-11T00:00:00Z',
+      sourceSubmissionId: 'sub-1',
+    });
+    mockListSnapshots.mockResolvedValue({
+      items: [
+        makeSnapshot('2025-10-01', 'dataset-1', {
+          academicPeriod: 'Fall 2025',
+        }),
+        makeSnapshot('2026-03-01', 'dataset-1', {
+          academicPeriod: 'Spring 2026',
+        }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+    });
+    mockGetDatasetOverview.mockResolvedValue({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 1000,
+        undergrad: 900,
+        ftic: 400,
+        transfer: 200,
+        international: 120,
+      },
+      activeMajors: 12,
+      activeSchools: 6,
+      studentTypeDistribution: [{ type: 'FTIC', count: 400 }],
+      schoolDistribution: [{ school: 'School of Business', count: 250 }],
+      trend: [],
+    });
+    mockGetMajorsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      analyticsRecords: [],
+      majorDistribution: [],
+      cohortRecords: [],
+    });
+    mockGetMigrationAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      semesters: ['Fall 2025', 'Spring 2026'],
+      records: [],
+    });
+    mockGetForecastsAnalytics.mockResolvedValue({
+      datasetId: 'dataset-1',
+      historical: [],
+      forecast: [],
+      fiveYearGrowthPct: 0,
+      insights: {
+        projectedGrowthText: '',
+        resourcePlanningText: '',
+        recommendationText: '',
+      },
+    });
+
+    const { result, rerender } = renderHook(() => useDashboardMetricsModel());
+
+    await waitFor(() => {
+      expect(mockRouter.replace).toHaveBeenCalledWith('/?date=2026-03-01');
+    });
+
+    rerender();
+
+    await waitFor(() => {
+      expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-1', {
+        signal: expect.any(Object),
+      });
+    });
+
+    mockGetMigrationAnalytics.mockClear();
+
+    await act(async () => {
+      result.current.setMigrationStartSemester('Fall 2025');
+      result.current.setMigrationEndSemester('Spring 2026');
+    });
+
+    await waitFor(() => {
+      expect(mockGetMigrationAnalytics).toHaveBeenLastCalledWith('dataset-1', {
+        startDate: '2025-10-01',
+        endDate: '2026-03-01',
+        signal: expect.any(Object),
+      });
+    });
+    expect(result.current.migrationStartSemester).toBe('Fall 2025');
+    expect(result.current.migrationEndSemester).toBe('Spring 2026');
+  });
+
   test('maps DATASET_NOT_READY to processing state and refreshes reads when dataset becomes ready', async () => {
     jest.useFakeTimers();
     try {
@@ -3045,7 +3137,6 @@ describe('useDashboardMetricsModel', () => {
         signal: expect.any(Object),
       });
       expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-2', {
-        semester: undefined,
         signal: expect.any(Object),
       });
       expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-2', {
@@ -3474,7 +3565,6 @@ describe('useDashboardMetricsModel', () => {
     expect(hasDataset2FilteredMajorsRequest).toBe(true);
     expect(hasDataset2UnfilteredMajorsRequest).toBe(true);
     expect(mockGetMigrationAnalytics).toHaveBeenLastCalledWith('dataset-2', {
-      semester: undefined,
       signal: expect.any(Object),
     });
     expect(mockGetForecastsAnalytics).toHaveBeenLastCalledWith('dataset-2', {
@@ -3806,7 +3896,6 @@ describe('useDashboardMetricsModel', () => {
       signal: expect.any(Object),
     });
     expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-1', {
-      semester: undefined,
       signal: expect.any(Object),
     });
     expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-1', {
@@ -3908,7 +3997,6 @@ describe('useDashboardMetricsModel', () => {
       signal: expect.any(Object),
     });
     expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-2', {
-      semester: undefined,
       signal: expect.any(Object),
     });
     expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-2', {
@@ -4006,7 +4094,6 @@ describe('useDashboardMetricsModel', () => {
       signal: expect.any(Object),
     });
     expect(mockGetMigrationAnalytics).toHaveBeenCalledWith('dataset-1', {
-      semester: undefined,
       signal: expect.any(Object),
     });
     expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-1', {

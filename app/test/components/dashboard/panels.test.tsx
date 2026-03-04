@@ -144,6 +144,30 @@ jest.mock('@/features/filters/components/SemesterFilterSelect', () => ({
   ),
 }));
 
+jest.mock(
+  '@/features/filters/components/SemesterRangeFilterSelect',
+  () => ({
+    SemesterRangeFilterSelect: ({
+      options,
+      onStartValueChange,
+      onEndValueChange,
+    }: {
+      options: string[];
+      onStartValueChange: (value: string | undefined) => void;
+      onEndValueChange: (value: string | undefined) => void;
+    }) => (
+      <button
+        onClick={() => {
+          onStartValueChange(options[0]);
+          onEndValueChange(options[options.length - 1]);
+        }}
+      >
+        {`Range options: ${options.length}`}
+      </button>
+    ),
+  })
+);
+
 jest.mock('@/shared/ui/select', () => ({
   Select: ({
     children,
@@ -851,18 +875,21 @@ describe('dashboard panel states', () => {
     expect(screen.queryByTestId('majors-filter-panel')).not.toBeInTheDocument();
   });
 
-  test('MigrationPanel handles states and semester change callback', () => {
+  test('MigrationPanel handles states and range change callbacks', () => {
     const onRetry = jest.fn();
     const onReadModelRetry = jest.fn();
-    const onSemesterChange = jest.fn();
+    const onStartSemesterChange = jest.fn();
+    const onEndSemesterChange = jest.fn();
 
     const { rerender } = render(
       <MigrationPanel
         data={null}
         loading={true}
         error={null}
-        migrationSemester={undefined}
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester={undefined}
+        migrationEndSemester={undefined}
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -885,8 +912,10 @@ describe('dashboard panel states', () => {
           retryable: false,
           status: 500,
         }}
-        migrationSemester={undefined}
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester={undefined}
+        migrationEndSemester={undefined}
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -903,8 +932,10 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        migrationSemester={undefined}
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester={undefined}
+        migrationEndSemester={undefined}
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="processing"
         readModelStatus="building"
@@ -922,8 +953,10 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        migrationSemester={undefined}
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester={undefined}
+        migrationEndSemester={undefined}
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="processing"
         readModelStatus="building"
@@ -945,8 +978,10 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        migrationSemester={undefined}
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester={undefined}
+        migrationEndSemester={undefined}
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="failed"
         readModelStatus="failed"
@@ -968,8 +1003,10 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        migrationSemester={undefined}
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester={undefined}
+        migrationEndSemester={undefined}
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="failed"
         readModelStatus="failed"
@@ -989,8 +1026,10 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        migrationSemester={undefined}
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester={undefined}
+        migrationEndSemester={undefined}
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -1012,8 +1051,10 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        migrationSemester="Fall 2025"
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester="Fall 2025"
+        migrationEndSemester="Fall 2025"
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -1048,8 +1089,10 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        migrationSemester="Fall 2025"
-        onSemesterChange={onSemesterChange}
+        migrationStartSemester="Fall 2025"
+        migrationEndSemester="Fall 2025"
+        onStartSemesterChange={onStartSemesterChange}
+        onEndSemesterChange={onEndSemesterChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -1059,13 +1102,12 @@ describe('dashboard panel states', () => {
       />
     );
 
-    expect(screen.getByText('Semester options: 1')).toBeInTheDocument();
+    expect(screen.getByText('Range options: 1')).toBeInTheDocument();
     expect(screen.getByText('Migration flow rows: 1')).toBeInTheDocument();
     expect(screen.getByText('Migration table rows: 1')).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Semester options: 1' })
-    );
-    expect(onSemesterChange).toHaveBeenCalledWith('Fall 2025');
+    fireEvent.click(screen.getByRole('button', { name: 'Range options: 1' }));
+    expect(onStartSemesterChange).toHaveBeenCalledWith('Fall 2025');
+    expect(onEndSemesterChange).toHaveBeenCalledWith('Fall 2025');
   });
 
   test('ForecastsPanel handles states and both growth sign branches', () => {
