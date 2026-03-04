@@ -8,9 +8,14 @@ export const schoolDistributionColors = [
   'oklch(0.72 0.16 140)',
 ];
 
+const tooltipTextColor = 'oklch(0.95 0 0)';
+
 export const chartTooltipStyle = {
   backgroundColor: 'oklch(0.18 0.01 260)',
   border: '1px solid oklch(0.28 0.01 260)',
   borderRadius: '8px',
-  color: 'oklch(0.95 0 0)',
+  color: tooltipTextColor,
 };
+
+export const chartTooltipLabelStyle = { color: tooltipTextColor };
+export const chartTooltipItemStyle = { color: tooltipTextColor };

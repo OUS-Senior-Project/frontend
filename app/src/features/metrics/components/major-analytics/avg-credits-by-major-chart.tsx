@@ -13,7 +13,12 @@ import {
 } from 'recharts';
 import type { MajorCohortRecord } from '@/features/metrics/types';
 import { MajorAnalyticsChartCard } from './chart-card';
-import { chartTooltipStyle, majorChartColors } from './chart-theme';
+import {
+  chartTooltipItemStyle,
+  chartTooltipLabelStyle,
+  chartTooltipStyle,
+  majorChartColors,
+} from './chart-theme';
 import { selectWeightedCreditsByMajor } from './selectors';
 
 interface MajorAnalyticsChartsProps {
@@ -56,6 +61,8 @@ export function AvgCreditsByMajorChart({ data }: MajorAnalyticsChartsProps) {
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
+              labelStyle={chartTooltipLabelStyle}
+              itemStyle={chartTooltipItemStyle}
               formatter={(value: number) => [value, 'Avg Credits']}
             />
             <Bar dataKey="avgCredits" radius={[0, 4, 4, 0]}>

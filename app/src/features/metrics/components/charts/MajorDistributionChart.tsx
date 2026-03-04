@@ -13,6 +13,8 @@ import {
   Cell,
 } from 'recharts';
 import {
+  chartTooltipItemStyle,
+  chartTooltipLabelStyle,
   chartTooltipStyle,
   majorDistributionColors,
 } from './major-distribution-chart.config';
@@ -72,6 +74,8 @@ function MajorDistributionChartComponent({
               />
               <Tooltip
                 contentStyle={chartTooltipStyle}
+                labelStyle={chartTooltipLabelStyle}
+                itemStyle={chartTooltipItemStyle}
                 formatter={(value: number) => [
                   value.toLocaleString(),
                   'Students',

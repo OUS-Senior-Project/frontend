@@ -13,7 +13,12 @@ import {
 } from 'recharts';
 import type { MajorCohortRecord } from '@/features/metrics/types';
 import { MajorAnalyticsChartCard } from './chart-card';
-import { chartTooltipStyle, majorChartColors } from './chart-theme';
+import {
+  chartTooltipItemStyle,
+  chartTooltipLabelStyle,
+  chartTooltipStyle,
+  majorChartColors,
+} from './chart-theme';
 import { selectWeightedGpaByMajor } from './selectors';
 
 interface MajorAnalyticsChartsProps {
@@ -57,6 +62,8 @@ export function AvgGPAByMajorChart({ data }: MajorAnalyticsChartsProps) {
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
+              labelStyle={chartTooltipLabelStyle}
+              itemStyle={chartTooltipItemStyle}
               formatter={(value: number) => [value.toFixed(2), 'Avg GPA']}
             />
             <Bar dataKey="avgGPA" radius={[0, 4, 4, 0]}>
