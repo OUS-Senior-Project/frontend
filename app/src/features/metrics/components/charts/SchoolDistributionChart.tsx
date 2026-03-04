@@ -12,6 +12,8 @@ import {
   Cell,
 } from 'recharts';
 import {
+  chartTooltipItemStyle,
+  chartTooltipLabelStyle,
   chartTooltipStyle,
   schoolDistributionColors,
 } from './school-distribution-chart.config';
@@ -71,6 +73,8 @@ export function SchoolDistributionChart({
               />
               <Tooltip
                 contentStyle={chartTooltipStyle}
+                labelStyle={chartTooltipLabelStyle}
+                itemStyle={chartTooltipItemStyle}
                 formatter={(value: number) => [
                   value.toLocaleString(),
                   'Students',

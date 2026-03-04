@@ -12,7 +12,12 @@ import {
 } from 'recharts';
 import type { MajorCohortRecord } from '@/features/metrics/types';
 import { MajorAnalyticsChartCard } from './chart-card';
-import { chartTooltipStyle, getCohortColor } from './chart-theme';
+import {
+  chartTooltipItemStyle,
+  chartTooltipLabelStyle,
+  chartTooltipStyle,
+  getCohortColor,
+} from './chart-theme';
 import { selectCohortOptions, selectCohortRowsByMajor } from './selectors';
 
 interface MajorAnalyticsChartsProps {
@@ -88,6 +93,8 @@ export function AvgCreditsByCohortChart({ data }: MajorAnalyticsChartsProps) {
             />
             <Tooltip
               contentStyle={chartTooltipStyle}
+              labelStyle={chartTooltipLabelStyle}
+              itemStyle={chartTooltipItemStyle}
               formatter={(value: number, name: string) => [
                 value,
                 cohortLabelByKey[name] ?? name,

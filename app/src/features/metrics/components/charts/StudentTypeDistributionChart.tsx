@@ -10,6 +10,8 @@ import {
   Legend,
 } from 'recharts';
 import {
+  chartTooltipItemStyle,
+  chartTooltipLabelStyle,
   chartTooltipStyle,
   studentTypeColors,
   studentTypeLabels,
@@ -69,6 +71,8 @@ export function StudentTypeDistributionChart({
               </Pie>
               <Tooltip
                 contentStyle={chartTooltipStyle}
+                labelStyle={chartTooltipLabelStyle}
+                itemStyle={chartTooltipItemStyle}
                 formatter={(value: number, name: string) => [
                   `${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`,
                   name,

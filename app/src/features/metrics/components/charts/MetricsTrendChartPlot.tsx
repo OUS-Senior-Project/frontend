@@ -13,6 +13,7 @@ import {
 import type { MetricsTrendChartProps } from './metrics-trend-chart.types';
 import {
   trendGradientStops,
+  trendTooltipItemStyle,
   trendTooltipLabelStyle,
   trendTooltipStyle,
 } from './metrics-trend-chart.theme';
@@ -61,6 +62,7 @@ function MetricsTrendChartPlotComponent({
         <Tooltip
           contentStyle={trendTooltipStyle}
           labelStyle={trendTooltipLabelStyle}
+          itemStyle={trendTooltipItemStyle}
           formatter={(value: number, name: string) => [
             value.toLocaleString(),
             name === 'total' ? 'Students' : name,
