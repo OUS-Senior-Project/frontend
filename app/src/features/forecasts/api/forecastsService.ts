@@ -10,12 +10,16 @@ import {
   toApiPath,
   withDatasetCache,
 } from '@/lib/api/service-helpers';
-import type { ForecastsAnalyticsResponse } from '@/lib/api/types';
+import type {
+  ForecastRange,
+  ForecastsAnalyticsResponse,
+} from '@/lib/api/types';
 
-const FORECASTS_QUERY_ALLOWLIST = ['horizon'] as const;
+const FORECASTS_QUERY_ALLOWLIST = ['horizon', 'range'] as const;
 
 interface GetForecastsAnalyticsOptions {
   horizon?: number;
+  range?: ForecastRange;
   signal?: AbortSignal;
 }
 
@@ -32,9 +36,12 @@ export async function getForecastsAnalytics(
     withDatasetCache(datasetId, {
       query: buildGuardedQuery({
         endpoint,
-        params: {
-          horizon: options.horizon ?? 4,
-        },
+        params:
+          options.range !== undefined
+            ? { range: options.range }
+            : options.horizon !== undefined
+              ? { horizon: options.horizon }
+              : { range: 'medium' },
         allowedKeys: FORECASTS_QUERY_ALLOWLIST,
       }),
       signal: options.signal,

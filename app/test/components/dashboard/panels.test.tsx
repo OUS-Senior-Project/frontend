@@ -197,7 +197,7 @@ jest.mock('@/shared/ui/select', () => ({
     <div>
       <button
         onClick={() => {
-          onValueChange?.('6');
+          onValueChange?.('long');
         }}
       >
         Trigger Select Value
@@ -1217,15 +1217,15 @@ describe('dashboard panel states', () => {
   test('ForecastsPanel handles states and both growth sign branches', () => {
     const onRetry = jest.fn();
     const onReadModelRetry = jest.fn();
-    const onHorizonChange = jest.fn();
+    const onRangeChange = jest.fn();
 
     const { rerender } = render(
       <ForecastsPanel
         data={null}
         loading={true}
         error={null}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -1243,8 +1243,8 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={{ code: 'UNKNOWN', message: 'Forecast failed', retryable: true }}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -1261,8 +1261,8 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="processing"
         readModelStatus="building"
@@ -1284,8 +1284,8 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="processing"
         readModelStatus="building"
@@ -1303,8 +1303,8 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="failed"
         readModelStatus="failed"
@@ -1327,8 +1327,8 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="failed"
         readModelStatus="failed"
@@ -1350,8 +1350,8 @@ describe('dashboard panel states', () => {
         data={null}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -1389,8 +1389,8 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -1399,7 +1399,7 @@ describe('dashboard panel states', () => {
         onReadModelRetry={onReadModelRetry}
       />
     );
-    expect(screen.getByText('5-Year Growth: +8%')).toBeInTheDocument();
+    expect(screen.getByText('5-Year Growth: +8.0%')).toBeInTheDocument();
     expect(screen.getByText('Forecast section: 1/1')).toBeInTheDocument();
 
     rerender(
@@ -1417,8 +1417,8 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={onHorizonChange}
+        range="medium"
+        onRangeChange={onRangeChange}
         onRetry={onRetry}
         readModelState="ready"
         readModelStatus={null}
@@ -1427,11 +1427,11 @@ describe('dashboard panel states', () => {
         onReadModelRetry={onReadModelRetry}
       />
     );
-    expect(screen.getByText('5-Year Growth: -3%')).toBeInTheDocument();
+    expect(screen.getByText('5-Year Growth: -3.0%')).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole('button', { name: 'Trigger Select Value' })
     );
-    expect(onHorizonChange).toHaveBeenCalledWith(6);
+    expect(onRangeChange).toHaveBeenCalledWith("long");
   });
 
   test('ForecastsPanel READY state shows methodology summary from backend response', () => {
@@ -1470,8 +1470,8 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1518,8 +1518,8 @@ describe('dashboard panel states', () => {
         rebuildError={null}
         rebuildJob={null}
         onRebuildForecasts={onRebuildForecasts}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1563,8 +1563,8 @@ describe('dashboard panel states', () => {
         loading={false}
         error={null}
         canRebuildForecasts={false}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1607,8 +1607,8 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1664,8 +1664,8 @@ describe('dashboard panel states', () => {
           error: null,
         }}
         onRebuildForecasts={onRebuildForecasts}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1704,8 +1704,8 @@ describe('dashboard panel states', () => {
         canRebuildForecasts={true}
         rebuildLoading={true}
         onRebuildForecasts={jest.fn()}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1745,8 +1745,8 @@ describe('dashboard panel states', () => {
         canRebuildForecasts={true}
         rebuildLoading={true}
         onRebuildForecasts={jest.fn()}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1790,8 +1790,8 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1839,8 +1839,8 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}
@@ -1885,8 +1885,8 @@ describe('dashboard panel states', () => {
         }}
         loading={false}
         error={null}
-        horizon={4}
-        onHorizonChange={jest.fn()}
+        range="medium"
+        onRangeChange={jest.fn()}
         onRetry={jest.fn()}
         readModelState="ready"
         readModelStatus={null}

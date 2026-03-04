@@ -33,6 +33,7 @@ import type {
   DatasetSubmission,
   DatasetSummary,
   ErrorDetail,
+  ForecastRange,
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
   MigrationAnalyticsResponse,
@@ -92,7 +93,7 @@ const SUBMISSION_POLL_INTERVAL_MAX_MS = 3_000;
 const SUBMISSION_POLL_TIMEOUT_MS = 180_000;
 export const DATASET_STATUS_POLL_INTERVAL_MS = 3_000;
 export const DATASET_STATUS_POLL_MAX_DURATION_MS = 300_000;
-const DEFAULT_FORECAST_HORIZON = 4;
+const DEFAULT_FORECAST_RANGE: ForecastRange = 'medium';
 const SNAPSHOTS_PAGE_SIZE = 100;
 const DEFAULT_SNAPSHOT_COVERAGE_RANGE_DAYS = 14;
 const MAX_SNAPSHOT_COVERAGE_RANGE_DAYS = 366;
@@ -360,8 +361,8 @@ export function useDashboardMetricsModel() {
     useState<MigrationSemesterRangeSelection>({});
   const { filters: majorsFilters, setFilters: setMajorsFilters } =
     useMajorsFiltersParam();
-  const [forecastHorizon, setForecastHorizon] = useState(
-    DEFAULT_FORECAST_HORIZON
+  const [forecastRange, setForecastRange] = useState<ForecastRange>(
+    DEFAULT_FORECAST_RANGE
   );
 
   const [datasetState, setDatasetState] = useState<
@@ -859,7 +860,7 @@ export function useDashboardMetricsModel() {
     async (
       datasetId: string | undefined,
       snapshotId: string | undefined,
-      horizon: number,
+      range: ForecastRange,
       signal?: AbortSignal
     ) => {
       if (!datasetId) {
@@ -869,13 +870,13 @@ export function useDashboardMetricsModel() {
 
       await loadDashboardResource({
         datasetId,
-        requestKey: `forecasts:${datasetId}:${snapshotId ?? 'none'}:${horizon}`,
+        requestKey: `forecasts:${datasetId}:${snapshotId ?? 'none'}:${range}`,
         measureKey: 'dashboard:panel:forecasts:load',
         fallbackMessage: 'Unable to load forecast analytics.',
         setResourceState: setForecastsState,
         request: () =>
           getForecastsAnalytics(datasetId, {
-            horizon,
+            range,
             signal,
           }),
         normalizeError: (uiError) =>
@@ -925,13 +926,13 @@ export function useDashboardMetricsModel() {
         loadForecasts(
           options.datasetId,
           options.snapshotId ?? undefined,
-          forecastHorizon,
+          forecastRange,
           signal
         ),
       ]);
     },
     [
-      forecastHorizon,
+      forecastRange,
       loadForecasts,
       loadMajors,
       loadMigration,
@@ -1623,14 +1624,14 @@ export function useDashboardMetricsModel() {
     void loadForecasts(
       analyticsDatasetId,
       analyticsSnapshotId,
-      forecastHorizon,
+      forecastRange,
       controller.signal
     );
 
     return () => {
       controller.abort();
     };
-  }, [analyticsDatasetId, analyticsSnapshotId, forecastHorizon, loadForecasts]);
+  }, [analyticsDatasetId, analyticsSnapshotId, forecastRange, loadForecasts]);
 
   const setMigrationStartSemester = useCallback(
     (value: string | undefined) => {
@@ -1828,9 +1829,8 @@ export function useDashboardMetricsModel() {
     ]
   );
   const retryForecasts = useCallback(
-    () =>
-      loadForecasts(analyticsDatasetId, analyticsSnapshotId, forecastHorizon),
-    [analyticsDatasetId, analyticsSnapshotId, forecastHorizon, loadForecasts]
+    () => loadForecasts(analyticsDatasetId, analyticsSnapshotId, forecastRange),
+    [analyticsDatasetId, analyticsSnapshotId, forecastRange, loadForecasts]
   );
   const rebuildForecasts = useCallback(async () => {
     if (!analyticsSnapshotId) {
@@ -1922,8 +1922,8 @@ export function useDashboardMetricsModel() {
     migrationEndSemester: activeMigrationEndSemester,
     setMigrationStartSemester,
     setMigrationEndSemester,
-    forecastHorizon,
-    setForecastHorizon,
+    forecastRange,
+    setForecastRange,
     handleDatasetUpload,
     uploadLoading: uploadState.loading,
     uploadError: uploadState.error,

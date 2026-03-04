@@ -6,6 +6,7 @@ import { formatUIErrorMessage } from '@/lib/api/errors';
 import type { DashboardUploadFeedback } from '@/features/dashboard/types/uploadFeedback';
 import type {
   DatasetOverviewResponse,
+  ForecastRange,
   ForecastsAnalyticsResponse,
   MajorsAnalyticsResponse,
   MigrationAnalyticsResponse,
@@ -89,8 +90,8 @@ interface DashboardTabsModel {
   forecastRebuildError?: UIError | null;
   forecastRebuildJob?: SnapshotForecastRebuildJobResponse | null;
   rebuildForecasts?: () => void | Promise<void>;
-  forecastHorizon: number;
-  setForecastHorizon: (horizon: number) => void;
+  forecastRange: ForecastRange;
+  setForecastRange: (range: ForecastRange) => void;
   retryForecasts: () => void;
 }
 
@@ -342,8 +343,8 @@ export function DashboardTabs(props: DashboardTabsProps) {
           rebuildError={model.forecastRebuildError ?? null}
           rebuildJob={model.forecastRebuildJob ?? null}
           onRebuildForecasts={model.rebuildForecasts}
-          horizon={model.forecastHorizon}
-          onHorizonChange={model.setForecastHorizon}
+          range={model.forecastRange}
+          onRangeChange={model.setForecastRange}
           onRetry={model.retryForecasts}
           readModelState={model.readModelState}
           readModelStatus={model.readModelStatus}

@@ -4,6 +4,8 @@ import { MajorDistributionChart } from '@/features/metrics/components/charts/Maj
 import { StudentTypeDistributionChart } from '@/features/metrics/components/charts/StudentTypeDistributionChart';
 import { SchoolDistributionChart } from '@/features/metrics/components/charts/SchoolDistributionChart';
 import { ForecastSection } from '@/features/metrics/components/ForecastSection';
+import { buildForecastInsights } from '@/features/metrics/components/forecast/insights';
+import { formatForecastYAxisTick } from '@/features/metrics/components/forecast/ForecastTrendChartPlot';
 import {
   AvgCreditsByCohortChart,
   AvgCreditsByMajorChart,
@@ -133,6 +135,21 @@ describe('analytics charts', () => {
     expect(
       screen.getByText('Average Credits Earned by Major and FTIC Cohort')
     ).toBeInTheDocument();
+  });
+
+  test('forecast helpers format y-axis values and insight fallbacks for growth directions', () => {
+    expect(formatForecastYAxisTick(1_000_000)).toBe('1M');
+    expect(formatForecastYAxisTick(1_250_000)).toBe('1.3M');
+    expect(formatForecastYAxisTick(12_500)).toBe('12.5k');
+    expect(formatForecastYAxisTick(999)).toBe('999');
+
+    const stable = buildForecastInsights({ fiveYearGrowthPct: 1.2 });
+    const growth = buildForecastInsights({ fiveYearGrowthPct: 6.4 });
+    const decline = buildForecastInsights({ fiveYearGrowthPct: -3.2 });
+
+    expect(stable[0]?.description).toContain('remain relatively stable');
+    expect(growth[0]?.description).toContain('grow by ~6.4%');
+    expect(decline[0]?.description).toContain('decline by ~3.2%');
   });
 
   test('cohort charts and summary tabs use the same normalized cohort ordering', () => {

@@ -3619,7 +3619,7 @@ describe('useDashboardMetricsModel', () => {
         signal: expect.any(Object),
       });
       expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-2', {
-        horizon: 4,
+        range: 'medium',
         signal: expect.any(Object),
       });
     });
@@ -4085,7 +4085,7 @@ describe('useDashboardMetricsModel', () => {
       signal: expect.any(Object),
     });
     expect(mockGetForecastsAnalytics).toHaveBeenLastCalledWith('dataset-2', {
-      horizon: 4,
+      range: 'medium',
       signal: expect.any(Object),
     });
   });
@@ -4416,7 +4416,7 @@ describe('useDashboardMetricsModel', () => {
       signal: expect.any(Object),
     });
     expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-1', {
-      horizon: 4,
+      range: 'medium',
       signal: expect.any(Object),
     });
   });
@@ -4517,7 +4517,7 @@ describe('useDashboardMetricsModel', () => {
       signal: expect.any(Object),
     });
     expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-2', {
-      horizon: 4,
+      range: 'medium',
       signal: expect.any(Object),
     });
   });
@@ -4614,7 +4614,7 @@ describe('useDashboardMetricsModel', () => {
       signal: expect.any(Object),
     });
     expect(mockGetForecastsAnalytics).toHaveBeenCalledWith('dataset-1', {
-      horizon: 4,
+      range: 'medium',
       signal: expect.any(Object),
     });
   });

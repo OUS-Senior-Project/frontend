@@ -16,7 +16,7 @@ export function ForecastNumbersCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           {forecastData.map((forecast) => (
             <div
               key={forecast.period}
