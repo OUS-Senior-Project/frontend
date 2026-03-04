@@ -55,14 +55,18 @@ function MigrationFlowChartComponent({
             </p>
           </div>
           <p className="mt-2 text-sm leading-6 text-foreground">
-            <span className="font-semibold">{sortedMigrations[0]?.fromMajor}</span>
+            <span className="font-semibold">
+              {sortedMigrations[0]?.fromMajor}
+            </span>
             <ArrowRight className="mx-2 inline h-4 w-4 align-text-bottom text-primary" />
-            <span className="font-semibold">{sortedMigrations[0]?.toMajor}</span>
-            {' '}has the largest movement with{' '}
+            <span className="font-semibold">
+              {sortedMigrations[0]?.toMajor}
+            </span>{' '}
+            has the largest movement with{' '}
             <span className="font-semibold text-primary">
               {sortedMigrations[0]?.totalCount.toLocaleString()} students
-            </span>
-            {' '}in this range.
+            </span>{' '}
+            in this range.
           </p>
         </div>
       </CardContent>

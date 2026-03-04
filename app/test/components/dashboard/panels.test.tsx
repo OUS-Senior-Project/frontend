@@ -119,14 +119,32 @@ jest.mock('@/features/metrics/components/major-analytics-charts', () => ({
 }));
 
 jest.mock('@/features/metrics/components/charts/MigrationFlowChart', () => ({
-  MigrationFlowChart: ({ data }: { data: unknown[] }) => (
-    <div>{`Migration flow rows: ${data.length}`}</div>
+  MigrationFlowChart: ({
+    data,
+    periodLabel,
+  }: {
+    data: unknown[];
+    periodLabel?: string;
+  }) => (
+    <div>
+      {`Migration flow rows: ${data.length}`}
+      {periodLabel ? <span>{`Flow period: ${periodLabel}`}</span> : null}
+    </div>
   ),
 }));
 
 jest.mock('@/features/metrics/components/MigrationTopFlowsTable', () => ({
-  MigrationTopFlowsTable: ({ data }: { data: unknown[] }) => (
-    <div>{`Migration table rows: ${data.length}`}</div>
+  MigrationTopFlowsTable: ({
+    data,
+    periodLabel,
+  }: {
+    data: unknown[];
+    periodLabel?: string;
+  }) => (
+    <div>
+      {`Migration table rows: ${data.length}`}
+      {periodLabel ? <span>{`Table period: ${periodLabel}`}</span> : null}
+    </div>
   ),
 }));
 
@@ -1108,6 +1126,92 @@ describe('dashboard panel states', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Range options: 1' }));
     expect(onStartSemesterChange).toHaveBeenCalledWith('Fall 2025');
     expect(onEndSemesterChange).toHaveBeenCalledWith('Fall 2025');
+  });
+
+  test('MigrationPanel derives period labels for partial ranges and tolerates missing callbacks', () => {
+    const onRetry = jest.fn();
+    const onReadModelRetry = jest.fn();
+    const records = [
+      {
+        fromMajor: 'Biology',
+        toMajor: 'Chemistry',
+        semester: 'Fall 2025',
+        count: 2,
+      },
+    ];
+
+    const { rerender } = render(
+      <MigrationPanel
+        data={{
+          datasetId: 'dataset-1',
+          semesters: ['Fall 2025', 'Spring 2026'],
+          records,
+        }}
+        loading={false}
+        error={null}
+        migrationStartSemester="Fall 2025"
+        migrationEndSemester={undefined}
+        onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+
+    expect(screen.getByText('Flow period: Fall 2025 onward')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Range options: 2' }));
+
+    rerender(
+      <MigrationPanel
+        data={{
+          datasetId: 'dataset-1',
+          semesters: ['Fall 2025', 'Spring 2026'],
+          records,
+        }}
+        loading={false}
+        error={null}
+        migrationStartSemester={undefined}
+        migrationEndSemester="Spring 2026"
+        onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+
+    expect(screen.getByText('Flow period: Up to Spring 2026')).toBeInTheDocument();
+    expect(screen.getByText('Table period: Up to Spring 2026')).toBeInTheDocument();
+
+    rerender(
+      <MigrationPanel
+        data={{
+          datasetId: 'dataset-1',
+          semesters: ['Fall 2025', 'Spring 2026'],
+          records,
+        }}
+        loading={false}
+        error={null}
+        migrationStartSemester="Fall 2025"
+        migrationEndSemester="Spring 2026"
+        onRetry={onRetry}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={onReadModelRetry}
+      />
+    );
+
+    expect(
+      screen.getByText('Flow period: Fall 2025 to Spring 2026')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Table period: Fall 2025 to Spring 2026')
+    ).toBeInTheDocument();
   });
 
   test('ForecastsPanel handles states and both growth sign branches', () => {

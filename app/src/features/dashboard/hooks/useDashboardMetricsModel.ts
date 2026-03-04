@@ -967,8 +967,11 @@ export function useDashboardMetricsModel() {
 
       ranges.set(semester, {
         startDate:
-          effectiveDate < existing.startDate ? effectiveDate : existing.startDate,
-        endDate: effectiveDate > existing.endDate ? effectiveDate : existing.endDate,
+          effectiveDate < existing.startDate
+            ? effectiveDate
+            : existing.startDate,
+        endDate:
+          effectiveDate > existing.endDate ? effectiveDate : existing.endDate,
       });
     }
 
@@ -1733,7 +1736,9 @@ export function useDashboardMetricsModel() {
       : undefined;
   const activeMigrationStartSemester =
     migrationSemesterRange.startSemester &&
-    migrationState.data?.semesters.includes(migrationSemesterRange.startSemester)
+    migrationState.data?.semesters.includes(
+      migrationSemesterRange.startSemester
+    )
       ? migrationSemesterRange.startSemester
       : undefined;
   const activeMigrationEndSemester =

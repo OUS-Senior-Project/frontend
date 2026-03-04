@@ -72,8 +72,7 @@ function MigrationPanelComponent({
             Major Migration Analysis
           </h2>
           <p className="text-sm text-muted-foreground">
-            Track student movement between majors over a selected semester
-            range
+            Track student movement between majors over a selected semester range
           </p>
         </div>
         <SemesterRangeFilterSelect

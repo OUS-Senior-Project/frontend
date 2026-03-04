@@ -894,6 +894,44 @@ describe('service modules', () => {
     );
   });
 
+  test('getMigrationAnalytics falls back to academicPeriods when semesters are omitted', async () => {
+    mockApiClient.get
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-1',
+        minEffectiveDate: '2026-01-01',
+        maxEffectiveDate: '2026-05-01',
+        academicPeriods: ['Fall 2024', 'Spring 2025'],
+      })
+      .mockResolvedValueOnce({
+        datasetId: 'dataset-1',
+        records: [],
+      });
+
+    const response = await getMigrationAnalytics('dataset-1');
+
+    expect(response).toEqual({
+      datasetId: 'dataset-1',
+      semesters: ['Fall 2024', 'Spring 2025'],
+      records: [],
+    });
+  });
+
+  test('getMigrationAnalytics defaults to an empty semester list when options omit both fields', async () => {
+    mockApiClient.get.mockResolvedValueOnce({
+      datasetId: 'dataset-1',
+      minEffectiveDate: null,
+      maxEffectiveDate: null,
+    });
+
+    const response = await getMigrationAnalytics('dataset-1');
+
+    expect(response).toEqual({
+      datasetId: 'dataset-1',
+      semesters: [],
+      records: [],
+    });
+  });
+
   test('getMigrationAnalytics skips migration records when date bounds are unavailable', async () => {
     mockApiClient.get.mockResolvedValueOnce({
       datasetId: 'dataset-1',
