@@ -78,7 +78,9 @@ describe('api normalization', () => {
           avgCumulativeGPA: 3.126,
           avgCumulativeCreditsEarned: 60.349,
           topSchools: [{ label: 'CEA', count: 12.9, pctOfGroup: 100.6 }],
-          studentTypeMix: [{ label: 'Continuing', count: 10.7, pctOfGroup: 88.88 }],
+          studentTypeMix: [
+            { label: 'Continuing', count: 10.7, pctOfGroup: 88.88 },
+          ],
         },
       ],
       schoolInsights: [
@@ -128,6 +130,181 @@ describe('api normalization', () => {
     });
   });
 
+  test('normalizes undergraduate breakdown arrays and nullable insight metrics from mixed payloads', () => {
+    let topMajorsReads = 0;
+    const toggledTopMajorsInsight = {
+      studentType: 'Transfer',
+      total: 39.6,
+      shareOfUndergradPct: 44.4,
+      international: 2.7,
+      nonInternational: 36.9,
+      avgCumulativeGPA: null,
+      avgCumulativeCreditsEarned: undefined,
+      topSchools: [],
+      get topMajors() {
+        topMajorsReads += 1;
+        return topMajorsReads === 1
+          ? []
+          : ('invalid-top-majors' as unknown as Array<{
+              label: string;
+              count: number;
+              pctOfGroup: number;
+            }>);
+      },
+    };
+
+    const normalized = normalizeDatasetOverviewResponse({
+      datasetId: 'dataset-undergrad-breakdown',
+      snapshotTotals: {
+        total: 110,
+        undergrad: 100,
+        ftic: 30,
+        transfer: 30,
+        international: 10,
+      },
+      activeMajors: 2,
+      activeSchools: 1,
+      undergraduateBreakdown: [
+        {
+          studentType: 'FTIC',
+          total: 60.6,
+          international: 10.2,
+          nonInternational: 50.4,
+        },
+        {
+          studentType: 'Invalid',
+          total: 'bad',
+          international: 1,
+          nonInternational: 1,
+        } as unknown as {
+          studentType: string;
+          total: number;
+          international: number;
+          nonInternational: number;
+        },
+      ],
+      undergraduateBreakdownInsights: [
+        {
+          studentType: 'FTIC',
+          total: 60.4,
+          shareOfUndergradPct: 60.6,
+          international: 10.2,
+          nonInternational: 50.2,
+          avgCumulativeGPA: 3.456,
+          avgCumulativeCreditsEarned: 45.678,
+          topMajors: [
+            { label: 'Biology', count: 10.8, pctOfGroup: 22.25 },
+            { label: 'Bad Count', count: Number.NaN, pctOfGroup: 10 },
+          ],
+          topSchools: [{ label: 'Arts', count: 20.4, pctOfGroup: 33.333 }],
+        },
+        toggledTopMajorsInsight,
+        {
+          studentType: 'Other',
+          total: 5,
+          shareOfUndergradPct: 'bad',
+          international: 1,
+          nonInternational: 4,
+          avgCumulativeGPA: 3,
+          avgCumulativeCreditsEarned: 30,
+          topMajors: [],
+          topSchools: [],
+        } as unknown as {
+          studentType: string;
+          total: number;
+          shareOfUndergradPct: number;
+          international: number;
+          nonInternational: number;
+          avgCumulativeGPA: number | null;
+          avgCumulativeCreditsEarned: number | null;
+          topMajors: Array<{
+            label: string;
+            count: number;
+            pctOfGroup: number;
+          }>;
+          topSchools: Array<{
+            label: string;
+            count: number;
+            pctOfGroup: number;
+          }>;
+        },
+      ],
+      activeMajorInsights: [
+        {
+          major: 'Mathematics',
+          total: 12,
+          shareOfActivePct: 30,
+          international: 2,
+          nonInternational: 10,
+          internationalPct: 16.6,
+          avgCumulativeGPA: null,
+          avgCumulativeCreditsEarned: undefined,
+          topSchools: [],
+          studentTypeMix: [],
+        },
+      ],
+      schoolInsights: [
+        {
+          school: 'Science',
+          total: 20,
+          shareOfUndergradPct: 20,
+          international: 1,
+          nonInternational: 19,
+          internationalPct: 5,
+          avgCumulativeGPA: null,
+          avgCumulativeCreditsEarned: undefined,
+          activeMajorsCount: 4,
+          topMajors: [],
+          studentTypeMix: [],
+        },
+      ],
+      trend: [{ period: 'Fall 2025', year: 2025, semester: 1, total: 100 }],
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+    });
+
+    expect(normalized.undergraduateBreakdown).toEqual([
+      {
+        studentType: 'FTIC',
+        total: 61,
+        international: 10,
+        nonInternational: 50,
+      },
+    ]);
+    expect(normalized.undergraduateBreakdownInsights).toEqual([
+      {
+        studentType: 'FTIC',
+        total: 60,
+        shareOfUndergradPct: 60.6,
+        international: 10,
+        nonInternational: 50,
+        avgCumulativeGPA: 3.46,
+        avgCumulativeCreditsEarned: 45.68,
+        topMajors: [{ label: 'Biology', count: 11, pctOfGroup: 22.3 }],
+        topSchools: [{ label: 'Arts', count: 20, pctOfGroup: 33.3 }],
+      },
+      {
+        studentType: 'Transfer',
+        total: 40,
+        shareOfUndergradPct: 44.4,
+        international: 3,
+        nonInternational: 37,
+        avgCumulativeGPA: null,
+        avgCumulativeCreditsEarned: null,
+        topMajors: [],
+        topSchools: [],
+      },
+    ]);
+    expect(normalized.activeMajorInsights?.[0]?.avgCumulativeGPA).toBeNull();
+    expect(
+      normalized.activeMajorInsights?.[0]?.avgCumulativeCreditsEarned
+    ).toBeNull();
+    expect(normalized.schoolInsights?.[0]?.avgCumulativeGPA).toBeNull();
+    expect(
+      normalized.schoolInsights?.[0]?.avgCumulativeCreditsEarned
+    ).toBeNull();
+  });
+
   test('preserves forecast semester values in both historical and forecast arrays', () => {
     const normalized = normalizeDatasetForecastResponse({
       datasetId: 'dataset-1',
@@ -159,7 +336,9 @@ describe('api normalization', () => {
       },
     });
 
-    expect(normalized.historical.map((point) => point.semester)).toEqual([1, 2]);
+    expect(normalized.historical.map((point) => point.semester)).toEqual([
+      1, 2,
+    ]);
     expect(normalized.forecast.map((point) => point.semester)).toEqual([1]);
     expect(normalized.state).toBe('READY');
     expect(normalized.methodologySummary).toBe('Backend methodology text.');
@@ -174,7 +353,9 @@ describe('api normalization', () => {
     const normalized = normalizeDatasetForecastResponse({
       datasetId: 'dataset-legacy',
       fiveYearGrowthPct: 3,
-      historical: [{ period: 'Fall 2024', year: 2024, semester: 1, total: 100 }],
+      historical: [
+        { period: 'Fall 2024', year: 2024, semester: 1, total: 100 },
+      ],
       forecast: [
         {
           period: 'Spring 2025',
@@ -404,7 +585,9 @@ describe('api normalization', () => {
     expect(
       isRawDatasetOverviewResponse({
         datasetId: 'dataset-1',
-        trend: [{ period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 }],
+        trend: [
+          { period: 'Fall 2024', year: 2024, semester: 'Fall', total: 10 },
+        ],
       })
     ).toBe(false);
     expect(
@@ -421,7 +604,9 @@ describe('api normalization', () => {
     expect(
       isRawDatasetForecastResponse({
         datasetId: 'dataset-1',
-        historical: [{ period: 'Fall 2024', year: 2024, semester: 1, total: 10 }],
+        historical: [
+          { period: 'Fall 2024', year: 2024, semester: 1, total: 10 },
+        ],
         forecast: [
           {
             period: 'Spring 2025',
@@ -437,7 +622,9 @@ describe('api normalization', () => {
     expect(
       isRawDatasetForecastResponse({
         datasetId: 'dataset-1',
-        historical: [{ period: 'Fall 2024', year: 2024, semester: 1, total: 10 }],
+        historical: [
+          { period: 'Fall 2024', year: 2024, semester: 1, total: 10 },
+        ],
         forecast: [
           {
             period: 'Spring 2025',
@@ -452,7 +639,9 @@ describe('api normalization', () => {
     expect(
       isRawDatasetForecastResponse({
         datasetId: 'dataset-1',
-        historical: [{ period: 'Fall 2024', year: 2024, semester: 1, total: 10 }],
+        historical: [
+          { period: 'Fall 2024', year: 2024, semester: 1, total: 10 },
+        ],
         forecast: [
           {
             period: 'Spring 2025',

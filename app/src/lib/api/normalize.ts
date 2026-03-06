@@ -123,7 +123,9 @@ export function normalizeDatasetOverviewResponse(
     undergraduateBreakdownInsights: normalizeUndergraduateBreakdownInsights(
       response.undergraduateBreakdownInsights
     ),
-    activeMajorInsights: normalizeActiveMajorInsights(response.activeMajorInsights),
+    activeMajorInsights: normalizeActiveMajorInsights(
+      response.activeMajorInsights
+    ),
     schoolInsights: normalizeSchoolInsights(response.schoolInsights),
     trend: response.trend.map(normalizeDatasetTrendPoint),
   };
@@ -196,7 +198,9 @@ function normalizeUndergraduateBreakdownInsights(
           ? null
           : roundToTwo(item.avgCumulativeCreditsEarned),
       topMajors: normalizeUndergraduateBreakdownInsightTopItems(item.topMajors),
-      topSchools: normalizeUndergraduateBreakdownInsightTopItems(item.topSchools),
+      topSchools: normalizeUndergraduateBreakdownInsightTopItems(
+        item.topSchools
+      ),
     }));
 }
 
@@ -266,14 +270,18 @@ function normalizeActiveMajorInsights(
         item.avgCumulativeCreditsEarned === undefined
           ? null
           : roundToTwo(item.avgCumulativeCreditsEarned),
-      topSchools: normalizeUndergraduateBreakdownInsightTopItems(item.topSchools),
+      topSchools: normalizeUndergraduateBreakdownInsightTopItems(
+        item.topSchools
+      ),
       studentTypeMix: normalizeUndergraduateBreakdownInsightTopItems(
         item.studentTypeMix
       ),
     }));
 }
 
-function normalizeSchoolInsights(value: unknown): SchoolInsightItem[] | undefined {
+function normalizeSchoolInsights(
+  value: unknown
+): SchoolInsightItem[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }

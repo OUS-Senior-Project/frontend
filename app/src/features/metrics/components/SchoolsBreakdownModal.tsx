@@ -30,7 +30,10 @@ export function SchoolsBreakdownModal({
     }
     return a.school.localeCompare(b.school);
   });
-  const undergradTotal = orderedSchools.reduce((sum, item) => sum + item.total, 0);
+  const undergradTotal = orderedSchools.reduce(
+    (sum, item) => sum + item.total,
+    0
+  );
   const largestSchoolCount = orderedSchools[0]?.total ?? 0;
   const largestSchoolSharePct =
     undergradTotal > 0 ? (largestSchoolCount / undergradTotal) * 100 : 0;
@@ -49,12 +52,18 @@ export function SchoolsBreakdownModal({
         </DialogHeader>
 
         <div className="grid gap-3 md:grid-cols-3">
-          <SummaryTile label="Schools/colleges" value={activeSchools.toLocaleString()} />
+          <SummaryTile
+            label="Schools/colleges"
+            value={activeSchools.toLocaleString()}
+          />
           <SummaryTile
             label="Largest school share"
             value={formatPercent(largestSchoolSharePct)}
           />
-          <SummaryTile label="Top 3 combined share" value={formatPercent(topThreeSharePct)} />
+          <SummaryTile
+            label="Top 3 combined share"
+            value={formatPercent(topThreeSharePct)}
+          />
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
@@ -70,16 +79,21 @@ export function SchoolsBreakdownModal({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-foreground">{item.school}</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {item.school}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatPercent(item.shareOfUndergradPct)} of undergrad total
+                      {formatPercent(item.shareOfUndergradPct)} of undergrad
+                      total
                     </p>
                   </div>
                   <p className="text-right">
                     <span className="block text-lg font-bold text-foreground">
                       {item.total.toLocaleString()}
                     </span>
-                    <span className="text-xs text-muted-foreground">students</span>
+                    <span className="text-xs text-muted-foreground">
+                      students
+                    </span>
                   </p>
                 </div>
 
@@ -100,8 +114,8 @@ export function SchoolsBreakdownModal({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Showing the top {Math.min(topSchools.length, 6)} schools by undergraduate
-          volume. Counts reflect selected Data Date: {dateLabel}
+          Showing the top {Math.min(topSchools.length, 6)} schools by
+          undergraduate volume. Counts reflect selected Data Date: {dateLabel}
         </p>
       </DialogContent>
     </Dialog>

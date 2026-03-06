@@ -13,12 +13,7 @@ import type {
   UndergraduateBreakdownInsightTopItem,
   UndergraduateBreakdownItem,
 } from '@/lib/api/types';
-import {
-  ArrowRightLeft,
-  BookOpen,
-  GraduationCap,
-  Layers,
-} from 'lucide-react';
+import { ArrowRightLeft, BookOpen, GraduationCap, Layers } from 'lucide-react';
 
 interface BreakdownData {
   total: number;
@@ -72,7 +67,8 @@ export function AnalyticsBreakdownModal({
         nonInternational: found?.nonInternational ?? 0,
         shareOfUndergradPct: insights?.shareOfUndergradPct ?? fallbackShare,
         avgCumulativeGPA: insights?.avgCumulativeGPA ?? null,
-        avgCumulativeCreditsEarned: insights?.avgCumulativeCreditsEarned ?? null,
+        avgCumulativeCreditsEarned:
+          insights?.avgCumulativeCreditsEarned ?? null,
         topMajors: insights?.topMajors ?? [],
         topSchools: insights?.topSchools ?? [],
       };
@@ -115,7 +111,9 @@ export function AnalyticsBreakdownModal({
                     <span className="block text-lg font-bold text-foreground">
                       {metric.total.toLocaleString()}
                     </span>
-                    <span className="text-xs text-muted-foreground">students</span>
+                    <span className="text-xs text-muted-foreground">
+                      students
+                    </span>
                   </p>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
@@ -134,7 +132,10 @@ export function AnalyticsBreakdownModal({
                   </div>
                   <div className="rounded-md bg-background/70 px-2 py-1">
                     Avg earned credits:{' '}
-                    {formatNullableNumber(metric.avgCumulativeCreditsEarned, 0.1)}
+                    {formatNullableNumber(
+                      metric.avgCumulativeCreditsEarned,
+                      0.1
+                    )}
                   </div>
                 </div>
                 <div className="mt-2 space-y-1 text-xs text-muted-foreground">
@@ -158,7 +159,9 @@ export function AnalyticsBreakdownModal({
   );
 }
 
-function formatTopLabels(items: UndergraduateBreakdownInsightTopItem[]): string {
+function formatTopLabels(
+  items: UndergraduateBreakdownInsightTopItem[]
+): string {
   if (items.length === 0) {
     return 'N/A';
   }
@@ -178,7 +181,7 @@ function formatPercent(value: number): string {
 
 function formatNullableNumber(
   value: number | null,
-  minDisplayValue = 0
+  minDisplayValue: number
 ): string {
   if (value === null || Number.isNaN(value) || value < minDisplayValue) {
     return 'N/A';

@@ -37,8 +37,16 @@ export function ActiveMajorsBreakdownModal({
   const topMajorCount = orderedMajors[0]?.total ?? 0;
   const topMajorSharePct =
     activeStudentsTotal > 0 ? (topMajorCount / activeStudentsTotal) * 100 : 0;
-  const topThreeSharePct = summarizeTopShare(orderedMajors, 3, activeStudentsTotal);
-  const topFiveSharePct = summarizeTopShare(orderedMajors, 5, activeStudentsTotal);
+  const topThreeSharePct = summarizeTopShare(
+    orderedMajors,
+    3,
+    activeStudentsTotal
+  );
+  const topFiveSharePct = summarizeTopShare(
+    orderedMajors,
+    5,
+    activeStudentsTotal
+  );
   const topMajors = orderedMajors.slice(0, 3);
   const internationalLeaders = [...orderedMajors]
     .filter((item) => item.total >= 20)
@@ -61,18 +69,29 @@ export function ActiveMajorsBreakdownModal({
         </DialogHeader>
 
         <div className="grid gap-3 md:grid-cols-4">
-          <SummaryTile label="Active majors" value={activeMajors.toLocaleString()} />
+          <SummaryTile
+            label="Active majors"
+            value={activeMajors.toLocaleString()}
+          />
           <SummaryTile
             label="Active undergraduate students"
             value={activeStudentsTotal.toLocaleString()}
           />
-          <SummaryTile label="Largest major share" value={formatPercent(topMajorSharePct)} />
-          <SummaryTile label="Top 5 combined share" value={formatPercent(topFiveSharePct)} />
+          <SummaryTile
+            label="Largest major share"
+            value={formatPercent(topMajorSharePct)}
+          />
+          <SummaryTile
+            label="Top 5 combined share"
+            value={formatPercent(topFiveSharePct)}
+          />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-lg border border-border/60 bg-secondary/40 px-4 py-3">
-            <p className="text-sm font-medium text-foreground">Top Active Majors</p>
+            <p className="text-sm font-medium text-foreground">
+              Top Active Majors
+            </p>
             <div className="mt-3 space-y-2">
               {topMajors.length === 0 ? (
                 <div className="rounded-md bg-background/70 px-3 py-2 text-xs text-muted-foreground">
@@ -101,7 +120,9 @@ export function ActiveMajorsBreakdownModal({
           </div>
 
           <div className="rounded-lg border border-border/60 bg-secondary/40 px-4 py-3">
-            <p className="text-sm font-medium text-foreground">International Spotlight</p>
+            <p className="text-sm font-medium text-foreground">
+              International Spotlight
+            </p>
             <div className="mt-3 space-y-2">
               {internationalLeaders.length === 0 ? (
                 <div className="rounded-md bg-background/70 px-3 py-2 text-xs text-muted-foreground">
@@ -118,9 +139,7 @@ export function ActiveMajorsBreakdownModal({
                       <span className="block font-semibold text-foreground">
                         {item.total.toLocaleString()} students
                       </span>
-                      <span>
-                        {formatPercent(item.internationalPct)}
-                      </span>
+                      <span>{formatPercent(item.internationalPct)}</span>
                     </p>
                   </div>
                 ))
@@ -131,7 +150,8 @@ export function ActiveMajorsBreakdownModal({
 
         <p className="text-xs text-muted-foreground">
           Top 3 majors account for {formatPercent(topThreeSharePct)} of active
-          undergraduate major records. Counts reflect selected Data Date: {dateLabel}
+          undergraduate major records. Counts reflect selected Data Date:{' '}
+          {dateLabel}
         </p>
       </DialogContent>
     </Dialog>
@@ -152,34 +172,6 @@ function SummaryTile({ label, value }: SummaryTileProps) {
   );
 }
 
-interface LeaderCardProps {
-  title: string;
-  rows: Array<{ label: string; value: string }>;
-}
-
-function LeaderCard({ title, rows }: LeaderCardProps) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-secondary/40 px-4 py-3">
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-        {rows.length === 0 ? (
-          <div className="rounded-md bg-background/70 px-3 py-2">N/A</div>
-        ) : (
-          rows.map((row) => (
-            <div
-              key={`${row.label}:${row.value}`}
-              className="flex items-start justify-between gap-3 rounded-md bg-background/70 px-3 py-2"
-            >
-              <span className="text-foreground">{row.label}</span>
-              <span className="shrink-0">{row.value}</span>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
 function summarizeTopShare(
   majors: ActiveMajorInsightItem[],
   topN: number,
@@ -188,7 +180,9 @@ function summarizeTopShare(
   if (total <= 0) {
     return 0;
   }
-  const numerator = majors.slice(0, topN).reduce((sum, item) => sum + item.total, 0);
+  const numerator = majors
+    .slice(0, topN)
+    .reduce((sum, item) => sum + item.total, 0);
   return (numerator / total) * 100;
 }
 
