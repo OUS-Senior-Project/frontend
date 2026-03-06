@@ -55,6 +55,79 @@ describe('api normalization', () => {
     expect(normalized.trend.map((point) => point.semester)).toEqual([1, 2]);
   });
 
+  test('normalizes major and school insight payloads on overview responses', () => {
+    const normalized = normalizeDatasetOverviewResponse({
+      datasetId: 'dataset-1',
+      snapshotTotals: {
+        total: 10,
+        undergrad: 10,
+        ftic: 3,
+        transfer: 2,
+        international: 1,
+      },
+      activeMajors: 2,
+      activeSchools: 1,
+      activeMajorInsights: [
+        {
+          major: 'Computer Science',
+          total: 12.2,
+          shareOfActivePct: 123,
+          international: 1.4,
+          nonInternational: 10.9,
+          internationalPct: -4,
+          avgCumulativeGPA: 3.126,
+          avgCumulativeCreditsEarned: 60.349,
+          topSchools: [{ label: 'CEA', count: 12.9, pctOfGroup: 100.6 }],
+          studentTypeMix: [{ label: 'Continuing', count: 10.7, pctOfGroup: 88.88 }],
+        },
+      ],
+      schoolInsights: [
+        {
+          school: 'College of Arts & Sciences',
+          total: 20.2,
+          shareOfUndergradPct: 44.44,
+          international: 2.2,
+          nonInternational: 17.8,
+          internationalPct: 9.95,
+          avgCumulativeGPA: 3.014,
+          avgCumulativeCreditsEarned: 59.019,
+          activeMajorsCount: 7.8,
+          topMajors: [{ label: 'Biology', count: 8.8, pctOfGroup: 40.5 }],
+          studentTypeMix: [{ label: 'Transfer', count: 5.2, pctOfGroup: 26.1 }],
+        },
+      ],
+      trend: [{ period: 'Fall 2024', year: 2024, semester: 1, total: 10 }],
+      studentTypeDistribution: [],
+      schoolDistribution: [],
+    });
+
+    expect(normalized.activeMajorInsights?.[0]).toEqual({
+      major: 'Computer Science',
+      total: 12,
+      shareOfActivePct: 100,
+      international: 1,
+      nonInternational: 11,
+      internationalPct: 0,
+      avgCumulativeGPA: 3.13,
+      avgCumulativeCreditsEarned: 60.35,
+      topSchools: [{ label: 'CEA', count: 13, pctOfGroup: 100 }],
+      studentTypeMix: [{ label: 'Continuing', count: 11, pctOfGroup: 88.9 }],
+    });
+    expect(normalized.schoolInsights?.[0]).toEqual({
+      school: 'College of Arts & Sciences',
+      total: 20,
+      shareOfUndergradPct: 44.4,
+      international: 2,
+      nonInternational: 18,
+      internationalPct: 10,
+      avgCumulativeGPA: 3.01,
+      avgCumulativeCreditsEarned: 59.02,
+      activeMajorsCount: 8,
+      topMajors: [{ label: 'Biology', count: 9, pctOfGroup: 40.5 }],
+      studentTypeMix: [{ label: 'Transfer', count: 5, pctOfGroup: 26.1 }],
+    });
+  });
+
   test('preserves forecast semester values in both historical and forecast arrays', () => {
     const normalized = normalizeDatasetForecastResponse({
       datasetId: 'dataset-1',
