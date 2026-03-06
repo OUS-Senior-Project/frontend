@@ -870,6 +870,131 @@ describe('dashboard panel states', () => {
     ).toBeInTheDocument();
   });
 
+  test('MajorsPanel bounds FTIC cohort visuals by available semester years', () => {
+    render(
+      <MajorsPanel
+        data={{
+          datasetId: 'dataset-1',
+          analyticsRecords: [],
+          majorDistribution: [{ major: 'Biology', count: 100 }],
+          cohortRecords: [
+            {
+              major: 'Biology',
+              cohort: 'FTIC 2020',
+              cohortYear: 2020,
+              avgGPA: 3.1,
+              avgCredits: 14,
+              studentCount: 8,
+            },
+            {
+              major: 'Biology',
+              cohort: 'FTIC 2021',
+              cohortYear: 2021,
+              avgGPA: 3.2,
+              avgCredits: 15,
+              studentCount: 10,
+            },
+            {
+              major: 'Chemistry',
+              cohort: 'FTIC 2025',
+              cohortYear: 2025,
+              avgGPA: 3.3,
+              avgCredits: 16,
+              studentCount: 12,
+            },
+            {
+              major: 'History',
+              cohort: 'Unknown',
+              cohortYear: null,
+              avgGPA: 2.8,
+              avgCredits: 12,
+              studentCount: 4,
+            },
+          ],
+        }}
+        loading={false}
+        error={null}
+        onRetry={jest.fn()}
+        filters={{}}
+        onFiltersChange={jest.fn()}
+        academicPeriodOptions={[
+          'Spring 2025',
+          'Fall 2024',
+          'Spring 2024',
+          'Fall 2021',
+        ]}
+        schoolOptions={[]}
+        studentTypeOptions={[]}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('gpa-by-cohort:2')).toBeInTheDocument();
+    expect(screen.getByText('credits-by-cohort:2')).toBeInTheDocument();
+    expect(screen.getByText('Cohort rows: 2')).toBeInTheDocument();
+    expect(screen.getByText('gpa-by-major:4')).toBeInTheDocument();
+    expect(screen.getByText('credits-by-major:4')).toBeInTheDocument();
+  });
+
+  test('MajorsPanel keeps cohort visuals unfiltered when semester options do not include year values', () => {
+    render(
+      <MajorsPanel
+        data={{
+          datasetId: 'dataset-1',
+          analyticsRecords: [],
+          majorDistribution: [{ major: 'Biology', count: 100 }],
+          cohortRecords: [
+            {
+              major: 'Biology',
+              cohort: 'FTIC 2020',
+              cohortYear: 2020,
+              avgGPA: 3.1,
+              avgCredits: 14,
+              studentCount: 8,
+            },
+            {
+              major: 'Biology',
+              cohort: 'FTIC 2025',
+              cohortYear: 2025,
+              avgGPA: 3.2,
+              avgCredits: 15,
+              studentCount: 10,
+            },
+            {
+              major: 'History',
+              cohort: 'Unknown',
+              cohortYear: null,
+              avgGPA: 2.8,
+              avgCredits: 12,
+              studentCount: 4,
+            },
+          ],
+        }}
+        loading={false}
+        error={null}
+        onRetry={jest.fn()}
+        filters={{}}
+        onFiltersChange={jest.fn()}
+        academicPeriodOptions={['All Semesters', 'Current Term']}
+        schoolOptions={[]}
+        studentTypeOptions={[]}
+        readModelState="ready"
+        readModelStatus={null}
+        readModelError={null}
+        readModelPollingTimedOut={false}
+        onReadModelRetry={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('gpa-by-cohort:3')).toBeInTheDocument();
+    expect(screen.getByText('credits-by-cohort:3')).toBeInTheDocument();
+    expect(screen.getByText('Cohort rows: 3')).toBeInTheDocument();
+  });
+
   test('MajorsPanel hides filter panel when data is null', () => {
     render(
       <MajorsPanel

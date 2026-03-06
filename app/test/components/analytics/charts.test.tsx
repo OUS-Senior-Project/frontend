@@ -87,6 +87,14 @@ const cohortData: MajorCohortRecord[] = [
   },
 ];
 
+function truncateMajorLabel(value: string, maxLength = 44) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
 describe('analytics charts', () => {
   test('AnalyticsTrendChart renders with and without forecasts', () => {
     const { rerender } = render(<MetricsTrendChart data={trendData} />);
@@ -135,6 +143,49 @@ describe('analytics charts', () => {
     expect(
       screen.getByText('Average Credits Earned by Major and FTIC Cohort')
     ).toBeInTheDocument();
+  });
+
+  test('major analytics charts truncate long major labels in ranked summaries', () => {
+    const longMajor = 'Applied Computational Biochemistry and Molecular Pharmacology';
+    const longMajorData = [
+      { major: longMajor, count: 300 },
+      { major: 'Biology', count: 140 },
+    ];
+    const longCohortData: MajorCohortRecord[] = [
+      {
+        major: longMajor,
+        cohort: 'FTIC 2024',
+        cohortKey: 'FTIC_2024',
+        cohortYear: 2024,
+        avgGPA: 3.4,
+        avgCredits: 16,
+        studentCount: 160,
+      },
+      {
+        major: 'Biology',
+        cohort: 'FTIC 2024',
+        cohortKey: 'FTIC_2024',
+        cohortYear: 2024,
+        avgGPA: 3.1,
+        avgCredits: 14,
+        studentCount: 80,
+      },
+    ];
+
+    render(
+      <>
+        <MajorDistributionChart data={longMajorData} />
+        <AvgGPAByMajorChart data={longCohortData} />
+        <AvgCreditsByMajorChart data={longCohortData} />
+        <AvgGPAByCohortChart data={longCohortData} />
+        <AvgCreditsByCohortChart data={longCohortData} />
+      </>
+    );
+
+    const truncated = truncateMajorLabel(longMajor);
+    expect(
+      screen.getAllByText((content) => content.includes(truncated)).length
+    ).toBeGreaterThanOrEqual(5);
   });
 
   test('ForecastSection renders all forecast periods from long horizons', () => {

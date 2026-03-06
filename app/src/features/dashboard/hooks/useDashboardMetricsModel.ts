@@ -98,6 +98,11 @@ const SNAPSHOTS_PAGE_SIZE = 100;
 const DEFAULT_SNAPSHOT_COVERAGE_RANGE_DAYS = 14;
 const MAX_SNAPSHOT_COVERAGE_RANGE_DAYS = 366;
 const EMPTY_SNAPSHOT_ITEMS: SnapshotSummary[] = [];
+const ACADEMIC_PERIOD_TERM_ORDER: Record<string, number> = {
+  spring: 1,
+  summer: 2,
+  fall: 3,
+};
 
 export function parseSnapshotCoverageRangeDaysFromEnv(
   value: string | undefined
@@ -117,6 +122,21 @@ export function parseSnapshotCoverageRangeDaysFromEnv(
 const SNAPSHOT_COVERAGE_RANGE_DAYS = parseSnapshotCoverageRangeDaysFromEnv(
   process.env.NEXT_PUBLIC_SNAPSHOT_COVERAGE_RANGE_DAYS
 );
+
+function parseAcademicPeriodForSort(label: string) {
+  const trimmed = label.trim();
+  const match = trimmed.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (!match) {
+    return null;
+  }
+
+  const [, term, yearRaw] = match;
+  return {
+    label: trimmed,
+    year: Number.parseInt(yearRaw, 10),
+    termIndex: ACADEMIC_PERIOD_TERM_ORDER[term.toLowerCase()] ?? 0,
+  };
+}
 
 function subtractDays(date: Date, days: number) {
   const next = new Date(date);
@@ -1770,30 +1790,59 @@ export function useDashboardMetricsModel() {
 
   const majorsFilterOptions = useMemo(() => {
     const records = unfilteredMajorsState.data?.analyticsRecords ?? [];
+    const selectedEffectiveDate = selectedSnapshot?.effectiveDate;
     const semesterTuples: { label: string; year: number; termIndex: number }[] =
       [];
-    const seenSemesters = new Set<string>();
+    const seenAcademicPeriods = new Set<string>();
     const schools = new Set<string>();
     const studentTypes = new Set<string>();
 
-    const termOrder: Record<string, number> = {
-      spring: 1,
-      summer: 2,
-      fall: 3,
-    };
+    for (const snapshot of snapshotItems) {
+      const academicPeriod = snapshot.academicPeriod?.trim();
+      const effectiveDate = snapshot.effectiveDate;
+      if (!academicPeriod) {
+        continue;
+      }
+
+      if (!effectiveDate) {
+        continue;
+      }
+
+      if (selectedEffectiveDate && effectiveDate > selectedEffectiveDate) {
+        continue;
+      }
+
+      if (seenAcademicPeriods.has(academicPeriod)) {
+        continue;
+      }
+
+      const parsedAcademicPeriod = parseAcademicPeriodForSort(academicPeriod);
+      if (!parsedAcademicPeriod) {
+        continue;
+      }
+
+      seenAcademicPeriods.add(academicPeriod);
+      semesterTuples.push(parsedAcademicPeriod);
+    }
+
+    if (semesterTuples.length === 0) {
+      for (const record of records) {
+        const label = `${record.semester} ${record.year}`;
+        if (seenAcademicPeriods.has(label)) {
+          continue;
+        }
+
+        seenAcademicPeriods.add(label);
+        semesterTuples.push({
+          label,
+          year: record.year,
+          termIndex:
+            ACADEMIC_PERIOD_TERM_ORDER[record.semester.toLowerCase()] ?? 0,
+        });
+      }
+    }
 
     for (const record of records) {
-      if (record.semester) {
-        const label = `${record.semester} ${record.year}`;
-        if (!seenSemesters.has(label)) {
-          seenSemesters.add(label);
-          semesterTuples.push({
-            label,
-            year: record.year,
-            termIndex: termOrder[record.semester.toLowerCase()] ?? 0,
-          });
-        }
-      }
       if (record.school) {
         schools.add(record.school);
       }
@@ -1814,7 +1863,7 @@ export function useDashboardMetricsModel() {
       schoolOptions: Array.from(schools).sort(),
       studentTypeOptions: Array.from(studentTypes).sort(),
     };
-  }, [unfilteredMajorsState.data]);
+  }, [selectedSnapshot, snapshotItems, unfilteredMajorsState.data]);
 
   const dashboardViewState: DashboardViewState = getDashboardViewState(
     datasetState,

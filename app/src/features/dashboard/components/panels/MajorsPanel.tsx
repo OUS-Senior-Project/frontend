@@ -42,6 +42,30 @@ interface MajorsPanelProps {
   onReadModelRetry: () => void;
 }
 
+function parseAcademicPeriodYear(value: string): number | null {
+  const match = value.match(/\b(19|20)\d{2}\b/);
+  if (!match) {
+    return null;
+  }
+
+  return Number.parseInt(match[0], 10);
+}
+
+function selectCohortYearBounds(options: string[]) {
+  const years = options
+    .map(parseAcademicPeriodYear)
+    .filter((year): year is number => year !== null);
+
+  if (years.length === 0) {
+    return null;
+  }
+
+  return {
+    minYear: Math.min(...years),
+    maxYear: Math.max(...years),
+  };
+}
+
 function hasActiveFilters(filters: MajorsFilterValues): boolean {
   return (
     filters.academicPeriod !== undefined ||
@@ -68,6 +92,26 @@ function MajorsPanelComponent({
 }: MajorsPanelProps) {
   const majorData = useMemo(() => data?.majorDistribution ?? [], [data]);
   const cohortData = useMemo(() => data?.cohortRecords ?? [], [data]);
+  const cohortYearBounds = useMemo(
+    () => selectCohortYearBounds(academicPeriodOptions),
+    [academicPeriodOptions]
+  );
+  const cohortDataForFticCharts = useMemo(() => {
+    if (!cohortYearBounds) {
+      return cohortData;
+    }
+
+    return cohortData.filter((record) => {
+      if (record.cohortYear === null) {
+        return false;
+      }
+
+      return (
+        record.cohortYear >= cohortYearBounds.minYear &&
+        record.cohortYear <= cohortYearBounds.maxYear
+      );
+    });
+  }, [cohortData, cohortYearBounds]);
   const { totalMajors, averagePerMajor } = useMemo(() => {
     const total = majorData.length;
     const average = Math.round(
@@ -197,9 +241,9 @@ function MajorsPanelComponent({
                   <AvgGPAByMajorChart data={cohortData} />
                   <AvgCreditsByMajorChart data={cohortData} />
                 </div>
-                <AvgGPAByCohortChart data={cohortData} />
-                <AvgCreditsByCohortChart data={cohortData} />
-                <CohortSummaryTable data={cohortData} />
+                <AvgGPAByCohortChart data={cohortDataForFticCharts} />
+                <AvgCreditsByCohortChart data={cohortDataForFticCharts} />
+                <CohortSummaryTable data={cohortDataForFticCharts} />
               </>
             )}
           </main>

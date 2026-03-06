@@ -238,13 +238,28 @@ export function selectWeightedCreditsByMajor(data: MajorCohortRecord[]) {
 
 export function selectCohortRowsByMajor(
   data: MajorCohortRecord[],
-  metric: 'avgGPA' | 'avgCredits'
+  metric: 'avgGPA' | 'avgCredits',
+  limit?: number
 ) {
   const cohorts = selectCohortOptions(data);
-  const majors = Array.from(new Set(data.map((record) => record.major)));
+  const majorTotals = data.reduce<Record<string, number>>((acc, record) => {
+    acc[record.major] = (acc[record.major] ?? 0) + record.studentCount;
+    return acc;
+  }, {});
+  const sortedMajors = Object.entries(majorTotals)
+    .sort((left, right) => {
+      if (right[1] !== left[1]) {
+        return right[1] - left[1];
+      }
 
-  return majors.map((major) => {
-    const row: Record<string, string | number> = { major };
+      return left[0].localeCompare(right[0]);
+    })
+    .map(([major]) => major);
+  const majors =
+    typeof limit === 'number' ? sortedMajors.slice(0, limit) : sortedMajors;
+
+  return majors.map((major, index) => {
+    const row: Record<string, string | number> = { major, rank: index + 1 };
     cohorts.forEach((cohort) => {
       const match = data.find(
         (record) =>
